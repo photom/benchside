@@ -1,9 +1,10 @@
-import type { FromWorker, SkeletonReport, ToWorker } from './protocol.ts';
+import type { PartialReport } from '@benchside/mail';
+import type { FromWorker, ToWorker } from './protocol.ts';
 // ?worker&inline starts the worker from a blob: URL, so it inherits the page's CSP (0004).
 import AnalysisWorker from './worker.ts?worker&inline';
 
 export interface WorkerHost {
-  analyze(bytes: Uint8Array): Promise<SkeletonReport>;
+  analyze(bytes: Uint8Array): Promise<PartialReport>;
 }
 
 /** Starts the worker and keeps only the latest request's answer (detailed design §8). */
@@ -11,7 +12,7 @@ export function createWorkerHost(worker: Worker = new AnalysisWorker()): WorkerH
   let latest = 0;
   const pending = new Map<
     number,
-    { resolve: (r: SkeletonReport) => void; reject: (e: Error) => void }
+    { resolve: (r: PartialReport) => void; reject: (e: Error) => void }
   >();
 
   worker.onmessage = (event: MessageEvent<FromWorker>) => {

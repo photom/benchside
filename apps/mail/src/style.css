@@ -12,3 +12,21 @@ body {
 .drop[data-active="true"] {
   border-color: #06c;
 }
+
+.authres {
+  border-left: 4px solid #888;
+  padding-left: 1rem;
+}
+
+.authres[data-trusted="true"] {
+  border-left-color: #2a7;
+}
+
+.authres[data-trusted="false"] {
+  border-left-color: #c80;
+}
+
+.trust {
+  font-size: 0.8em;
+  font-weight: normal;
+}
