@@ -39,7 +39,7 @@ CI (`.github/workflows/ci.yml`) runs all of these and deploys `site/` to GitHub 
 
 ```mermaid
 flowchart LR
-  r[Requirement<br/>what + why] --> s[Specification<br/>rules with IDs] --> d[Design<br/>ADR, diagrams] --> t[Scenarios<br/>from rule IDs] --> c[TDD<br/>Red → Green → Refactor] --> v[Docs and code agree]
+  r[Requirement<br/>what + why] --> s[Specification<br/>rules with IDs] --> d[Design<br/>ADR, diagrams] --> t[Scenarios<br/>from rule IDs] --> c[TDD<br/>Red → Green → Refactor] --> v[Docs and code agree] --> rv[Review and fix<br/>before push]
 ```
 
 1. **Requirement**: record the need in `docs/explanation/requirements/` (ADR-like).
@@ -48,6 +48,7 @@ flowchart LR
 4. **Scenarios**: derive Given / When / Then scenarios from the spec rule IDs and the requirement's acceptance criteria.
 5. **Implement with TDD**: Red → Green → Refactor.
 6. **Check docs and code agree**: if behavior changed along the way, update the spec in the same change.
+7. **Review before push**: review the whole diff (the `code-review` skill) and fix what it finds. Rerun `npm run check` and the build checks. Only then commit and push.
 
 Requirements and specifications are different documents. Never mix them.
 
