@@ -268,6 +268,11 @@ describe('DKIM: key', () => {
     expect([r?.result, ids(r)]).toEqual(['permerror', ['dkim.key-too-short']]);
   });
 
+  it('DKIM-10: given several key records where the first that parses is revoked, when verified, then both dkim.multiple-keys and dkim.key-revoked are reported', async () => {
+    const [r] = await verify(await sign(rsa), [rawRecord('v=DKIM1; p='), record(rsa)]);
+    expect([r?.result, ids(r)]).toEqual(['permerror', ['dkim.multiple-keys', 'dkim.key-revoked']]);
+  });
+
   it('DKIM-10: given several key records, when verified, then the first that parses is used with dkim.multiple-keys', async () => {
     const [r] = await verify(await sign(rsa), [rawRecord('not a key'), record(rsa)]);
     expect([r?.result, ids(r)]).toEqual(['pass', ['dkim.multiple-keys']]);
