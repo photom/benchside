@@ -30,7 +30,7 @@ flowchart TD
 |---|---|
 | ENV-1 | Try the RFC 5321 §4.4 grammar first: `from` Extended-Domain, `by`, optional `via` / `with` / `id` / `for`, `;` date-time. Comments may appear between clauses. A `from` clause without TCP-info yields no client IP, so it counts as a grammar failure. |
 | ENV-2 | If the grammar fails, apply the heuristics below in order. The first match wins. |
-| ENV-3 | The date-time is the text after the last `;`, parsed per RFC 5322 §3.3. Unparsable: no time for this field. |
+| ENV-3 | The date-time is the text after the last `;` outside comments and quoted strings, parsed per RFC 5322 §3.3 and §4.3 (unknown alphabetic zones count as `-0000`). A missing zone, a year before 1900, or an impossible date: no time for this field. |
 | ENV-4 | Each parsed field records `confidence`: `grammar`, `heuristic`, or `none`. |
 | ENV-16 | The `by` host is the first atom after the first `by` keyword that follows the `from` keyword's domain, whatever the confidence. A sender's HELO name `by` is never taken as the keyword. Used by [AR-4](authres.md#trust). |
 
@@ -73,7 +73,7 @@ Heuristics (examples are synthetic):
 | ID | Rule |
 |---|---|
 | TIME-1 | Options: `received` (boundary field's date-time), `date` (the `Date` field), `now`. |
-| TIME-2 | Default `received`. If unavailable, `now`, with `envelope.time-fallback` (info). |
+| TIME-2 | Default `received`. If unavailable, `now`, with `envelope.time-fallback` (info) pointing at the boundary field. With no boundary (no `Received` field), `now` is used without a finding. `date` without a parsable `Date` field also falls back to `now`, with the finding pointing at the `Date` field if there is one. |
 | TIME-3 | Used by DKIM `t=`/`x=`, DKIM2 `t=`, and ARC `t=`. |
 
 ## Findings

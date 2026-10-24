@@ -13,7 +13,7 @@ classDiagram
     envelope: Envelope
     summary: SummaryLine[]
     spf: SpfReport
-    dkim: MethodReport[]
+    dkim: DkimSignatureReport[]
     dkim2: MethodReport
     dmarc: DmarcReport
     arc: MethodReport
@@ -27,6 +27,28 @@ classDiagram
     reason?: string
     trace: TraceNode
     findingIds: string[]
+  }
+  class DkimSignatureReport {
+    field: number
+    result: string | "not-evaluated"
+    reason?: string
+    d?: string
+    s?: string
+    keyQueryId?: string
+    trace: DkimTrace
+    findingIds: string[]
+  }
+  class DkimTrace {
+    tags: string[][]
+    selectedHeaders: number[]
+    headerData?: string
+    body?: DkimBodyTrace
+  }
+  class DkimBodyTrace {
+    canonical: string
+    length: number
+    computed: string
+    expected: string
   }
   class SpfReport {
     mailFrom: MethodReport
@@ -78,6 +100,9 @@ classDiagram
     dns(queryId)
   }
   Report --> MethodReport
+  Report --> DkimSignatureReport
+  DkimSignatureReport --> DkimTrace
+  DkimTrace --> DkimBodyTrace
   Report --> SpfReport
   Report --> DmarcReport
   Report --> SummaryLine

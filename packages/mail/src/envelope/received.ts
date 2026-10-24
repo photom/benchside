@@ -2,6 +2,7 @@ import type { HeaderField } from '../message/headers.ts';
 import type { Finding } from '../shared/findings.ts';
 import { parseIp } from '../shared/ip.ts';
 import { isAtom, type Token, tokenize } from '../shared/rfc5322-tokens.ts';
+import { parseDateTime } from './date.ts';
 
 export type ReceivedRule = 'ENV-1' | 'H1' | 'H2' | 'H3' | 'H4' | 'H5';
 
@@ -15,6 +16,8 @@ export interface ParsedReceived {
   readonly clientIp?: string;
   /** First atom after `by` (ENV-16). */
   readonly by?: string;
+  /** The date-time after the last `;` (ENV-3). */
+  readonly date?: Date;
 }
 
 /** Parses every `Received` field, top to bottom (ENV-1..4). */
@@ -51,7 +54,9 @@ export function parseReceived(field: number, value: string): ParsedReceived {
   const lastSemi = all.findLastIndex((t) => t.kind === 'special');
   const clauses = lastSemi < 0 ? all : all.slice(0, lastSemi);
   const by = byHost(clauses);
-  const base = by === undefined ? { field } : { field, by };
+  const semi = lastTopLevelSemicolon(value);
+  const date = semi < 0 ? null : parseDateTime(value.slice(semi + 1));
+  const base = { field, ...(by === undefined ? {} : { by }), ...(date ? { date } : {}) };
 
   const grammar = lastSemi < 0 ? null : parseGrammar(clauses);
   if (grammar) return { ...base, confidence: 'grammar', rule: 'ENV-1', ...grammar };
@@ -210,4 +215,21 @@ function byHost(tokens: readonly Token[]): string | undefined {
   const i = tokens.findIndex((t, j) => j >= start && isAtom(t, 'by'));
   const next = i < 0 ? undefined : tokens.slice(i + 1).find((t) => t.kind !== 'comment');
   return next?.kind === 'atom' ? next.text : undefined;
+}
+
+/** Offset of the last `;` outside comments and quoted strings, or -1 (ENV-3). */
+function lastTopLevelSemicolon(value: string): number {
+  let last = -1;
+  let depth = 0;
+  let quoted = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === '\\') i++;
+    else if (quoted) quoted = c !== '"';
+    else if (c === '"') quoted = true;
+    else if (c === '(') depth++;
+    else if (c === ')' && depth > 0) depth--;
+    else if (c === ';' && depth === 0) last = i;
+  }
+  return last;
 }
