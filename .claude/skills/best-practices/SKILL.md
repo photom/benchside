@@ -11,11 +11,12 @@ When in doubt, follow the official documentation of each product. This page cove
 
 - Never send user file contents anywhere. Do not add `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, or external images or fonts. No analytics, no CDNs.
 - The only outbound traffic is DoH (domain names only), and users can turn it off.
-- Keep the CSP meta tag on every page. Any change that widens the allowlist needs a rationale in docs/explanation, and the README must be updated to match.
+- Every app has a CSP, injected into `index.html` at build time by our Vite plugin (not in dev mode, where Vite uses inline styles). Give each app the least it needs: `connect-src 'none'` by default; only the mail app allows `https://cloudflare-dns.com https://dns.google`. A test checks every built `index.html` for the expected policy.
   ```html
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src https://cloudflare-dns.com https://dns.google; img-src 'self' blob: data:; object-src 'none'">
+        content="default-src 'self'; connect-src 'none'; img-src 'self' blob: data:; object-src 'none'">
   ```
+- Any change that widens an app's CSP needs a rationale in docs/explanation, and the README and privacy model must be updated to match.
 - Do not persist file contents in `localStorage` or similar.
 
 ## Dependencies
@@ -52,9 +53,11 @@ When in doubt, follow the official documentation of each product. This page cove
 
 ## Vite / build / CI
 
-- Multi-page build (one HTML per tool in `build.rollupOptions.input`). Set `base` to the GitHub Pages path.
+- One Vite app per tool under `apps/`, linked by npm workspaces. Each app's `vite.config.ts` stays short; shared settings (`base` = `/benchside/<tool>/`, the CSP plugin) come from one helper.
+- Packages are consumed as TypeScript source through workspaces; no separate build step for packages unless needed.
+- Use `new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })` so Vite bundles workers.
 - No inline scripts, so the CSP never has to be loosened.
-- CI (GitHub Actions): `npm ci` → type check (`tsc --noEmit`) → lint → `vitest run` → build → deploy to Pages. Pin actions by commit SHA and keep `permissions` minimal.
+- CI (GitHub Actions): `npm ci` → type check (`tsc --noEmit`) → lint → `vitest run` → build all apps → collect each `apps/*/dist` into one directory → deploy to Pages. Pin actions by commit SHA and keep `permissions` minimal.
 - Publishing source maps is fine (the code is public anyway).
 
 ## Code conventions

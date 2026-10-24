@@ -8,11 +8,18 @@ Every file you open is read in your browser with the File API and parsed by Java
 
 ## What leaves your machine
 
-Email authentication (DKIM, SPF, DMARC, ARC) needs DNS records. benchside fetches them over DNS-over-HTTPS. These requests contain domain names only, never message contents. You can turn DNS lookups off; the affected checks are then reported as not evaluated.
+Email authentication (DKIM, SPF, DMARC, ARC) needs DNS records. benchside fetches them over DNS-over-HTTPS. These requests contain domain names only, never message contents. The DNS-over-HTTPS provider can still see which domains and DKIM selectors are looked up. You can turn DNS lookups off; the affected checks are then reported as not evaluated.
 
 ## How this is enforced
 
-A promise in a README is easy to break by accident. Each page therefore carries a Content Security Policy that restricts network connections to the DNS-over-HTTPS endpoints:
+A promise in a README is easy to break by accident. Each tool therefore carries a Content Security Policy that limits where it can connect. Tools that need no network, such as the ZIP and PDF tools, cannot connect anywhere:
+
+```html
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'none'; img-src 'self' blob: data:; object-src 'none'">
+```
+
+The mail tool can connect only to the DNS-over-HTTPS endpoints:
 
 ```html
 <meta http-equiv="Content-Security-Policy"

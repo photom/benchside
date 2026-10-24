@@ -8,7 +8,7 @@ benchside is a set of browser-only tools that parse untrusted binary and text fo
 
 - **TypeScript** for all code. Binary parsing bugs are mostly mixed-up offsets and field widths; types help catch them.
 - **Parsers as DOM-independent packages** (`packages/zip`, `packages/pdf`, `packages/mail`). They take bytes and return plain data (a structure tree plus diagnostics), so they can be tested in Node.
-- **Vite** with a multi-page build: one HTML entry and bundle per tool.
+- **Vite** with a multi-page build: one HTML entry and bundle per tool. (Superseded by [0002](0002-one-app-per-tool.md): one Vite app per tool.)
 - **Preact** for the UI: React-compatible API with a small footprint.
 - **vitest** for tests, run in Node for parsers.
 - **Minimal runtime dependencies.** Parsers are written in-house; the browser provides decompression (`DecompressionStream`) and cryptography (Web Crypto).
