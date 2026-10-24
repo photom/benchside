@@ -1,15 +1,81 @@
 # DNS
 
-| ID | Requirement |
-|---|---|
-| DNS-1 | Looks up records with DNS-over-HTTPS using the JSON API. Providers: Cloudflare (`https://cloudflare-dns.com/dns-query`, default) and Google (`https://dns.google/resolve`). |
-| DNS-2 | Queries contain only the record name and type. No other data from the message is sent. |
-| DNS-3 | Offline mode sends no queries. In offline mode the user can enter TXT records by hand; checks that need a missing record are reported as not evaluated. |
-| DNS-4 | Every query is logged with name, type, provider, response code, answers, AD (DNSSEC authenticated data) flag, and time taken. Each check links to the queries it used. |
-| DNS-5 | TXT records made of several strings are joined without separators before parsing (RFC 7208 §3.3, RFC 6376 §3.6.2.2). |
-| DNS-6 | A query that times out (5 seconds) or returns SERVFAIL is a temporary error. NXDOMAIN and empty answers are distinguished. |
-| DNS-7 | Answers are cached for the current session only, and are never stored. |
-| DNS-8 | The report states that DNS answers reflect the records at the time of analysis, not at delivery time. |
-| DNS-9 | The page's Content Security Policy allows connections to the two providers only. |
+## Resolver contract
 
-Note: the DoH provider can see which domains and DKIM selectors are queried. This is stated in the [privacy model](../../explanation/privacy-model.md).
+```mermaid
+classDiagram
+  class Resolver {
+    <<function>>
+    (query: DnsQuery, signal: AbortSignal) Promise~DnsAnswer~
+  }
+  class DnsQuery {
+    name: string
+    type: "TXT" | "A" | "AAAA" | "MX" | "PTR"
+    sensitivity: "domain" | "sensitive"
+    purpose: string
+  }
+  class DnsAnswer {
+    rcode: "NOERROR" | "NXDOMAIN" | "SERVFAIL" | "TIMEOUT" | "BUDGET" | "BLOCKED" | "OFFLINE"
+    records: string[]
+    authenticated: boolean
+    queryId: string
+  }
+  Resolver --> DnsQuery
+  Resolver --> DnsAnswer
+```
+
+| ID | Rule |
+|---|---|
+| DNS-1 | Checks call only the `Resolver`. They never call `fetch`. |
+| DNS-2 | `NOERROR` with zero records is NODATA. NODATA and `NXDOMAIN` are distinct. |
+| DNS-3 | `SERVFAIL`, `TIMEOUT` (5 s), `BUDGET` (DNS-13): the caller's result is `temperror`. |
+| DNS-4 | `BLOCKED` (DNS-9) and `OFFLINE` (DNS-12): the caller's result is `not-evaluated`. |
+
+## Layers
+
+```mermaid
+flowchart LR
+  check[Check] --> budget[Budget<br/>DNS-13] --> policy[Query policy<br/>DNS-9..11] --> cache[Session cache<br/>DNS-14] --> log[Query log<br/>DNS-15] --> transport{Mode}
+  transport -->|online| doh[DoH transport<br/>DNS-5..8]
+  transport -->|offline| manual[Manual records<br/>DNS-12]
+```
+
+## DoH transport
+
+| ID | Rule |
+|---|---|
+| DNS-5 | JSON API. Cloudflare (default): `GET https://cloudflare-dns.com/dns-query?name=…&type=…` with `Accept: application/dns-json`. Google: `GET https://dns.google/resolve?name=…&type=…`. |
+| DNS-6 | No other parameters, headers, or cookies (`credentials: 'omit'`, `referrerPolicy: 'no-referrer'`). |
+| DNS-7 | TXT data arrives as one or more quoted strings. Unquote each, unescape, and join without separators (RFC 7208 §3.3, RFC 6376 §3.6.2.2). |
+| DNS-8 | `authenticated` is the response's `AD` flag. It is the provider's claim; benchside does not validate DNSSEC itself. |
+
+## Query policy
+
+| ID | Rule |
+|---|---|
+| DNS-9 | A query is `sensitive` if its name contains data beyond domain names from the message: an SPF macro expanding `%{l}`, `%{s}`, `%{i}`, `%{c}`, or `%{p}`; any `PTR` query; any reverse name (`in-addr.arpa`, `ip6.arpa`). |
+| DNS-10 | `sensitive` queries return `BLOCKED` unless the user allowed sensitive queries for this analysis. |
+| DNS-11 | Each blocked query is logged with the name it would have sent. |
+
+## Offline mode
+
+| ID | Rule |
+|---|---|
+| DNS-12 | No network requests. A query matching a user-entered record `(name, type)` returns it with `NOERROR`. Otherwise `OFFLINE`. |
+
+## Budget, cache, log
+
+| ID | Rule |
+|---|---|
+| DNS-13 | At most 200 queries per analysis, counted before the cache. Further queries return `BUDGET`, with `dns.budget-exhausted` (error). |
+| DNS-14 | Answers are cached in memory per `(provider, name, type)` until the page closes. Never persisted. |
+| DNS-15 | Every query is logged: `queryId`, name, type, sensitivity, purpose, rcode, records, `authenticated`, duration, cache hit. |
+
+## Findings
+
+| Finding | Severity | Condition |
+|---|---|---|
+| `dns.budget-exhausted` | error | Over 200 queries in one analysis |
+| `dns.blocked-sensitive` | info | A sensitive query was blocked |
+| `dns.unauthenticated` | info | An answer used for a result has `authenticated: false` |
+| `dns.answers-are-current` | info | Always present: answers reflect DNS now, not at delivery |

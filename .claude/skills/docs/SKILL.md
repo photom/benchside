@@ -26,17 +26,58 @@ Questions to ask when unsure:
 - Is the reader doing something with their hands? Yes → tutorials / how-to. No → reference / explanation.
 - Are they studying or working? Studying → tutorials / explanation. Working → how-to / reference.
 
+## Requirements, specifications, design
+
+They are different documents. Never mix them in one page.
+
+```mermaid
+flowchart LR
+  req["Requirement<br/>explanation/requirements/<br/>what + why"] -- "specified by" --> spec["Specification<br/>reference/&lt;tool&gt;/<br/>exact behavior"]
+  req -- "constrains" --> adr["Design decision<br/>explanation/decisions/<br/>how + why"]
+  spec -- "rule IDs → scenarios" --> test[Tests]
+  req -- "acceptance criteria" --> test
+```
+
+| | Requirement | Specification | Design decision |
+|---|---|---|---|
+| Answers | What do users need? Why? | Exactly how does it behave? | How is it built? Why this way? |
+| Location | `explanation/requirements/REQ-<TOOL>-NNN-title.md` | `reference/<tool>/*.md` | `explanation/decisions/NNNN-title.md` |
+| Contains | Need, Requirement, Rationale, Alternatives rejected, Acceptance, Specified in, Status | Rules with IDs (`SPF-5`), inputs, outputs, algorithms, limits, error handling, findings, data formats | Context, Decision, Consequences |
+| Does not contain | Algorithms, limits, field formats | Reasons, user stories, UI wishes | Behavior rules |
+
+Requirement template:
+
+```markdown
+# REQ-MAIL-NNN: Title
+Status: Proposed | Accepted | Superseded by REQ-…
+## Need          — who needs it and why (diagram if useful)
+## Requirement   — a few short "must" statements
+## Rationale     — why this
+## Alternatives rejected — table
+## Acceptance    — observable criteria
+## Specified in  — links to reference pages
+```
+
+Specification rules:
+
+- Every rule has a stable ID. Tests cite it. Never reuse a retired ID.
+- State the result for every error path. "Not evaluated" always has a reason.
+- Cite the standard's section for each rule taken from it. Do not cite sections you have not read.
+
 ## What to write before implementing a feature
 
-1. **Reference**: the behavioral spec. For example, for each ZIP check: detection condition, severity, and reported message. This feeds the TDD scenarios directly.
-2. **Explanation** (when a design decision is involved): why this approach, the alternatives, the trade-offs. Decision records go in `docs/explanation/decisions/NNNN-title.md` (sequential number; sections Context / Decision / Consequences).
-3. **How-to** (when users gain a new action): how to use it.
-4. Tutorials come once the feature is stable.
+1. **Requirement** (new need or scope change): an `REQ-*` record.
+2. **Specification**: the rules the code must follow. Tests come from these.
+3. **Design decision** (when a choice between approaches is involved): an ADR.
+4. **How-to** (when users gain a new action).
+5. Tutorials come once the feature is stable.
 
-Add every new page to the index in `docs/README.md`, except decision records: the index links only to the `decisions/` folder.
+Add every new page to the index in `docs/README.md`, except decision records and requirement records: the index links only to their folders. `explanation/requirements/README.md` lists every requirement with its status.
 
 ## Style
 
+- **Diagrams first.** Use Mermaid for structure, flow, relationships, sequences, and states. Use prose only for what a diagram cannot say.
+- **Short sentences.** One idea per sentence. No paragraph longer than three sentences. Prefer tables and lists.
 - One topic per file. File names in kebab-case.
 - Headings follow the reader's task or question ("How to …" for how-to, the subject's name for reference).
 - When describing binary formats, give offset, size, and endianness in a table, and cite the source (APPNOTE.TXT section, ISO 32000 clause, RFC number).

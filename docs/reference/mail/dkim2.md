@@ -1,42 +1,98 @@
 # DKIM2
 
-Standards: [draft-ietf-dkim-dkim2-spec-07](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-07) and [draft-ietf-dkim-dkim2-dns-02](https://datatracker.ietf.org/doc/draft-ietf-dkim-dkim2-dns/).
+Standard: [draft-ietf-dkim-dkim2-spec-07](https://datatracker.ietf.org/doc/html/draft-ietf-dkim-dkim2-spec-07). Key records: [draft-ietf-dkim-dkim2-dns-02](https://datatracker.ietf.org/doc/draft-ietf-dkim-dkim2-dns/).
 
-**Experimental.** DKIM2 is an Internet-Draft and changes between revisions. This page is pinned to the revisions above. The report labels DKIM2 results as experimental and states the draft revision.
+**Experimental. Pinned to draft-07.** Every DKIM2 result carries `draft: "draft-ietf-dkim-dkim2-spec-07"`.
 
-## Parsing
+## Procedure (draft §14)
 
-| ID | Requirement |
+```mermaid
+flowchart TD
+  hv[14.2 Header validation<br/>DKIM2-1..5] -->|error| perm[permerror]
+  hv --> ts[14.3 Timestamps<br/>DKIM2-6] -->|error| perm
+  ts --> coc[14.4 Chain of custody<br/>DKIM2-7..9] -->|error| fail[fail]
+  coc --> key[14.5 Keys<br/>DKIM2-10..11] -->|DNS error| temp[temperror]
+  key -->|bad key| perm
+  key --> sig[14.6 Signatures<br/>DKIM2-12] -->|all fail| fail
+  sig --> hash[14.7 Hashes + recipes<br/>DKIM2-13..15] -->|mismatch| fail
+  hash --> from[14.8 From authenticity<br/>DKIM2-16] -->|mismatch| fail
+  from --> pass[pass]
+```
+
+Results: `none` (no DKIM2 fields), `pass`, `fail`, `permerror`, `temperror`, `not-evaluated`. Plus stage: `provisionally-verified` or `validly-signed` (DKIM2-17).
+
+## Header validation
+
+| ID | Rule |
 |---|---|
-| DKIM2-1 | Parses `Message-Instance` fields (`m=`, `h=`, `r=`) and `DKIM2-Signature` fields (`i=`, `m=`, `t=`, `mf=`, `rt=`, `nd=`, `d=`, `s=`, `f=`, `n=`). |
-| DKIM2-2 | A tag list with a duplicate tag name is invalid (`permerror`). Unknown tags are ignored. |
-| DKIM2-3 | Missing required tags give `permerror`. Required: `m=` and `h=` in `Message-Instance`; `i=`, `m=`, `t=`, `d=`, `s=`, and either `nd=` or both `mf=` and `rt=` in `DKIM2-Signature`. |
-| DKIM2-4 | `i=` and `m=` numbering must start at 1 and have no gaps (`permerror`). |
+| DKIM2-1 | `Message-Instance` tags: `m` (required), `h` (required), `r`. `DKIM2-Signature` tags: `i`, `m`, `t`, `d`, `s` (required); `mf`+`rt` or `nd` (exactly one form); `f`, `n`. |
+| DKIM2-2 | Duplicate tag in one field, or missing required tag: `permerror`, `dkim2.syntax`. Unknown tags ignored. |
+| DKIM2-3 | `i` and `m` values start at 1 with no gaps. Highest `Message-Instance` `m` ≤ highest signature `m`. Violation: `permerror`, `dkim2.numbering`. |
+| DKIM2-4 | In `h`: a hash algorithm repeated. In `s`: a selector repeated, or one signing algorithm used more than twice. Violation: `permerror`, `dkim2.syntax`. |
+| DKIM2-5 | `r` is base64 JSON with keys `h` and `b`. Undecodable: `permerror`, `dkim2.recipe-invalid`. |
 
-## Verification
+## Timestamps
 
-| ID | Requirement |
+| ID | Rule |
 |---|---|
-| DKIM2-5 | Supports `rsa-sha256` and `ed25519-sha256`, and the hash algorithms `sha256` and `sha512`. |
-| DKIM2-6 | `mldsa44-ed25519-sha512` signatures are reported with `dkim2.unsupported-algorithm` and are not evaluated. Browsers' Web Crypto does not yet provide ML-DSA. |
-| DKIM2-7 | Computes header and body hashes as the draft defines and compares them with the highest `Message-Instance`. |
-| DKIM2-8 | Applies the recipes in `r=` from the highest `Message-Instance` downwards to rebuild earlier versions of the message, and checks each version's hashes. A body recipe of `null` means the earlier body cannot be rebuilt; the earlier body hash is then not evaluated. |
-| DKIM2-9 | Shows the changes made at each hop as a diff between rebuilt versions. |
-| DKIM2-10 | Verifies the cryptographic signature of every `DKIM2-Signature`. Keys are looked up at `<selector>._domainkey.<d=>`, and the key's algorithm must match the algorithm in `s=`. |
-| DKIM2-11 | Checks the chain of custody: `mf=` and `rt=` between consecutive signatures, `nd=`, and `d=` against the `mf=` domain, using the draft's relaxed domain match. |
-| DKIM2-12 | Checks the highest signature's `mf=` and `rt=` against the [delivery details](input.md#delivery-details). If they are not available, this check is not evaluated. |
-| DKIM2-13 | Checks that the `From` domain relaxed-matches the `d=` of the relevant signature, as the draft defines. |
-| DKIM2-14 | Reports two stages: provisionally verified (the highest signature and the highest `Message-Instance` hashes verify) and validly signed (all checks pass). |
-| DKIM2-15 | Results: `pass`, `fail`, `permerror`, `temperror`, or not evaluated. |
+| DKIM2-6 | For each signature, against the [reference time](envelope.md#reference-time): `t` more than 14 days earlier → `permerror`, `dkim2.expired`; more than 1 day later → `permerror`, `dkim2.future`. |
+
+## Chain of custody
+
+| ID | Rule |
+|---|---|
+| DKIM2-7 | For `i` = 2…N in order: if `mf` is non-null, it relaxed-matches an `rt` address of signature `i-1`; if null, `d` relaxed-matches an `rt` address of `i-1`. If `i-1` has `nd`, `d` equals it exactly. Violation: `fail`, `dkim2.custody-broken`. |
+| DKIM2-8 | For each signature with non-null `mf` and no `nd`: `d` relaxed-matches the `mf` domain. Violation: `fail`, `dkim2.custody-broken`. |
+| DKIM2-9 | Signature N against [delivery details](envelope.md): MAIL FROM equals `mf`; every RCPT TO appears in `rt`. Local parts exact; domains case-insensitive. Violation: `fail`, `dkim2.envelope-mismatch`. Delivery details missing: this rule `not-evaluated`; stage at most `provisionally-verified`. |
+
+Relaxed match: compare case-insensitively; on mismatch drop the leftmost label of the first argument and retry; stop when no dot remains. Domain literals never match.
+
+## Keys and signatures
+
+| ID | Rule |
+|---|---|
+| DKIM2-10 | Query TXT `<selector>._domainkey.<d>`. Timeout or SERVFAIL: `temperror`. Absent, several records, syntax error, revoked, or algorithm mismatch: `permerror`, `dkim2.key`. Key `h=` is ignored. |
+| DKIM2-11 | Algorithms: `rsa-sha256` (RSA ≥ 1024 bits), `ed25519-sha256`. `mldsa44-ed25519-sha512`: that selector `not-evaluated`, `dkim2.unsupported-algorithm`. |
+| DKIM2-12 | Signature input as the draft defines: all `Message-Instance` (ascending `m`), then all `DKIM2-Signature` (ascending `i`), signature values emptied. Verify every supported selector of every signature. Any failure: `dkim2.signature-mismatch`; all checkable selectors fail: `fail`. |
+
+## Hashes and recipes
+
+| ID | Rule |
+|---|---|
+| DKIM2-13 | Header hash as the draft defines: drop ignored fields and all DKIM2 fields, lowercase names, unfold, collapse WSP, sort by name (same names bottom-up). Body hash: DKIM `simple` body canonicalization. |
+| DKIM2-14 | Compare with the highest `Message-Instance`. Any listed hash algorithm failing: `fail`, `dkim2.hash-mismatch`. Header-only input: body hash `not-evaluated`. |
+| DKIM2-15 | Apply recipes from the highest instance down to rebuild each earlier version and check its hashes. `b: null` → that body and earlier ones `not-evaluated`. Each rebuilt version is kept for diff display. Recipe steps per version capped at 10 000; over the cap: `dkim2.recipe-too-complex`, `not-evaluated`. |
+
+## From authenticity
+
+| ID | Rule |
+|---|---|
+| DKIM2-16 | The current `From` domain, and each earlier `From` shown by recipes, relaxed-matches the `d` of the relevant signature, as the draft defines. A `From` with several addresses or a domain literal: `fail`, `dkim2.from-mismatch`. |
+
+## Stages
+
+| ID | Rule |
+|---|---|
+| DKIM2-17 | `provisionally-verified`: signature N verifies and the highest instance's hashes match. `validly-signed`: all rules pass. |
+
+## Out of scope
+
+- `f=exploded` and replay detection (draft §15): shown as raw flags only.
+- Comparing with `Authentication-Results` (method defined in a separate draft): `not-evaluated`.
 
 ## Findings
 
-| ID | Severity | Condition |
-|---|---|---|
-| `dkim2.unsupported-algorithm` | info | An algorithm in `s=` is not supported |
-| `dkim2.numbering-gap` | error | A gap in `i=` or `m=` numbering |
-| `dkim2.hash-mismatch` | error | A header or body hash does not match |
-| `dkim2.recipe-invalid` | error | A recipe cannot be decoded or applied |
-| `dkim2.custody-broken` | error | The chain of custody check fails |
-| `dkim2.envelope-mismatch` | error | The highest signature does not match the delivery details |
-| `dkim2.from-mismatch` | error | The `From` domain does not match the relevant `d=` |
+| Finding | Severity |
+|---|---|
+| `dkim2.syntax` | error |
+| `dkim2.numbering` | error |
+| `dkim2.recipe-invalid` | error |
+| `dkim2.recipe-too-complex` | warning |
+| `dkim2.expired` / `dkim2.future` | error |
+| `dkim2.custody-broken` | error |
+| `dkim2.envelope-mismatch` | error |
+| `dkim2.key` | error |
+| `dkim2.unsupported-algorithm` | info |
+| `dkim2.signature-mismatch` | error |
+| `dkim2.hash-mismatch` | error |
+| `dkim2.from-mismatch` | error |

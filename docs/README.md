@@ -11,9 +11,13 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 
 ## Reference
 
-- [Mail analyzer](reference/mail/) — supported standards, checks, and findings
+- [Mail analyzer specification](reference/mail/) — exact behavior, rules, findings, and data model
 
 ## Explanation
 
+- [Requirements](explanation/requirements/) — what users need and why
+
 - [Privacy model](explanation/privacy-model.md) — what stays on your machine, and what does not
+- [Architecture](explanation/architecture.md) — apps, packages, build, deploy, and tests
+- [Mail analyzer architecture](explanation/mail-architecture.md) — modules, data flow, and key types
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made
