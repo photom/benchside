@@ -63,6 +63,6 @@ When in doubt, follow the official documentation of each product. This page cove
 
 ## Code conventions
 
-- Leave formatting and linting to the tools (follow the Prettier / ESLint config; don't debate by hand).
+- Leave formatting and linting to Biome (`npm run format`); don't debate style by hand. Biome does not touch Markdown (it breaks skill frontmatter).
 - Comments explain why. Cite the source for spec-derived values (e.g. `// APPNOTE 4.3.16`).
 - Small commits, one purpose per commit.
