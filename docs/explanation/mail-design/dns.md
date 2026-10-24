@@ -94,4 +94,5 @@ sequenceDiagram
 |---|---|
 | `dns.budget-exhausted` | Any entry with `BUDGET` |
 | `dns.blocked-sensitive` | Any entry with `BLOCKED` |
-| `dns.unauthenticated`, `dns.answers-are-current` | Added by checks and the report builder, which know which answers were used |
+| `dns.unauthenticated` | `analyze`: the `NOERROR`/`NXDOMAIN` answers a check used (for DKIM, each signature's key query) that are not `authenticated` |
+| `dns.answers-are-current` | `analyze`: `NOERROR`/`NXDOMAIN` entries when the source is not `offline` |

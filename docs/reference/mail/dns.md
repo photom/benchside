@@ -80,5 +80,5 @@ flowchart LR
 |---|---|---|
 | `dns.budget-exhausted` | error | Over 200 queries in one analysis |
 | `dns.blocked-sensitive` | info | A sensitive query was blocked |
-| `dns.unauthenticated` | info | An answer used for a result has `authenticated: false` |
-| `dns.answers-are-current` | info | Always present: answers reflect DNS now, not at delivery |
+| `dns.unauthenticated` | info | A `NOERROR` or `NXDOMAIN` answer used for a result has `authenticated: false`. One finding; its evidence lists those queries |
+| `dns.answers-are-current` | info | At least one `NOERROR` or `NXDOMAIN` answer came from live DNS (not offline mode): answers reflect DNS now, not at delivery. Its evidence lists those queries |

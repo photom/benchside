@@ -125,7 +125,7 @@ sequenceDiagram
   V-->>V: result + trace + findings
 ```
 
-- Signatures are verified concurrently (`Promise.all` over at most 20).
+- Signatures are verified concurrently (`Promise.all` over at most 20). Each is guarded on its own (REP-7, REP-8): a throw gives `internal-error`, the deadline (`TimeoutError` on the signal) gives `timeout`, and the caller's cancel (`AbortError`) propagates.
 - `rsa-sha1`: crypto still runs, so the trace shows "valid but not acceptable".
 
 ## Key parsing (`fetchKey`)

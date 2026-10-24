@@ -139,8 +139,11 @@ flowchart LR
 // index.ts
 export function analyze(input: Uint8Array, options: AnalyzeOptions, deps: {
   transport: Transport;                  // doh.ts in the app; offline/fake in tests
+  source: string;                        // 'cloudflare' | 'google' | 'offline' (DNS-14 cache key)
   cache: DnsCache;                       // survives across analyses in one session
-  signal: AbortSignal;
+  signal: AbortSignal;                   // caller's cancel; aborting rejects with AbortError
+  now?: Date;                            // tests only; default new Date()
+  deadlineMs?: number;                   // tests only; default 60 000 (REP-8)
 }): Promise<Report>;
 
 // check signatures
