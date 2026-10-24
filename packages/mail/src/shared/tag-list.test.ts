@@ -33,12 +33,13 @@ describe('tag lists (RFC 6376 §3.2)', () => {
   });
 
   it('DKIM-2: given a control character in a value, when parsed, then an error is reported', () => {
-    expect(parseTagList('a=b\u0001c').errors).toHaveLength(1);
+    expect(parseTagList(`a=b${String.fromCharCode(0x01)}c`).errors).toHaveLength(1);
   });
 
   it('DKIM-2: given VT, FF, or NBSP around a value or name, when parsed, then it is an error, not trimmed', () => {
-    expect(parseTagList('a=b\u000b').errors).toHaveLength(1);
-    expect(parseTagList('a=b\u000c').errors).toHaveLength(1);
-    expect(parseTagList(' v=1').errors).toHaveLength(1);
+    expect(parseTagList(`a=b${String.fromCharCode(0x0b)}`).errors).toHaveLength(1);
+    expect(parseTagList(`a=b${String.fromCharCode(0x0c)}`).errors).toHaveLength(1);
+    const nbsp = String.fromCharCode(0xa0);
+    expect(parseTagList(`${nbsp}v=1`).errors).toHaveLength(1);
   });
 });
