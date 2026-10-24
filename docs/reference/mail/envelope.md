@@ -32,7 +32,7 @@ flowchart TD
 | ENV-2 | If the grammar fails, apply the heuristics below in order. The first match wins. |
 | ENV-3 | The date-time is the text after the last `;`, parsed per RFC 5322 §3.3. Unparsable: no time for this field. |
 | ENV-4 | Each parsed field records `confidence`: `grammar`, `heuristic`, or `none`. |
-| ENV-16 | The `by` host is the first atom after the `by` keyword, whatever the confidence. Used by [AR-4](authres.md#trust). |
+| ENV-16 | The `by` host is the first atom after the first `by` keyword that follows the `from` keyword's domain, whatever the confidence. A sender's HELO name `by` is never taken as the keyword. Used by [AR-4](authres.md#trust). |
 
 Heuristics (examples are synthetic):
 
@@ -46,6 +46,7 @@ Heuristics (examples are synthetic):
 
 | ID | Rule |
 |---|---|
+| ENV-17 | IPv4 octets are decimal, 1 to 3 digits (RFC 5321 Snum). Leading zeros are allowed: `010` is 10. |
 | ENV-6 | IPv6 literals: accept `[IPv6:addr]`, `[addr]`, and bare `addr` inside parentheses. Normalize to RFC 5952 form. |
 | ENV-7 | IPv4-mapped IPv6 (`::ffff:a.b.c.d`) is converted to IPv4. |
 
@@ -53,7 +54,7 @@ Heuristics (examples are synthetic):
 
 | ID | Rule |
 |---|---|
-| ENV-8 | Default: the topmost `Received` field whose client IP is a public address. Private (RFC 1918, RFC 6598, RFC 4193), loopback, and link-local addresses are skipped. |
+| ENV-8 | Default: the topmost `Received` field whose client IP is a public address. Private (RFC 1918, RFC 6598, RFC 4193), loopback, link-local, unspecified (`0.0.0.0/8`, `::`), multicast, broadcast, and deprecated site-local (`fec0::/10`) addresses are skipped. Documentation ranges count as public. |
 | ENV-9 | If none qualifies: the topmost `Received` field, with `envelope.no-public-hop` (warning). With no `Received` field at all, there is no boundary and no finding. |
 | ENV-10 | The user can choose any `Received` field as the boundary. |
 

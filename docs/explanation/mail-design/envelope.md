@@ -79,7 +79,7 @@ Each heuristic is a pure function `(tokens) → Partial<ParsedReceived> | null`.
 | `::ffff:192.0.2.1` | IPv4 (ENV-7) |
 | Anything else | Not an IP |
 
-`isPublic` returns false for RFC 1918, RFC 6598 (carrier-grade NAT), loopback, link-local, and RFC 4193 addresses. Documentation ranges (192.0.2.0/24, 2001:db8::/32) count as public, so synthetic test data behaves like real traffic.
+`isPublic` returns false for RFC 1918, RFC 6598 (carrier-grade NAT), loopback, link-local, RFC 4193, unspecified, multicast, broadcast, and `fec0::/10` addresses. Documentation ranges (192.0.2.0/24, 2001:db8::/32) count as public, so synthetic test data behaves like real traffic.
 
 ## Boundary and overrides
 
