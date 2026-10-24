@@ -7,7 +7,7 @@ export interface HeaderField {
   readonly name: string;
   /** Lowercase name for lookups. Empty for malformed lines, so no check matches them. */
   readonly lname: string;
-  /** The whole field including folding and the final CRLF. */
+  /** The whole field including folding and the final CRLF, in normalized offsets (IN-7). */
   readonly raw: ByteRange;
   /** Text after the colon, unfolded, decoded as UTF-8. */
   readonly value: string;
@@ -15,7 +15,7 @@ export interface HeaderField {
 
 export interface HeaderBlock {
   readonly headers: readonly HeaderField[];
-  /** Null when the input has no empty line (header-only input, IN-2). */
+  /** In normalized offsets. Null when the input has no empty line (header-only input, IN-2). */
   readonly body: ByteRange | null;
   readonly findings: readonly Finding[];
 }
@@ -28,7 +28,10 @@ const COLON = 0x3a;
 
 const utf8 = new TextDecoder('utf-8', { fatal: false });
 
-/** Splits a CRLF-normalized message into header fields and body (IN-5, IN-6). */
+/**
+ * Splits a CRLF-normalized message into header fields and body (IN-5, IN-6).
+ * Ranges are offsets into the normalized bytes; map them with `toOriginal` for the report (IN-8).
+ */
 export function splitHeaders(input: Uint8Array): HeaderBlock {
   const fieldRanges: ByteRange[] = [];
   let body: ByteRange | null = null;

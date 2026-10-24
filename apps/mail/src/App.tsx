@@ -70,6 +70,7 @@ function Result({ status }: { status: Status }) {
             results={status.report.receiver.results}
             findings={status.report.findings}
           />
+          <Notes report={status.report} />
           <HeaderFields report={status.report} />
         </>
       );
@@ -113,6 +114,29 @@ function ReceiverResults({
           </ul>
         </article>
       ))}
+    </section>
+  );
+}
+
+const SEVERITY_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' } as const;
+
+/** Findings not shown with a receiver result (those carry its field as evidence). */
+function Notes({ report }: { report: PartialReport }) {
+  const resultFields = new Set(report.receiver.results.map((r) => r.field));
+  const notes = report.findings.filter(
+    (f) => !f.evidence.some((e) => e.kind === 'header' && resultFields.has(e.index)),
+  );
+  if (notes.length === 0) return null;
+  return (
+    <section aria-label="Notes">
+      <h2>Notes</h2>
+      <ul>
+        {notes.map((f, i) => (
+          <li key={i}>
+            <strong>{SEVERITY_LABEL[f.severity]}:</strong> {f.message}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
