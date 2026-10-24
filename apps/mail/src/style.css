@@ -30,3 +30,37 @@ body {
   font-size: 0.8em;
   font-weight: normal;
 }
+
+.method-result {
+  border-left: 4px solid #888;
+  padding-left: 1rem;
+}
+
+.method-result[data-result="pass"] {
+  border-left-color: #2a7;
+}
+
+.method-result[data-result="fail"],
+.method-result[data-result="permerror"] {
+  border-left-color: #c33;
+}
+
+.result {
+  font-weight: normal;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid #ccc;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}

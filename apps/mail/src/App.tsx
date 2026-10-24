@@ -1,5 +1,9 @@
 import type { AuthResult, Finding, PartialReport } from '@benchside/mail';
 import { useState } from 'preact/hooks';
+import { DkimDetail } from './views/DkimDetail.tsx';
+import { DnsLog } from './views/DnsLog.tsx';
+import { FindingList } from './views/Findings.tsx';
+import { Summary } from './views/Summary.tsx';
 import type { WorkerHost } from './worker/host.ts';
 
 type Status =
@@ -68,12 +72,15 @@ function Result({ status }: { status: Status }) {
     case 'done':
       return (
         <>
+          <Summary lines={status.report.summary} />
           <ReceiverResults
             results={status.report.receiver.results}
             findings={status.report.findings}
           />
+          <DkimDetail results={status.report.dkim} />
           <Notes report={status.report} />
           <HeaderFields report={status.report} />
+          <DnsLog entries={status.report.dnsLog} />
         </>
       );
   }
@@ -99,10 +106,10 @@ function ReceiverResults({
             {r.authservId || '(no authserv-id)'}{' '}
             <span class="trust">{r.trusted ? 'Trusted' : 'Untrusted'}</span>
           </h3>
-          <p>Header field {r.field + 1}</p>
-          {about(r.field).map((f, i) => (
-            <p key={i}>{f.message}</p>
-          ))}
+          <p>
+            Header field <a href={`#field-${r.field + 1}`}>{r.field + 1}</a>
+          </p>
+          <FindingList findings={about(r.field)} />
           <ul>
             {r.entries.map((e, i) => (
               <li key={i}>
@@ -120,8 +127,6 @@ function ReceiverResults({
   );
 }
 
-const SEVERITY_LABEL = { error: 'Error', warning: 'Warning', info: 'Info' } as const;
-
 /** Findings not shown with a receiver result (those carry its field as evidence). */
 function Notes({ report }: { report: PartialReport }) {
   const resultFields = new Set(report.receiver.results.map((r) => r.field));
@@ -132,13 +137,7 @@ function Notes({ report }: { report: PartialReport }) {
   return (
     <section aria-label="Notes">
       <h2>Notes</h2>
-      <ul>
-        {notes.map((f, i) => (
-          <li key={i}>
-            <strong>{SEVERITY_LABEL[f.severity]}:</strong> {f.message}
-          </li>
-        ))}
-      </ul>
+      <FindingList findings={notes} />
     </section>
   );
 }
@@ -149,7 +148,9 @@ function HeaderFields({ report }: { report: PartialReport }) {
       <h2>{report.headers.length} header fields</h2>
       <ol>
         {report.headers.map((h) => (
-          <li key={h.index}>{h.name || '(malformed line)'}</li>
+          <li key={h.index} id={`field-${h.index + 1}`}>
+            {h.name || '(malformed line)'}
+          </li>
         ))}
       </ol>
       <p>{report.hasBody ? 'Body present.' : 'Headers only.'}</p>
