@@ -18,7 +18,7 @@ flowchart LR
 | Type check | TypeScript 7 `tsc --noEmit` | — |
 | JSX for Preact | Vite's built-in transform with `jsxImportSource: "preact"` | `@preact/preset-vite`: pulls in Babel |
 | Tests | vitest 5: projects `unit` (Node), `dom` (happy-dom), `browser` (Playwright, Chromium) | — |
-| Diagram check | `scripts/check-mermaid.mjs` (mermaid + jsdom, dev only) | Rendering with mermaid-cli: needs Puppeteer |
+| Diagram check | `scripts/check-mermaid.ts` (mermaid + jsdom, dev only) | Rendering with mermaid-cli: needs Puppeteer |
 | Node | 24 or later (`engines`); CI uses 26 | — |
 | Package manager | npm workspaces, `npm ci` | pnpm: extra tool |
 

@@ -153,3 +153,6 @@ samples/private/
 
 # Local devcontainer setup (must not be committed)
 .devcontainer/
+
+# GitHub Pages output (scripts/collect-pages.mjs)
+site/
