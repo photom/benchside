@@ -29,7 +29,7 @@ Results: `none` (no signatures), `pass`, `fail`, `neutral`, `temperror`, `permer
 | DKIM-2 | Tag-list syntax (RFC 6376 §3.2). Duplicate tags | `permerror`, `dkim.syntax` |
 | DKIM-3 | Required tags: `v`, `a`, `b`, `bh`, `d`, `h`, `s`. `v=1` | `permerror`, `dkim.missing-tag` |
 | DKIM-4 | `a`: `rsa-sha256`, `ed25519-sha256`. `rsa-sha1`: verified, but result `fail` (RFC 8301 §3.1). Other: | `permerror`, `dkim.unknown-algorithm` |
-| DKIM-5 | `h` includes `from`. `i`, if present, is `d` or its subdomain. `c` values are `simple` or `relaxed`. `x` > `t` when both present | `permerror`, `dkim.invalid-tag` |
+| DKIM-5 | `d` is a domain name and `s` a selector (RFC 6376 §3.5: dot-separated labels of letters, digits, `-`, `_`; non-ASCII labels allowed), so nothing else reaches a DNS query. `h` includes `from`. `i`, if present, is `[local-part]@domain` with the domain equal to `d` or its subdomain. `c` values are `simple` or `relaxed`. `x` > `t` when both present | `permerror`, `dkim.invalid-tag` |
 | DKIM-17 | `b` and `bh` are base64 (RFC 2045 §6.8); whitespace inside is ignored (RFC 6376 §3.5). Invalid base64 | `permerror`, `dkim.syntax` |
 
 ## Time
@@ -63,7 +63,7 @@ Several key records: use the first that parses; `dkim.multiple-keys` (warning).
 
 | ID | Rule |
 |---|---|
-| DKIM-16 | Per signature: parsed tags, key query ID, selected header fields with indexes, canonicalized header data, canonicalized body (or its first 64 KiB plus length), computed and expected `bh`. |
+| DKIM-16 | Per signature: parsed tags, key query ID, selected header fields with indexes, canonicalized header data, canonicalized body (or its first 64 KiB plus length), computed and expected `bh`. Report shape: `DkimSignatureReport` in [Report](report.md). |
 
 ## Findings
 

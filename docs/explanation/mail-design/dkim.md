@@ -83,6 +83,27 @@ flowchart LR
 
 ## DKIM verify flow (`dkim/verify.ts`)
 
+```ts
+interface DkimContext {
+  bytes: Uint8Array;               // normalized (IN-7)
+  headers: readonly HeaderField[];
+  body: ByteRange | null;          // null: header-only input (DKIM-13)
+  resolve: Resolver;               // composed per analysis (dns.md)
+  referenceTime: Date;             // TIME-1..3
+  signal: AbortSignal;
+}
+verifyDkim(ctx): Promise<DkimSignatureResult[]>;   // one per DKIM-Signature, top to bottom
+```
+
+| Memo (one `verifyDkim` call) | Key | Value |
+|---|---|---|
+| Key records | `(s, d)` | DNS answer + `queryId` |
+| Imported keys | `(record, hash)` | `DkimKey` |
+| Canonical bodies | `canon` | canonicalized body bytes |
+| Body hashes | `(canon, hash, l)` | digest |
+
+- For now the key lookup and the body-hash memos live in `dkim/verify.ts`. They move to `shared/signature-core.ts` (as `fetchKey` and `bodyHash`) when ARC becomes their second user.
+
 ```mermaid
 sequenceDiagram
   participant V as dkim.verify
@@ -94,13 +115,12 @@ sequenceDiagram
   T-->>V: tags, duplicates
   V->>V: DKIM-2..5 checks → permerror?
   V->>V: DKIM-6 time
-  V->>C: fetchKey(s, d)
-  C->>R: TXT s._domainkey.d
-  R-->>C: answer
-  C-->>V: key | no-key | syntax | revoked
+  V->>R: TXT s._domainkey.d (memoized)
+  R-->>V: answer
+  V->>V: key | no-key | syntax | revoked
   V->>V: DKIM-10 key checks
-  V->>C: bodyHash(canon, sha, l)
-  V->>C: selectHeaders + canonicalizeHeaders
+  V->>V: body hash (memoized per canon, sha, l)
+  V->>C: selectHeaders + headerHashData
   V->>C: verifySignature
   V-->>V: result + trace + findings
 ```

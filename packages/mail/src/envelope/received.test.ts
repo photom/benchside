@@ -176,6 +176,25 @@ describe('Received: heuristics', () => {
   });
 });
 
+describe('Received: date', () => {
+  it('ENV-3: given a date after the last semicolon, when parsed, then it is recorded', () => {
+    const r = parseReceived(
+      0,
+      ` from a.example (a.example [192.0.2.1]) by b.example with SMTP id x; Fri, 23 Oct 2026 17:03:19 -0700 (PDT)`,
+    );
+    expect(r.date?.toISOString()).toBe('2026-10-24T00:03:19.000Z');
+  });
+
+  it('ENV-3: given a semicolon inside a comment after the date, when parsed, then the date is still found', () => {
+    const r = parseReceived(0, ' by b.example; Fri, 23 Oct 2026 17:03:19 -0700 (PDT; relayed)');
+    expect(r.date?.toISOString()).toBe('2026-10-24T00:03:19.000Z');
+  });
+
+  it('ENV-3: given an unparsable date, when parsed, then there is no time for the field', () => {
+    expect(parseReceived(0, ' by b.example; sometime').date).toBeUndefined();
+  });
+});
+
 describe('Received: by host', () => {
   it('ENV-16: given a sender whose HELO name is "by", when parsed, then by is the receiving host, not the HELO', () => {
     const r = parseReceived(

@@ -60,3 +60,16 @@ function pkcs1FromSpki(spki: Uint8Array): Uint8Array {
   i++; // unused-bits byte
   return spki.slice(i);
 }
+
+/** The same RSA key pair, re-imported so it signs with another hash (`rsa-sha1` vs `rsa-sha256`). */
+export async function withHash(key: TestKey, hash: 'SHA-256' | 'SHA-1'): Promise<TestKey> {
+  const pkcs8 = await crypto.subtle.exportKey('pkcs8', key.privateKey);
+  const privateKey = await crypto.subtle.importKey(
+    'pkcs8',
+    pkcs8,
+    { name: 'RSASSA-PKCS1-v1_5', hash },
+    true, // extractable, so withHash can be applied again
+    ['sign'],
+  );
+  return { ...key, privateKey };
+}
