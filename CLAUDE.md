@@ -23,6 +23,18 @@ scripts/    # build and deploy helpers
 
 See [docs/explanation/decisions/](docs/explanation/decisions/) for the reasoning.
 
+## Commands
+
+| Command | Does |
+|---|---|
+| `npm run check` | Type check, lint, diagram check, unit and component tests |
+| `npm run build` | Build every app and collect them into `site/` |
+| `npm run test:build` | Check `site/`: CSP, no inline scripts, inlined worker (run after build) |
+| `npm run test:browser` | Real-browser tests (Chromium via Playwright). The devcontainer cannot download browsers; CI runs these |
+| `npm run format` | Apply Biome formatting and safe fixes |
+
+CI (`.github/workflows/ci.yml`) runs all of these and deploys `site/` to GitHub Pages from `main`.
+
 ## Workflow (always in this order)
 
 ```mermaid
