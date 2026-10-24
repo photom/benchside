@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { ArcReport, ArcSetTrace } from '../arc/verify.ts';
 import type { DkimSignatureResult } from '../dkim/verify.ts';
-import { summarizeDkim } from './summary.ts';
+import { summarizeArc, summarizeDkim } from './summary.ts';
 
 const sig = (result: DkimSignatureResult['result']): DkimSignatureResult => ({
   field: 0,
@@ -42,5 +43,37 @@ describe('summary', () => {
       reason: 'internal-error',
       counts: {},
     });
+  });
+});
+
+describe('summary: ARC', () => {
+  const row = (instance: number): ArcSetTrace => ({ instance });
+  const arc = (o: Partial<ArcReport>): ArcReport => ({
+    result: 'pass',
+    sets: [],
+    findings: [],
+    ...o,
+  });
+
+  it('SUM-5: given no ARC fields, when summarized, then ARC is none without counts', () => {
+    expect(summarizeArc(arc({ result: 'none' }))).toEqual({
+      method: 'arc',
+      result: 'none',
+      counts: {},
+    });
+  });
+
+  it('SUM-5: given a chain, when summarized, then the chain result is shown with the number of sets', () => {
+    expect(summarizeArc(arc({ sets: [row(1), row(2)] }))).toEqual({
+      method: 'arc',
+      result: 'pass',
+      counts: { sets: 2 },
+    });
+  });
+
+  it('SUM-5: given a not-evaluated chain, when summarized, then its reason is kept', () => {
+    expect(
+      summarizeArc(arc({ result: 'not-evaluated', reason: 'offline', sets: [row(1)] })),
+    ).toEqual({ method: 'arc', result: 'not-evaluated', reason: 'offline', counts: { sets: 1 } });
   });
 });

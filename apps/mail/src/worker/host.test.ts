@@ -26,6 +26,7 @@ const report: PartialReport = {
   summary: [],
   receiver: { results: [], comparisons: [] },
   dkim: [],
+  arc: { result: 'none', sets: [], findings: [] },
   dnsLog: [],
   findings: [],
 };

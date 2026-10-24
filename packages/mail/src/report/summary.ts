@@ -1,13 +1,16 @@
+import type { ArcNotEvaluatedReason, ArcReport, ArcResult } from '../arc/verify.ts';
 import type { DkimResult, DkimSignatureResult } from '../dkim/verify.ts';
+
+type CouldNotRun = 'internal-error' | 'invalid-input';
 
 /** One line per method (report spec, Summary). */
 export interface SummaryLine {
-  readonly method: 'dkim';
+  readonly method: 'dkim' | 'arc';
   /** A method result, or `none` when there is nothing to evaluate. */
-  readonly result: DkimResult | 'none';
-  /** Why the method could not run at all (SUM-2). */
-  readonly reason?: 'internal-error' | 'invalid-input';
-  /** Number of signatures per result, in precedence order. */
+  readonly result: DkimResult | ArcResult;
+  /** Why the method is not-evaluated (SUM-2, SUM-5). */
+  readonly reason?: CouldNotRun | ArcNotEvaluatedReason;
+  /** DKIM: signatures per result, in precedence order. ARC: `sets`. */
   readonly counts: Readonly<Record<string, number>>;
 }
 
@@ -20,9 +23,19 @@ const DKIM_PRECEDENCE: readonly DkimResult[] = [
   'not-evaluated',
 ];
 
+/** SUM-5: the chain result, and the number of sets when there are any. */
+export function summarizeArc(report: ArcReport): SummaryLine {
+  return {
+    method: 'arc',
+    result: report.result,
+    ...(report.reason ? { reason: report.reason } : {}),
+    counts: report.sets.length > 0 ? { sets: report.sets.length } : {},
+  };
+}
+
 export function summarizeDkim(
   results: readonly DkimSignatureResult[],
-  couldNotRun?: 'internal-error' | 'invalid-input',
+  couldNotRun?: CouldNotRun,
 ): SummaryLine {
   if (couldNotRun) {
     return { method: 'dkim', result: 'not-evaluated', reason: couldNotRun, counts: {} };

@@ -1,5 +1,12 @@
 export type { AnalyzeDeps, AnalyzeOptions, PartialReport } from './analyze.ts';
 export { analyze } from './analyze.ts';
+export type {
+  ArcNotEvaluatedReason,
+  ArcReport,
+  ArcResult,
+  ArcSetTrace,
+  ArcSignatureTrace,
+} from './arc/verify.ts';
 export type { AuthResult } from './authres/list.ts';
 export type { AuthResultEntry } from './authres/parse.ts';
 export type {

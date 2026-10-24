@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { seal } from '../test/support/arc-sealer.ts';
 import { signMessage } from '../test/support/dkim-signer.ts';
 import { rsaKey } from '../test/support/keys.ts';
 import { analyze } from './analyze.ts';
@@ -121,7 +122,14 @@ describe('analyze', () => {
     expect(report.headers).toEqual([]);
     expect(report.summary).toEqual([
       { method: 'dkim', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
+      { method: 'arc', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
     ]);
+    expect(report.arc).toEqual({
+      result: 'not-evaluated',
+      reason: 'invalid-input',
+      sets: [],
+      findings: [],
+    });
   });
 
   const privateSample = new URL('../../../samples/private/test.eml', import.meta.url);
@@ -174,7 +182,10 @@ describe('analyze', () => {
       expect(report.dnsLog).toEqual([
         expect.objectContaining({ queryId: 'q1', name: 'sel._domainkey.example.com', type: 'TXT' }),
       ]);
-      expect(report.summary).toEqual([{ method: 'dkim', result: 'pass', counts: { pass: 1 } }]);
+      expect(report.summary).toEqual([
+        { method: 'dkim', result: 'pass', counts: { pass: 1 } },
+        { method: 'arc', result: 'none', counts: {} },
+      ]);
     });
 
     it('TIME-2: given x= after the boundary date but before now, when analyzed, then the signature is not expired', async () => {
@@ -255,6 +266,90 @@ describe('analyze', () => {
       const pending = analyze(enc(text), {}, deps({ transport: hang, signal: controller.signal }));
       controller.abort();
       await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    });
+  });
+
+  describe('ARC', () => {
+    const enc = (s: string) => new TextEncoder().encode(s);
+
+    async function sealed() {
+      const key = await rsaKey(2048);
+      const dkimText = await signMessage({
+        key,
+        d: 'example.com',
+        s: 'sel',
+        headers: ['From: a@example.com\r\n', 'Subject: Hi\r\n'],
+        body: 'Hello\r\n',
+        h: 'from:subject',
+        signed: ['From: a@example.com\r\n', 'Subject: Hi\r\n'],
+      });
+      const split = dkimText.indexOf('\r\n\r\n');
+      const headers = dkimText
+        .slice(0, split + 2)
+        .split(/(?<=\r\n)(?=[^ \t])/)
+        .filter((f) => f.length > 0);
+      const m = await seal({ headers, body: 'Hello\r\n' }, { key, d: 'example.com', s: 'sel' });
+      const record: ManualRecord = {
+        name: 'sel._domainkey.example.com',
+        type: 'TXT',
+        data: `v=DKIM1; p=${key.p}`,
+      };
+      return { text: `${m.headers.join('')}\r\n${m.body}`, record };
+    }
+
+    it('REQ-MAIL-007, SUM-5: given a sealed message, when analyzed, then the report has the ARC chain and its summary line', async () => {
+      const { text, record } = await sealed();
+      const report = await analyze(enc(text), {}, deps({ records: [record] }));
+      expect(report.arc).toMatchObject({ result: 'pass', oldestPass: 0 });
+      expect(report.summary).toEqual([
+        { method: 'dkim', result: 'pass', counts: { pass: 1 } },
+        { method: 'arc', result: 'pass', counts: { sets: 1 } },
+      ]);
+    });
+
+    it('given the caller cancels while DKIM and ARC wait, when analyzing, then analyze rejects and no rejection is left unhandled', async () => {
+      const { text } = await sealed();
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        const controller = new AbortController();
+        const hang: Transport = (_q, signal) =>
+          new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason)));
+        const pending = analyze(
+          enc(text),
+          {},
+          deps({ transport: hang, signal: controller.signal }),
+        );
+        setTimeout(() => controller.abort(), 10);
+        await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+        await new Promise((r) => setTimeout(r, 20));
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+      expect(unhandled).toEqual([]);
+    });
+
+    it('given DKIM and ARC signed with the same key, when analyzed, then the key is queried once', async () => {
+      const { text, record } = await sealed();
+      const report = await analyze(enc(text), {}, deps({ records: [record] }));
+      expect(report.dnsLog).toHaveLength(1);
+      expect(report.arc.sets[0]?.seal?.keyQueryId).toBe('q1');
+      expect(report.dkim[0]?.keyQueryId).toBe('q1');
+    });
+
+    it('DNS: given an unauthenticated key used only by ARC, when analyzed, then dns.unauthenticated points at it', async () => {
+      const { text, record } = await sealed();
+      const withoutDkim = text.replace(/^DKIM-Signature:[\s\S]*?\r\n(?=[^ \t])/m, '');
+      const report = await analyze(
+        enc(withoutDkim),
+        {},
+        deps({ records: [record], source: 'cloudflare' }),
+      );
+      expect(report.dkim).toEqual([]);
+      expect(report.findings.find((f) => f.id === 'dns.unauthenticated')?.evidence).toEqual([
+        { kind: 'dns', queryId: 'q1' },
+      ]);
     });
   });
 });
