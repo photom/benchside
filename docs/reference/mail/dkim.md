@@ -30,6 +30,7 @@ Results: `none` (no signatures), `pass`, `fail`, `neutral`, `temperror`, `permer
 | DKIM-3 | Required tags: `v`, `a`, `b`, `bh`, `d`, `h`, `s`. `v=1` | `permerror`, `dkim.missing-tag` |
 | DKIM-4 | `a`: `rsa-sha256`, `ed25519-sha256`. `rsa-sha1`: verified, but result `fail` (RFC 8301 §3.1). Other: | `permerror`, `dkim.unknown-algorithm` |
 | DKIM-5 | `h` includes `from`. `i`, if present, is `d` or its subdomain. `c` values are `simple` or `relaxed`. `x` > `t` when both present | `permerror`, `dkim.invalid-tag` |
+| DKIM-17 | `b` and `bh` are base64 (RFC 2045 §6.8); whitespace inside is ignored (RFC 6376 §3.5). Invalid base64 | `permerror`, `dkim.syntax` |
 
 ## Time
 

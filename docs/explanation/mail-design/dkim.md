@@ -10,13 +10,17 @@ DKIM signatures and ARC-Message-Signatures are verified the same way. Checks mus
 flowchart TD
   subgraph core ["shared/signature-core.ts"]
     sel[selectHeaders]
-    canonH[canonicalizeHeaders]
+    canonH[headerHashData]
     bodyH[bodyHash, cached]
     key[fetchKey]
+  end
+  subgraph cr ["shared/crypto.ts"]
+    imp[importDkimKey]
     ver[verifySignature]
   end
-  dkim["dkim/verify.ts<br/>DKIM tag rules, time, findings"] --> core
-  ams["arc/validate.ts<br/>AMS rules"] --> core
+  key --> imp
+  dkim["dkim/verify.ts<br/>DKIM tag rules, time, findings"] --> core & ver
+  ams["arc/validate.ts<br/>AMS rules"] --> core & ver
   seal["arc/seal.ts<br/>AS input"] --> canonH & key & ver
 ```
 
@@ -33,11 +37,20 @@ interface SignatureSpec {
   domain: string; selector: string;
 }
 
-selectHeaders(msg, signedHeaders, exclude: HeaderField): HeaderField[];  // RFC 6376 §5.4.2
-canonicalizeHeaders(msg, fields, sigField, canon): Uint8Array;           // b= emptied, no final CRLF
+// shared/signature-core.ts
+selectHeaders(headers, signedNames, signature): HeaderField[];           // RFC 6376 §5.4.2
+signatureFieldWithoutValue(raw, 'b'): Uint8Array;                       // value removed, no final CRLF
+headerHashData(bytes, selected, signature, canon): Uint8Array;          // RFC 6376 §3.7 step 2
 bodyHash(msg, canon, hash, length?): Promise<Uint8Array>;                // memoized per analysis
-fetchKey(ctx, selector, domain): Promise<KeyResult>;                     // memoized per analysis
-verifySignature(key, algorithm, data, signature): Promise<boolean>;
+fetchKey(ctx, selector, domain): Promise<KeyResult>;                     // memoized per analysis: the record, not the CryptoKey
+// The RSA hash is fixed when a key is imported, so the key is imported per (record, hash):
+// an rsa-sha1 and an rsa-sha256 signature with the same s= and d= each get their own import.
+
+// shared/crypto.ts
+importDkimKey(k, p, hash): Promise<DkimKey>;     // { ok: true, key, kind, bits? } | { ok: false }
+verifySignature(key, data, signature): Promise<boolean>; // Ed25519 verifies over SHA-256(data)
+
+// shared/tag-list.ts, shared/base64.ts, shared/canonicalize.ts: see detailed design §7
 ```
 
 ## Header selection
