@@ -1,0 +1,14 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+}
+
+.drop {
+  border: 2px dashed #888;
+  padding: 2rem;
+  text-align: center;
+}
+
+.drop[data-active="true"] {
+  border-color: #06c;
+}
