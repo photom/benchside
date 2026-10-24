@@ -25,10 +25,19 @@ See [docs/explanation/decisions/](docs/explanation/decisions/) for the reasoning
 
 ## Workflow (always in this order)
 
-1. **Write the docs**: before implementing, describe the behavior in docs/. This applies to every new feature, new check, and behavior change.
-2. **Write the scenarios**: derive Given / When / Then test scenarios from the docs.
-3. **Implement with TDD**: see Red → Green → Refactor.
-4. **Check docs and code agree**: if the spec changed along the way, update the docs in the same change.
+```mermaid
+flowchart LR
+  r[Requirement<br/>what + why] --> s[Specification<br/>rules with IDs] --> d[Design<br/>ADR, diagrams] --> t[Scenarios<br/>from rule IDs] --> c[TDD<br/>Red → Green → Refactor] --> v[Docs and code agree]
+```
+
+1. **Requirement**: record the need in `docs/explanation/requirements/` (ADR-like).
+2. **Specification**: write the exact behavior as rules with IDs in `docs/reference/`.
+3. **Design**: record choices in `docs/explanation/decisions/`; update architecture diagrams.
+4. **Scenarios**: derive Given / When / Then scenarios from the spec rule IDs and the requirement's acceptance criteria.
+5. **Implement with TDD**: Red → Green → Refactor.
+6. **Check docs and code agree**: if behavior changed along the way, update the spec in the same change.
+
+Requirements and specifications are different documents. Never mix them.
 
 ## Documentation
 
@@ -36,10 +45,12 @@ docs/ follows [Diátaxis](https://diataxis.fr/). Each page belongs to exactly on
 
 - `docs/tutorials/` guided, single-path lessons
 - `docs/how-to/` task-oriented guides
-- `docs/reference/` facts: specs, checks, formats
-- `docs/explanation/` background and design decisions (decision records in `docs/explanation/decisions/`)
+- `docs/reference/` specifications: rules with IDs, formats, findings
+- `docs/explanation/` background: requirements (`requirements/`), design decisions (`decisions/`), architecture
 
 The index is `docs/README.md`.
+
+Use Mermaid diagrams aggressively. Keep sentences short; prefer diagrams, tables, and lists over prose.
 
 ## When to use each skill
 

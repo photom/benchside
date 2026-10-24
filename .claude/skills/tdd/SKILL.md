@@ -7,7 +7,7 @@ description: Test-driven development for benchside. Write scenarios first, then 
 
 ## Flow
 
-1. **Check the docs**: find the matching page in docs/reference. If there is none, write it first with the `docs` skill.
+1. **Check the docs**: find the spec rules in docs/reference and the acceptance criteria in the matching `REQ-*` record. If either is missing, write it first with the `docs` skill.
 2. **Write the scenarios**: before touching production code, list the scenarios in the test file, in a state that can be committed.
 3. **Red**: pick one scenario, write the test body, and **run it to see it fail**. Confirm it fails for the expected reason (not implemented, wrong value), not just a compile error.
 4. **Green**: write the smallest implementation that passes.
@@ -30,7 +30,8 @@ describe('ZIP: local header vs central directory mismatch', () => {
 
 - List every scenario as `it.todo` first, then turn them into `it` one at a time.
 - Always include **malformed input** scenarios, not just the happy path: truncated files, out-of-range offsets, negative or huge lengths, reference cycles (PDF `/Prev`), zero-byte input. The expected result is that the parser does not throw but reports a diagnostic.
-- Use the same terms in scenario names as in the checks in docs/reference.
+- Start each scenario name with the spec rule ID it covers (for example `DKIM-6: given …`). Acceptance tests start with the requirement ID (`REQ-MAIL-010: …`).
+- Use the same terms in scenario names as in the spec.
 
 ## Where tests live (vitest)
 

@@ -14,7 +14,7 @@ When in doubt, follow the official documentation of each product. This page cove
 - Every app has a CSP, injected into `index.html` at build time by our Vite plugin (not in dev mode, where Vite uses inline styles). Give each app the least it needs: `connect-src 'none'` by default; only the mail app allows `https://cloudflare-dns.com https://dns.google`. A test checks every built `index.html` for the expected policy.
   ```html
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src 'none'; img-src 'self' blob: data:; object-src 'none'">
+        content="default-src 'self'; connect-src 'none'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'">
   ```
 - Any change that widens an app's CSP needs a rationale in docs/explanation, and the README and privacy model must be updated to match.
 - Do not persist file contents in `localStorage` or similar.
@@ -47,6 +47,7 @@ When in doubt, follow the official documentation of each product. This page cove
 
 - Function components and hooks. Keep state in the smallest scope that needs it.
 - Always render strings from files as text. Never use `dangerouslySetInnerHTML`. Never execute or render HTML from files or JavaScript from PDFs.
+- Style with CSS files or Preact object styles (`style={{ color: 'red' }}`). Never string `style` attributes or `<style>` in markup; the CSP blocks them in production.
 - Use virtual scrolling for long lists (hex dumps, object lists).
 - Accessibility: keyboard operation, distinctions that don't rely on color alone (add labels or patterns), proper landmarks and labels.
 - Accept files both by drag and drop and via `<input type="file">`.
@@ -55,7 +56,7 @@ When in doubt, follow the official documentation of each product. This page cove
 
 - One Vite app per tool under `apps/`, linked by npm workspaces. Each app's `vite.config.ts` stays short; shared settings (`base` = `/benchside/<tool>/`, the CSP plugin) come from one helper.
 - Packages are consumed as TypeScript source through workspaces; no separate build step for packages unless needed.
-- Use `new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })` so Vite bundles workers.
+- Start workers only with Vite's `?worker&inline` import, so they run from a `blob:` URL and inherit the page's CSP. A worker loaded from a plain URL gets no CSP on GitHub Pages ([0004](../../../docs/explanation/decisions/0004-worker-from-blob-url.md)).
 - No inline scripts, so the CSP never has to be loosened.
 - CI (GitHub Actions): `npm ci` → type check (`tsc --noEmit`) → lint → `vitest run` → build all apps → collect each `apps/*/dist` into one directory → deploy to Pages. Pin actions by commit SHA and keep `permissions` minimal.
 - Publishing source maps is fine (the code is public anyway).

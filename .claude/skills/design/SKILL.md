@@ -7,6 +7,18 @@ description: Design guidelines for benchside. Use DDD, Clean Architecture, SOLID
 
 DDD, Clean Architecture, SOLID, and DRY are **tools for solving problems**, not a checklist to satisfy. This repository is a collection of small tools, so favor lightness and readability.
 
+## Express designs as diagrams
+
+Use Mermaid aggressively. Keep text short.
+
+| What | Diagram |
+|---|---|
+| Package and module dependencies | `flowchart` |
+| Data flow, pipelines | `flowchart` |
+| Interactions (UI, worker, DNS) | `sequenceDiagram` |
+| Key types | `classDiagram` |
+| Lifecycles | `stateDiagram-v2` |
+
 ## Boundaries we keep (these are firm)
 
 - **Parsers and analysis logic are pure, DOM-independent TypeScript.** Input is bytes (`Uint8Array` or a read function); output is plain data (a structure tree plus diagnostics). Never import `window`, `document`, or a UI framework.
