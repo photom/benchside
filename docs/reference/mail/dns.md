@@ -48,6 +48,9 @@ flowchart LR
 | DNS-6 | No other parameters, headers, or cookies (`credentials: 'omit'`, `referrerPolicy: 'no-referrer'`). |
 | DNS-7 | TXT data arrives as one or more quoted strings. Unquote each, unescape, and join without separators (RFC 7208 §3.3, RFC 6376 §3.6.2.2). |
 | DNS-8 | `authenticated` is the response's `AD` flag. It is the provider's claim; benchside does not validate DNSSEC itself. |
+| DNS-16 | Response `Status` 0 is `NOERROR`, 3 is `NXDOMAIN`; any other status, an HTTP error, a network error, or a body that is not the expected JSON is `SERVFAIL`. No answer within 5 s is `TIMEOUT`. |
+| DNS-17 | Only answer records of the queried type are used. Others, such as `CNAME` steps, are ignored. |
+| DNS-18 | Names are converted to A-labels (IDNA) before the cache, so both forms share one entry. A label containing `@`, `:`, `/`, `\`, `?`, `#`, `%`, `[`, `]`, whitespace, or anything that turns into a dot is not converted: the query is not sent and the answer is `SERVFAIL`. The log keeps the name as the check asked for it. |
 
 ## Query policy
 
@@ -68,7 +71,7 @@ flowchart LR
 | ID | Rule |
 |---|---|
 | DNS-13 | At most 200 queries per analysis, counted before the cache (cache hits count). Further queries return `BUDGET`, with `dns.budget-exhausted` (error). |
-| DNS-14 | Answers are cached in memory per `(provider, name, type)` until the page closes. Never persisted. |
+| DNS-14 | `NOERROR` and `NXDOMAIN` answers are cached in memory per `(source, name, type)` until the page closes; the source is the DoH provider or `offline`, and names compare case-insensitively. Other answers are not cached. Within one analysis, identical queries in flight share one request; across analyses only finished answers are shared. Never persisted. |
 | DNS-15 | Every query is logged: `queryId`, name, type, sensitivity, purpose, rcode, records, `authenticated`, duration, cache hit. |
 
 ## Findings
