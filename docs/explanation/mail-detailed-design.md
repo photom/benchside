@@ -223,8 +223,8 @@ IDN: `shared/domain.ts` converts each non-ASCII label with the URL parser and re
 | Module | Functions | Used by |
 |---|---|---|
 | `tag-list.ts` | `parseTagList(value) → { tags, duplicates, errors }` | DKIM, DKIM keys, DKIM2, ARC, DMARC |
-| `canonicalize.ts` | `headerSimple`, `headerRelaxed`, `bodySimple(bytes, limit?)`, `bodyRelaxed(bytes, limit?)` | DKIM, ARC, DKIM2 |
-| `crypto.ts` | `importDkimKey(k, p) → { key, bits }`, `verify(alg, key, data, sig)`, `digest(hash, data)` | DKIM, ARC, DKIM2 |
+| `canonicalize.ts` | `headerSimple`, `headerRelaxed`, `bodySimple(bytes)`, `bodyRelaxed(bytes)`; `l=` is applied by the caller | DKIM, ARC, DKIM2 |
+| `crypto.ts` | `importDkimKey(k, p, hash) → { ok, key, kind, bits? }`, `verifySignature(key, data, sig)`; digests use `crypto.subtle.digest` directly | DKIM, ARC, DKIM2 |
 | `domain.ts` | `labels`, `isFqdn`, `toALabel`, `relaxedMatch` (DKIM2), `isSubdomain` | SPF, DKIM, DKIM2, DMARC |
 | `ip.ts` | `parseIp`, `inCidr`, `reverseName`, `isPublic` | SPF, envelope |
 | `base64.ts` | strict decode, ignoring folding whitespace | DKIM, DKIM2, ARC |
