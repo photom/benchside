@@ -28,10 +28,11 @@ flowchart TD
 
 | ID | Rule |
 |---|---|
-| ENV-1 | Try the RFC 5321 §4.4 grammar first: `from` Extended-Domain, `by`, optional `via` / `with` / `id` / `for`, `;` date-time. |
+| ENV-1 | Try the RFC 5321 §4.4 grammar first: `from` Extended-Domain, `by`, optional `via` / `with` / `id` / `for`, `;` date-time. Comments may appear between clauses. A `from` clause without TCP-info yields no client IP, so it counts as a grammar failure. |
 | ENV-2 | If the grammar fails, apply the heuristics below in order. The first match wins. |
 | ENV-3 | The date-time is the text after the last `;`, parsed per RFC 5322 §3.3. Unparsable: no time for this field. |
 | ENV-4 | Each parsed field records `confidence`: `grammar`, `heuristic`, or `none`. |
+| ENV-16 | The `by` host is the first atom after the `by` keyword, whatever the confidence. Used by [AR-4](authres.md#trust). |
 
 Heuristics (examples are synthetic):
 
@@ -53,7 +54,7 @@ Heuristics (examples are synthetic):
 | ID | Rule |
 |---|---|
 | ENV-8 | Default: the topmost `Received` field whose client IP is a public address. Private (RFC 1918, RFC 6598, RFC 4193), loopback, and link-local addresses are skipped. |
-| ENV-9 | If none qualifies: the topmost `Received` field, with `envelope.no-public-hop` (warning). |
+| ENV-9 | If none qualifies: the topmost `Received` field, with `envelope.no-public-hop` (warning). With no `Received` field at all, there is no boundary and no finding. |
 | ENV-10 | The user can choose any `Received` field as the boundary. |
 
 ## Values

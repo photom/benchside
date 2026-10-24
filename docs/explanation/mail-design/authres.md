@@ -7,13 +7,31 @@ Spec: [Receiver results](../../reference/mail/authres.md).
 ```mermaid
 flowchart LR
   ar[Authentication-Results] --> p["parse.ts<br/>RFC 8601 tokenizer"]
-  rs[Received-SPF] --> p2["received-spf.ts"]
-  p & p2 --> trust["trust by position<br/>vs boundary"]
-  trust --> cmp["compare.ts"]
+  env[/"envelope: boundary index + by host"/] --> trust
+  p --> trust["list.ts<br/>position + authserv-id"]
+  trust --> list[/"AuthResult[]"/]
+  list --> cmp["compare.ts"]
   ours[/our results/] --> cmp
   cmp --> causes["cause rules"]
   causes --> out[/"Comparison[]"/]
 ```
+
+- `Received-SPF` is not read (AR-2 retired). The `spf` entry in `Authentication-Results` carries the receiver's SPF verdict.
+- `AuthResult[]` is listed even when no comparison runs (AR-10, AR-11).
+
+## Trust
+
+```ts
+// list.ts
+function isTrusted(field: number, authservId: string, received: ParsedReceived[], boundary: ParsedReceived | null): boolean;
+```
+
+| Field position | Trusted |
+|---|---|
+| no boundary | no |
+| `field < boundary` | yes |
+| `boundary < field < next Received` | `authservId` equals the boundary's `by` (ENV-16), case-insensitive |
+| otherwise | no |
 
 ## Parsed form
 

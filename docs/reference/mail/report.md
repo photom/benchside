@@ -17,7 +17,7 @@ classDiagram
     dkim2: MethodReport
     dmarc: DmarcReport
     arc: MethodReport
-    receiver: Comparison[]
+    receiver: ReceiverReport
     findings: Finding[]
     dnsLog: DnsLogEntry[]
   }
@@ -41,6 +41,22 @@ classDiagram
     result: string
     counts?: Map~string, number~
     findingIds: string[]
+  }
+  class ReceiverReport {
+    results: AuthResult[]
+    comparisons: Comparison[]
+  }
+  class AuthResult {
+    field: number
+    trusted: boolean
+    authservId: string
+    entries: AuthResultEntry[]
+  }
+  class AuthResultEntry {
+    method: string
+    result: string
+    reason?: string
+    props: Map~string, string~
   }
   class TraceNode {
     label: string
@@ -66,6 +82,8 @@ classDiagram
   Report --> DmarcReport
   Report --> SummaryLine
   Report --> Finding
+  Report --> ReceiverReport
+  ReceiverReport --> AuthResult
   MethodReport --> TraceNode
   TraceNode --> Evidence
   Finding --> Evidence
