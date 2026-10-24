@@ -10,6 +10,8 @@ export interface TagList {
 const TAG_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 /** Only FWS (SP, HTAB, CRLF) surrounds names and values; String.trim would also drop VT, FF, NBSP. */
 const trimFws = (s: string) => s.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, '');
+/** Replaces every non-ASCII character with `x`, so only ASCII rules apply. */
+const asciiOnly = (s: string) => Array.from(s, (c) => (c.charCodeAt(0) < 0x80 ? c : 'x')).join('');
 /** tval = VALCHAR (%x21-3A / %x3C-7E) runs separated by whitespace; folding is already removed. */
 const TAG_VALUE = /^(?:[\x21-\x3a\x3c-\x7e]+(?:[ \t\r\n]+[\x21-\x3a\x3c-\x7e]+)*)?$/;
 
@@ -33,7 +35,7 @@ export function parseTagList(value: string): TagList {
       continue;
     }
     // Non-ASCII is tolerated (RFC 6376 §3.2 note); only ASCII control characters are errors.
-    if (!TAG_VALUE.test(tagValue.replace(/[\u0080-￿]/g, 'x'))) {
+    if (!TAG_VALUE.test(asciiOnly(tagValue))) {
       errors.push(`The value of "${name}" has characters that are not allowed.`);
       continue;
     }
