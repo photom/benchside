@@ -18,14 +18,14 @@ A promise in a README is easy to break by accident. Each tool therefore carries 
 
 ```html
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'none'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'">
+      content="default-src 'self'; connect-src 'none'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 ```
 
 The mail tool can connect only to the DNS-over-HTTPS endpoints:
 
 ```html
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src https://cloudflare-dns.com https://dns.google; worker-src blob:; img-src 'self' blob: data:; object-src 'none'">
+      content="default-src 'self'; connect-src https://cloudflare-dns.com https://dns.google; worker-src blob:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 ```
 
 Even if benchside's code or a dependency tried to send data elsewhere, the browser would block it. This includes background workers, which start from `blob:` URLs so that they inherit the policy ([0004](decisions/0004-worker-from-blob-url.md)). You can verify this yourself in the browser's developer tools.

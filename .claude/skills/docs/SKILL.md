@@ -77,6 +77,10 @@ Add every new page to the index in `docs/README.md`, except decision records and
 ## Style
 
 - **Diagrams first.** Use Mermaid for structure, flow, relationships, sequences, and states. Use prose only for what a diagram cannot say.
+- **Mermaid must parse on GitHub.** Before committing, parse every changed diagram with Mermaid's own parser. Common mistakes:
+  - Labels with `@`, `/`, `(`, `)`, `:`, `;`, `#`, or `<br/>` → quote them: `id["label"]`.
+  - Labeled two-way edges → `a <-->|label| b`, not `a <-- label --> b`.
+  - `classDiagram` members must start with a name: `call(x) Result`, not `(x) Result`.
 - **Short sentences.** One idea per sentence. No paragraph longer than three sentences. Prefer tables and lists.
 - One topic per file. File names in kebab-case.
 - Headings follow the reader's task or question ("How to …" for how-to, the subject's name for reference).

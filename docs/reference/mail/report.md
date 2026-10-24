@@ -81,8 +81,10 @@ classDiagram
 | REP-2 | `bytes` evidence uses offsets into the original input ([IN-8](input.md#line-endings)). |
 | REP-3 | `Finding.id` is the finding name from the spec pages (for example `dkim.expired`). `Finding.key` is unique within the report; `findingIds` refer to it. |
 | REP-4 | Every finding has at least one evidence item. |
-| REP-5 | `not-evaluated` always has `reason`, one of: `no-body`, `missing-delivery-detail`, `sensitive-query-blocked`, `offline`, `budget-exhausted`, `timeout`, `unsupported`, `limit`, `invalid-input`. |
+| REP-5 | `not-evaluated` always has `reason`, one of: `no-body`, `missing-delivery-detail`, `sensitive-query-blocked`, `offline`, `budget-exhausted`, `timeout`, `unsupported`, `limit`, `invalid-input`, `internal-error`. |
 | REP-6 | `dmarc.rfc7489` and `dmarc.rfc9989` are present for the modes the user selected. |
+| REP-7 | An unexpected error inside one method makes that method `not-evaluated` (reason `internal-error`) with `analysis.internal-error` (error). Other methods are unaffected. |
+| REP-8 | When the 60 s deadline passes, unfinished methods are `not-evaluated` (reason `timeout`) with `analysis.timeout` (error). |
 
 ## Summary
 

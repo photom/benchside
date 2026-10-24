@@ -14,7 +14,7 @@ When in doubt, follow the official documentation of each product. This page cove
 - Every app has a CSP, injected into `index.html` at build time by our Vite plugin (not in dev mode, where Vite uses inline styles). Give each app the least it needs: `connect-src 'none'` by default; only the mail app allows `https://cloudflare-dns.com https://dns.google`. A test checks every built `index.html` for the expected policy.
   ```html
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src 'none'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'">
+        content="default-src 'self'; connect-src 'none'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
   ```
 - Any change that widens an app's CSP needs a rationale in docs/explanation, and the README and privacy model must be updated to match.
 - Do not persist file contents in `localStorage` or similar.

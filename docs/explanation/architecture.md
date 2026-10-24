@@ -91,7 +91,7 @@ flowchart LR
 | home, zip, pdf | `'none'` |
 | mail | `https://cloudflare-dns.com https://dns.google` |
 
-All apps also use `default-src 'self'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'`.
+All apps also use `default-src 'self'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'`. Built by `vite.shared.ts` ([detailed design §10](mail-detailed-design.md#10-build-vitesharedts)).
 
 ## Build and deploy
 
