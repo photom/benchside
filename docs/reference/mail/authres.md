@@ -7,6 +7,9 @@ Standard: RFC 8601 (`Authentication-Results`).
 | ID | Rule |
 |---|---|
 | AR-1 | Parse `Authentication-Results`: `authserv-id`, optional version, then `method=result` entries with `reason` and `ptype.property=value`. Unparsable entries: `authres.syntax` (warning), skipped. |
+| AR-12 | A field with no `authserv-id` (it starts with `method=result`, as Microsoft 365 writes it) gets `authres.syntax`. Its entries are still parsed and listed, with an empty `authserv-id`. |
+| AR-13 | Tokens between `authserv-id` (and optional version) and the first `;` give `authres.syntax`. If they form an entry, it is kept. |
+| AR-14 | A property without a `ptype` (for example `action=none`) is kept as written; it does not make the entry unparsable. A value may be a quoted local part followed by `@domain` (RFC 8601 §2.2 `pvalue`). |
 | AR-2 | Retired. `Received-SPF` is not used. |
 | AR-3 | Methods compared: `spf`, `dkim`, `dmarc`, `arc`. Others are listed only. |
 
