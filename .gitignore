@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Real-world samples that must not be published
+samples/private/
+
+# Local devcontainer setup (must not be committed)
+.devcontainer/
