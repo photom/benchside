@@ -33,12 +33,9 @@ export async function importDkimKey(
     // slice(): Web Crypto takes ArrayBuffer-backed views only.
     const der = isSpki(p) ? p.slice() : wrapPkcs1(p);
     const key = await crypto.subtle.importKey('spki', der, algorithm, false, ['verify']);
-    return {
-      ok: true,
-      key,
-      kind: 'rsa',
-      bits: (key.algorithm as RsaHashedKeyAlgorithm).modulusLength,
-    };
+    // Fail closed: without the size, the RFC 8301 key-size rules cannot be applied.
+    const bits = (key.algorithm as { modulusLength?: number }).modulusLength;
+    return bits === undefined ? { ok: false } : { ok: true, key, kind: 'rsa', bits };
   } catch {
     return { ok: false };
   }

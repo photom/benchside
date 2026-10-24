@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ed25519Key, rsaKey } from '../../test/support/keys.ts';
 import { decodeBase64 } from './base64.ts';
 import { importDkimKey, verifySignature } from './crypto.ts';
@@ -61,5 +61,14 @@ describe('DKIM keys and signatures', () => {
   it('DKIM-9: given k= in upper case, when imported, then it is accepted', async () => {
     const key = await ed25519Key();
     expect(await importDkimKey('Ed25519', bytes(key.p), 'SHA-256')).toMatchObject({ ok: true });
+  });
+
+  it('DKIM-10: given an RSA key whose size the runtime does not report, when imported, then it fails closed', async () => {
+    const key = await rsaKey(1024);
+    const spy = vi
+      .spyOn(crypto.subtle, 'importKey')
+      .mockResolvedValueOnce({ algorithm: { name: 'RSASSA-PKCS1-v1_5' } } as CryptoKey);
+    expect(await importDkimKey('rsa', bytes(key.p), 'SHA-256')).toEqual({ ok: false });
+    spy.mockRestore();
   });
 });

@@ -18,6 +18,8 @@ export function App({ host }: { host: WorkerHost }) {
       const report = await host.analyze(new Uint8Array(await file.arrayBuffer()));
       setStatus({ kind: 'done', report });
     } catch (error) {
+      // A newer file replaced this analysis; its own result will be shown.
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setStatus({ kind: 'failed', message: String(error) });
     }
   }

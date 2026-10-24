@@ -26,7 +26,14 @@ export function createWorkerHost(worker: Worker = new AnalysisWorker()): WorkerH
 
   return {
     analyze(bytes) {
-      if (latest > 0) post({ type: 'cancel', id: latest });
+      if (latest > 0) {
+        post({ type: 'cancel', id: latest });
+        // The worker sends nothing for a cancelled run, so settle and drop it here.
+        pending
+          .get(latest)
+          ?.reject(new DOMException('Superseded by a newer analysis', 'AbortError'));
+        pending.delete(latest);
+      }
       const id = ++latest;
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
