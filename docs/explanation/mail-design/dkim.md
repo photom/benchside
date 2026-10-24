@@ -20,8 +20,7 @@ flowchart TD
   end
   key --> imp
   dkim["dkim/verify.ts<br/>DKIM tag rules, time, findings"] --> core & ver
-  ams["arc/validate.ts<br/>AMS rules"] --> core & ver
-  seal["arc/seal.ts<br/>AS input"] --> canonH & key & ver
+  arc["arc/verify.ts<br/>AMS and AS rules"] --> core & ver
 ```
 
 ## Core API
@@ -41,8 +40,11 @@ interface SignatureSpec {
 selectHeaders(headers, signedNames, signature): HeaderField[];           // RFC 6376 §5.4.2
 signatureFieldWithoutValue(raw, 'b'): Uint8Array;                       // value removed, no final CRLF
 headerHashData(bytes, selected, signature, canon): Uint8Array;          // RFC 6376 §3.7 step 2
-bodyHash(msg, canon, hash, length?): Promise<Uint8Array>;                // memoized per analysis
-fetchKey(ctx, selector, domain): Promise<KeyResult>;                     // memoized per analysis: the record, not the CryptoKey
+createSignatureMemo(): SignatureMemo;                                   // one per analysis, shared by DKIM and ARC
+bodyHash(memo, bytes, body, canon, hash, l?): Promise<{ canonical, computed | null }>; // null: l= past the body
+fetchKey(ctx, s, d, a, identityMatches): Promise<KeyResult>;            // DKIM-7..10; memoized: the record, not the CryptoKey
+// KeyResult: { ok: true, key, queryId, notes } | { ok: false, queryId, problem, message }
+// problem: no-key | key-syntax | key-revoked | key-mismatch | key-too-short | a DNS rcode
 // The RSA hash is fixed when a key is imported, so the key is imported per (record, hash):
 // an rsa-sha1 and an rsa-sha256 signature with the same s= and d= each get their own import.
 
@@ -95,14 +97,14 @@ interface DkimContext {
 verifyDkim(ctx): Promise<DkimSignatureResult[]>;   // one per DKIM-Signature, top to bottom
 ```
 
-| Memo (one `verifyDkim` call) | Key | Value |
+| Memo (one analysis) | Key | Value |
 |---|---|---|
 | Key records | `(s, d)` | DNS answer + `queryId` |
 | Imported keys | `(record, hash)` | `DkimKey` |
 | Canonical bodies | `canon` | canonicalized body bytes |
 | Body hashes | `(canon, hash, l)` | digest |
 
-- For now the key lookup and the body-hash memos live in `dkim/verify.ts`. They move to `shared/signature-core.ts` (as `fetchKey` and `bodyHash`) when ARC becomes their second user.
+- The memos live in `shared/signature-core.ts` (`createSignatureMemo`, `fetchKey`, `bodyHash`). `analyze` creates one per analysis and shares it with ARC ([ARC design](arc.md)).
 
 ```mermaid
 sequenceDiagram

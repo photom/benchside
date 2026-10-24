@@ -16,7 +16,7 @@ classDiagram
     dkim: DkimSignatureReport[]
     dkim2: MethodReport
     dmarc: DmarcReport
-    arc: MethodReport
+    arc: ArcReport
     receiver: ReceiverReport
     findings: Finding[]
     dnsLog: DnsLogEntry[]
@@ -49,6 +49,34 @@ classDiagram
     length: number
     computed: string
     expected: string
+  }
+  class ArcReport {
+    result: "none" | "pass" | "fail" | "not-evaluated"
+    reason?: string
+    oldestPass?: number
+    sets: ArcSetTrace[]
+    findingIds: string[]
+  }
+  class ArcSetTrace {
+    instance: number
+    aar?: ArcAar
+    ams?: ArcSignatureTrace
+    seal?: ArcSignatureTrace
+  }
+  class ArcAar {
+    field: number
+    authservId: string
+    entries: AuthResultEntry[]
+  }
+  class ArcSignatureTrace {
+    field: number
+    result: "pass" | "fail" | "not-evaluated" | "not-checked"
+    reason?: string
+    d?: string
+    s?: string
+    t?: string
+    cv?: string
+    keyQueryId?: string
   }
   class SpfReport {
     mailFrom: MethodReport
@@ -104,6 +132,10 @@ classDiagram
   Report --> DkimSignatureReport
   DkimSignatureReport --> DkimTrace
   DkimTrace --> DkimBodyTrace
+  Report --> ArcReport
+  ArcReport --> ArcSetTrace
+  ArcSetTrace --> ArcAar
+  ArcSetTrace --> ArcSignatureTrace
   Report --> SpfReport
   Report --> DmarcReport
   Report --> SummaryLine
@@ -128,7 +160,7 @@ classDiagram
 | REP-5 | `not-evaluated` always has `reason`, one of: `no-body`, `missing-delivery-detail`, `sensitive-query-blocked`, `offline`, `budget-exhausted`, `timeout`, `unsupported`, `limit`, `invalid-input`, `internal-error`. |
 | REP-6 | `dmarc.rfc7489` and `dmarc.rfc9989` are present for the modes the user selected. |
 | REP-7 | An unexpected error inside one method makes that method `not-evaluated` (reason `internal-error`) with `analysis.internal-error` (error). Other methods are unaffected. DKIM guards each signature on its own: the finding sits with that signature, and finished signatures keep their results. A failure outside any signature points at the whole input. |
-| REP-8 | When the 60 s deadline passes, unfinished methods are `not-evaluated` (reason `timeout`) with `analysis.timeout` (error). For DKIM this applies per unfinished signature. |
+| REP-8 | When the 60 s deadline passes, unfinished methods are `not-evaluated` (reason `timeout`) with `analysis.timeout` (error). For DKIM this applies per unfinished signature. ARC is one method ([ARC-12](arc.md#signatures)). |
 
 ## Summary
 
@@ -138,7 +170,7 @@ classDiagram
 | SUM-2 | DKIM | Precedence over all signatures: `pass` > `fail` > `permerror` > `temperror` > `neutral` > `not-evaluated`; `none` if no signatures. `counts` per result, listed in that order. If DKIM could not run at all: `not-evaluated` with `reason` (`internal-error`, or `invalid-input` for input over 50 MiB) |
 | SUM-3 | DKIM2 | The DKIM2 result, plus stage |
 | SUM-4 | DMARC | The selected default mode's result and disposition |
-| SUM-5 | ARC | The chain result |
+| SUM-5 | ARC | The chain result ([ARC-11](arc.md#signatures)) and its `reason`; `counts` has `sets`, the number of instances, when there is at least one. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 
 ## Export
 
