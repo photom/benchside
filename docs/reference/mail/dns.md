@@ -6,7 +6,7 @@
 classDiagram
   class Resolver {
     <<function>>
-    (query: DnsQuery, signal: AbortSignal) Promise~DnsAnswer~
+    call(query: DnsQuery, signal: AbortSignal) Promise~DnsAnswer~
   }
   class DnsQuery {
     name: string
@@ -35,7 +35,7 @@ classDiagram
 
 ```mermaid
 flowchart LR
-  check[Check] --> budget[Budget<br/>DNS-13] --> policy[Query policy<br/>DNS-9..11] --> cache[Session cache<br/>DNS-14] --> log[Query log<br/>DNS-15] --> transport{Mode}
+  check[Check] --> log[Query log<br/>DNS-15] --> budget[Budget<br/>DNS-13] --> policy[Query policy<br/>DNS-9..11] --> cache[Session cache<br/>DNS-14] --> transport{Mode}
   transport -->|online| doh[DoH transport<br/>DNS-5..8]
   transport -->|offline| manual[Manual records<br/>DNS-12]
 ```
@@ -67,7 +67,7 @@ flowchart LR
 
 | ID | Rule |
 |---|---|
-| DNS-13 | At most 200 queries per analysis, counted before the cache. Further queries return `BUDGET`, with `dns.budget-exhausted` (error). |
+| DNS-13 | At most 200 queries per analysis, counted before the cache (cache hits count). Further queries return `BUDGET`, with `dns.budget-exhausted` (error). |
 | DNS-14 | Answers are cached in memory per `(provider, name, type)` until the page closes. Never persisted. |
 | DNS-15 | Every query is logged: `queryId`, name, type, sensitivity, purpose, rcode, records, `authenticated`, duration, cache hit. |
 

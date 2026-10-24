@@ -20,4 +20,5 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Privacy model](explanation/privacy-model.md) — what stays on your machine, and what does not
 - [Architecture](explanation/architecture.md) — apps, packages, build, deploy, and tests
 - [Mail analyzer architecture](explanation/mail-architecture.md) — modules, data flow, and key types
+- [Mail analyzer detailed design](explanation/mail-detailed-design.md) — files, interfaces, worker protocol, DNS composition
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made

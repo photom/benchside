@@ -3,6 +3,7 @@
 - Why: [requirements](requirements/)
 - What exactly: [specification](../reference/mail/)
 - Repository-wide view: [Architecture](architecture.md)
+- Files, interfaces, protocols: [Detailed design](mail-detailed-design.md)
 
 ## Context
 
@@ -10,7 +11,7 @@
 flowchart LR
   user([User]) -- ".eml / pasted source" --> app
   subgraph browser [Browser tab — CSP enforced]
-    app[apps/mail<br/>Preact UI] <-- postMessage --> worker[Worker<br/>@benchside/mail]
+    app["apps/mail<br/>Preact UI"] <-->|postMessage| worker["Worker<br/>@benchside/mail"]
   end
   worker -- "names + types only;<br/>sensitive names blocked by default" --> doh[(DoH provider)]
   app -. "nothing" .-x net[(Any other host)]
