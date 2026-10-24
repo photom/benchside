@@ -27,6 +27,7 @@ const emptyReport: PartialReport = {
   summary: [],
   receiver: { results: [], comparisons: [] },
   dkim: [],
+  arc: { result: 'none', sets: [], findings: [] },
   dnsLog: [],
   findings: [],
 };
@@ -354,5 +355,36 @@ describe('App', () => {
     expect(container.querySelector('[aria-label="Receiver results"] a')?.getAttribute('href')).toBe(
       '#field-5',
     );
+  });
+
+  describe('ARC summary', () => {
+    async function summaryOf(line: PartialReport['summary'][number]) {
+      const container = mount({ analyze: async () => ({ ...emptyReport, summary: [line] }) });
+      await choose(container, 'x');
+      return container.querySelector('[aria-label="Summary"]')?.textContent;
+    }
+
+    it('SUM-5: given one ARC set, when shown, then the count reads "1 set"', async () => {
+      expect(await summaryOf({ method: 'arc', result: 'pass', counts: { sets: 1 } })).toContain(
+        'ARC: pass (1 set)',
+      );
+    });
+
+    it('SUM-5: given two ARC sets, when shown, then the count reads "2 sets"', async () => {
+      expect(await summaryOf({ method: 'arc', result: 'fail', counts: { sets: 2 } })).toContain(
+        'ARC: fail (2 sets)',
+      );
+    });
+
+    it('SUM-5, REQ-MAIL-002: given a not-evaluated chain, when shown, then the reason is shown', async () => {
+      expect(
+        await summaryOf({
+          method: 'arc',
+          result: 'not-evaluated',
+          reason: 'offline',
+          counts: { sets: 1 },
+        }),
+      ).toContain('ARC: not evaluated (offline; 1 set)');
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { type ArcReport, verifyArc } from './arc/verify.ts';
 import { type AuthResult, listReceiverResults } from './authres/list.ts';
 import { type DkimSignatureResult, verifyDkim } from './dkim/verify.ts';
 import type { DnsCache } from './dns/cache.ts';
@@ -8,8 +9,9 @@ import { type ParsedReceived, readReceived } from './envelope/received.ts';
 import { type ReferenceTimeMode, referenceTime } from './envelope/reference-time.ts';
 import { splitHeaders } from './message/headers.ts';
 import { normalizeLineEndings } from './message/line-endings.ts';
-import { type SummaryLine, summarizeDkim } from './report/summary.ts';
+import { type SummaryLine, summarizeArc, summarizeDkim } from './report/summary.ts';
 import type { Finding } from './shared/findings.ts';
+import { createSignatureMemo } from './shared/signature-core.ts';
 
 export interface AnalyzeOptions {
   /** Header field index of a user-chosen trust boundary (ENV-10). */
@@ -56,6 +58,8 @@ export interface PartialReport {
   };
   /** One per DKIM-Signature field; each carries its own findings (DKIM-1). */
   readonly dkim: readonly DkimSignatureResult[];
+  /** ARC-1..12; carries its own findings. */
+  readonly arc: ArcReport;
   readonly dnsLog: readonly DnsLogEntry[];
   /** Findings that belong to no single DKIM signature. */
   readonly findings: readonly Finding[];
@@ -95,19 +99,32 @@ export async function analyze(
     allowSensitive: options.allowSensitive ?? false,
   });
 
-  // Each signature is guarded inside verifyDkim (REP-7, REP-8); this catches the rest.
+  // One memo, so a key or body hash used by DKIM and ARC is fetched or computed once.
+  const checkContext = {
+    bytes: normalized.bytes,
+    headers: block.headers,
+    body: block.body,
+    resolve: resolver.resolve,
+    referenceTime: reference.time,
+    signal,
+    memo: createSignatureMemo(),
+  };
+  // verifyArc guards itself (ARC-12) and only rejects on the caller's cancel. Each
+  // DKIM signature is guarded inside verifyDkim (REP-7, REP-8); the catch takes the rest.
+  // Awaited together, so neither rejection is ever left without a handler.
+  const [arc, dkimOutcome] = await Promise.all([
+    verifyArc(checkContext),
+    verifyDkim(checkContext).then(
+      (results) => ({ ok: true, results }) as const,
+      (error: unknown) => ({ ok: false, error }) as const,
+    ),
+  ]);
   let dkim: readonly DkimSignatureResult[] = [];
   const checkFindings: Finding[] = [];
-  try {
-    dkim = await verifyDkim({
-      bytes: normalized.bytes,
-      headers: block.headers,
-      body: block.body,
-      resolve: resolver.resolve,
-      referenceTime: reference.time,
-      signal,
-    });
-  } catch (error) {
+  if (dkimOutcome.ok) {
+    dkim = dkimOutcome.results;
+  } else {
+    const { error } = dkimOutcome;
     if (deps.signal.aborted) throw deps.signal.reason;
     checkFindings.push({
       id: 'analysis.internal-error',
@@ -124,9 +141,13 @@ export async function analyze(
     received: received.received,
     boundary: boundary.boundary?.field ?? null,
     referenceTime: reference.time.toISOString(),
-    summary: [summarizeDkim(dkim, checkFindings.length > 0 ? 'internal-error' : undefined)],
+    summary: [
+      summarizeDkim(dkim, checkFindings.length > 0 ? 'internal-error' : undefined),
+      summarizeArc(arc),
+    ],
     receiver: { results: receiver.results, comparisons: [] },
     dkim,
+    arc,
     dnsLog: log,
     findings: [
       ...normalized.findings,
@@ -137,7 +158,7 @@ export async function analyze(
       ...receiver.findings,
       ...checkFindings,
       ...dnsFindings(log),
-      ...answerFindings(log, dkim, deps.source),
+      ...answerFindings(log, keyQueries(dkim, arc), deps.source),
     ],
   };
 }
@@ -145,7 +166,7 @@ export async function analyze(
 /** dns.answers-are-current and dns.unauthenticated (DNS spec, findings). */
 function answerFindings(
   log: readonly DnsLogEntry[],
-  dkim: readonly DkimSignatureResult[],
+  used: ReadonlySet<string>,
   source: string,
 ): Finding[] {
   const answered = log.filter((e) => e.rcode === 'NOERROR' || e.rcode === 'NXDOMAIN');
@@ -159,7 +180,6 @@ function answerFindings(
       evidence: answered.map((e) => ({ kind: 'dns', queryId: e.queryId })),
     });
   }
-  const used = new Set(dkim.map((r) => r.keyQueryId));
   const unauthenticated = answered.filter((e) => used.has(e.queryId) && !e.authenticated);
   if (unauthenticated.length > 0) {
     findings.push({
@@ -172,17 +192,33 @@ function answerFindings(
   return findings;
 }
 
+/** Queries whose answers decided a result: DKIM and ARC keys. */
+function keyQueries(dkim: readonly DkimSignatureResult[], arc: ArcReport): Set<string> {
+  const ids = [
+    ...dkim.map((r) => r.keyQueryId),
+    ...arc.sets.flatMap((s) => [s.ams?.keyQueryId, s.seal?.keyQueryId]),
+  ];
+  return new Set(ids.filter((id): id is string => id !== undefined));
+}
+
 /** IN-3: nothing else runs, so a huge input is never copied. */
 function tooLarge(byteLength: number, now: Date): PartialReport {
+  const arc: ArcReport = {
+    result: 'not-evaluated',
+    reason: 'invalid-input',
+    sets: [],
+    findings: [],
+  };
   return {
     headers: [],
     hasBody: false,
     received: [],
     boundary: null,
     referenceTime: now.toISOString(),
-    summary: [summarizeDkim([], 'invalid-input')],
+    summary: [summarizeDkim([], 'invalid-input'), summarizeArc(arc)],
     receiver: { results: [], comparisons: [] },
     dkim: [],
+    arc,
     dnsLog: [],
     findings: [
       {
