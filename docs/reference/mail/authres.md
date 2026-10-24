@@ -1,28 +1,40 @@
 # Receiver results
 
-Standards: RFC 8601 (`Authentication-Results`), RFC 7208 §9.1 (`Received-SPF`).
+Standard: RFC 8601 (`Authentication-Results`).
 
 ## Parsing
 
 | ID | Rule |
 |---|---|
 | AR-1 | Parse `Authentication-Results`: `authserv-id`, optional version, then `method=result` entries with `reason` and `ptype.property=value`. Unparsable entries: `authres.syntax` (warning), skipped. |
-| AR-2 | Parse `Received-SPF`: result, then key-value pairs (`client-ip`, `envelope-from`, `helo`, `identity`). |
+| AR-2 | Retired. `Received-SPF` is not used. |
 | AR-3 | Methods compared: `spf`, `dkim`, `dmarc`, `arc`. Others are listed only. |
 
 ## Trust
 
+The boundary hop may write its results above or below its own `Received` field.
+Gmail, for example, writes them below.
+
 ```mermaid
 flowchart TD
-  r1["Received #1 (top)"] --- ar1[Authentication-Results above boundary<br/>trusted]
-  ar1 --- b["Received #k — trust boundary"]
-  b --- ar2[Authentication-Results below boundary<br/>untrusted: could be forged by sender]
+  above["Fields above the boundary Received<br/>trusted"] --- b["Received #k — trust boundary (ENV-8)<br/>by mx.example.net"]
+  b --- zone["Fields below #k, before the next Received<br/>trusted only if authserv-id = mx.example.net"]
+  zone --- rest["Fields below the next Received<br/>untrusted"]
 ```
 
 | ID | Rule |
 |---|---|
-| AR-4 | A result field is trusted if it appears above the trust-boundary `Received` field ([ENV-8](envelope.md#trust-boundary)). Otherwise untrusted, `authres.untrusted` (info). |
+| AR-4 | An `Authentication-Results` field is trusted if (a) it appears above the trust-boundary `Received` field ([ENV-8](envelope.md#trust-boundary)), or (b) it appears below that field and above the next `Received` field (or the end of the header block), and its `authserv-id` equals the boundary field's `by` host, compared case-insensitively. Otherwise it is untrusted, with `authres.untrusted` (info). |
 | AR-5 | Only trusted fields are compared. Untrusted ones are listed. |
+
+Rule AR-4 (b) relies on RFC 8601 §5. A border MTA must delete incoming fields that claim its own `authserv-id`. So a field below the boundary that carries the boundary host's ID was written by that host.
+
+## Listing
+
+| ID | Rule |
+|---|---|
+| AR-10 | Every `Authentication-Results` field is listed in header order with its field index, trust (AR-4), `authserv-id`, and entries. This holds whether or not our own results exist. |
+| AR-11 | A method is compared only when our result for it exists. Otherwise its entries are listed without a comparison, and no `authres.differs` is produced. |
 
 ## Comparison
 
@@ -38,7 +50,7 @@ flowchart TD
 | Key changed since delivery | DKIM/ARC: receiver `pass`, ours `fail`/`permerror` with `dkim.no-key`, `dkim.key-revoked`, or `signature-mismatch` while `bh` matches |
 | DNS changed since delivery | SPF or DMARC differs and no other cause applies |
 | Forwarding or modification | Receiver `pass`, ours `fail` with `body-hash-mismatch` |
-| Wrong trust boundary | SPF differs and our client IP differs from the receiver's `Received-SPF` `client-ip` |
+| Wrong trust boundary | SPF differs and the boundary came from ENV-9 (no public hop) or was chosen by the user (ENV-10) |
 | Line-ending conversion | `input.lf-converted` or `input.line-endings-mixed` present and any hash differs |
 
 ## Findings

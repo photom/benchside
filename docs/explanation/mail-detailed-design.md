@@ -19,7 +19,7 @@ packages/mail/
     dkim2/     fields.ts  recipes.ts  custody.ts  hashes.ts  verify.ts
     dmarc/     author.ts  record.ts  discover-rfc9989.ts  discover-rfc7489.ts  align.ts  policy.ts  evaluate.ts
     arc/       sets.ts  seal.ts  validate.ts
-    authres/   parse.ts  received-spf.ts  compare.ts
+    authres/   parse.ts  list.ts  compare.ts
     psl/       lookup.ts
     shared/    bytes.ts  tag-list.ts  canonicalize.ts  crypto.ts  domain.ts  ip.ts  base64.ts  findings.ts  trace.ts
                signature-core.ts         # DKIM + ARC: header selection, body hash, keys, verify
@@ -149,7 +149,8 @@ dkim.verifyAll(ctx): Promise<DkimSignatureResult[]>;      // + d, s, i per signa
 dkim2.verify(ctx): Promise<CheckResult<Dkim2Result> & { stage?: Dkim2Stage }>;
 arc.validate(ctx): Promise<CheckResult<ArcResult> & { oldestPass?: number }>;
 dmarc.evaluate(ctx, inputs: { spf; dkim }, mode: DmarcMode): Promise<DmarcResult>;
-authres.compare(message, envelope, ours): Comparison[];
+authres.list(message, envelope): AuthResult[];          // AR-1, AR-4, AR-10
+authres.compare(results, ours): Comparison[];           // AR-5..9, AR-11
 ```
 
 ## 5. Orchestration
