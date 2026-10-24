@@ -1,0 +1,24 @@
+# Privacy model
+
+benchside exists so that people can inspect real, sensitive files — an email that may be phishing, a signed PDF, an archive from an unknown sender — without handing them to a third-party service.
+
+## What stays local
+
+Every file you open is read in your browser with the File API and parsed by JavaScript running on the page. File contents are never uploaded, logged, or stored. Decompression uses the browser's built-in `DecompressionStream`, and signature checks use Web Crypto.
+
+## What leaves your machine
+
+Email authentication (DKIM, SPF, DMARC, ARC) needs DNS records. benchside fetches them over DNS-over-HTTPS. These requests contain domain names only, never message contents. You can turn DNS lookups off; the affected checks are then reported as not evaluated.
+
+## How this is enforced
+
+A promise in a README is easy to break by accident. Each page therefore carries a Content Security Policy that restricts network connections to the DNS-over-HTTPS endpoints:
+
+```html
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src https://cloudflare-dns.com https://dns.google; img-src 'self' blob: data:; object-src 'none'">
+```
+
+Even if benchside's code or a dependency tried to send data elsewhere, the browser would block it. You can verify this yourself in the browser's developer tools.
+
+Runtime dependencies are kept to a minimum and all parsers are written in this repository, which keeps the amount of code you have to trust small and reviewable.
