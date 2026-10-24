@@ -23,7 +23,10 @@ const emptyReport: PartialReport = {
   hasBody: false,
   received: [],
   boundary: null,
+  referenceTime: '2026-10-24T00:00:00.000Z',
   receiver: { results: [], comparisons: [] },
+  dkim: [],
+  dnsLog: [],
   findings: [],
 };
 
@@ -154,5 +157,13 @@ describe('App', () => {
     const notes = container.querySelector('[aria-label="Notes"]');
     expect(notes?.textContent).toContain('Warning');
     expect(notes?.textContent).toContain('LF converted.');
+  });
+
+  it('REQ-MAIL-012: given an analysis superseded by a newer one, when it rejects with AbortError, then no alert is shown', async () => {
+    const container = mount({
+      analyze: async () => Promise.reject(new DOMException('Superseded', 'AbortError')),
+    });
+    await choose(container, 'x');
+    expect(container.querySelector('[role=alert]')).toBeNull();
   });
 });

@@ -4,6 +4,7 @@
  */
 import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
+import { isTimeout, untilAborted } from '../shared/abort.ts';
 import { decodeBase64 } from '../shared/base64.ts';
 import type { ByteRange } from '../shared/bytes.ts';
 import { bodyRelaxed, bodySimple } from '../shared/canonicalize.ts';
@@ -13,7 +14,13 @@ import { headerHashData, selectHeaders } from '../shared/signature-core.ts';
 import { parseTagList } from '../shared/tag-list.ts';
 
 export type DkimResult = 'pass' | 'fail' | 'temperror' | 'permerror' | 'not-evaluated';
-export type DkimNotEvaluatedReason = 'no-body' | 'offline' | 'sensitive-query-blocked' | 'limit';
+export type DkimNotEvaluatedReason =
+  | 'no-body'
+  | 'offline'
+  | 'sensitive-query-blocked'
+  | 'limit'
+  | 'timeout'
+  | 'internal-error';
 
 export interface DkimTrace {
   /** Parsed tags in order (DKIM-16). */
@@ -94,8 +101,48 @@ export async function verifyDkim(ctx: DkimContext): Promise<DkimSignatureResult[
   };
   const signatures = ctx.headers.filter((h) => h.lname === 'dkim-signature');
   return Promise.all(
-    signatures.map((sig, n) => (n < MAX_SIGNATURES ? verifyOne(ctx, sig, memo) : tooMany(sig))),
+    signatures.map((sig, n) =>
+      n < MAX_SIGNATURES ? guarded(ctx, sig, () => verifyOne(ctx, sig, memo)) : tooMany(sig),
+    ),
   );
+}
+
+/**
+ * REP-7, REP-8 per signature: a throw gives internal-error, the deadline gives
+ * timeout, and the caller's cancel propagates. Other signatures keep their results.
+ */
+async function guarded(
+  ctx: DkimContext,
+  sig: HeaderField,
+  verify: () => Promise<DkimSignatureResult>,
+): Promise<DkimSignatureResult> {
+  try {
+    return await untilAborted(verify(), ctx.signal);
+  } catch (error) {
+    if (ctx.signal.aborted && !isTimeout(ctx.signal)) throw ctx.signal.reason;
+    const timedOut = isTimeout(ctx.signal);
+    const tags = parseTagList(sig.value).tags;
+    const d = tags.get('d');
+    const s = tags.get('s');
+    return {
+      field: sig.index,
+      result: 'not-evaluated',
+      reason: timedOut ? 'timeout' : 'internal-error',
+      ...(d !== undefined ? { d } : {}),
+      ...(s !== undefined ? { s } : {}),
+      findings: [
+        make(
+          sig,
+          timedOut ? 'analysis.timeout' : 'analysis.internal-error',
+          'error',
+          timedOut
+            ? 'This signature was not verified within the time limit.'
+            : `Verification stopped because of an unexpected error: ${String(error)}`,
+        ),
+      ],
+      trace: { tags: [...tags], selectedHeaders: [] },
+    };
+  }
 }
 
 function tooMany(sig: HeaderField): DkimSignatureResult {
