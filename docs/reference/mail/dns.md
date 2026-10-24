@@ -28,7 +28,7 @@ classDiagram
 |---|---|
 | DNS-1 | Checks call only the `Resolver`. They never call `fetch`. |
 | DNS-2 | `NOERROR` with zero records is NODATA. NODATA and `NXDOMAIN` are distinct. |
-| DNS-3 | `SERVFAIL`, `TIMEOUT` (5 s), `BUDGET` (DNS-13): the caller's result is `temperror`. |
+| DNS-3 | `SERVFAIL`, `TIMEOUT` (5 s), `BUDGET` (DNS-13): the caller's result is `temperror`. ARC has no `temperror`: see [ARC-8, ARC-11](arc.md#signatures). |
 | DNS-4 | `BLOCKED` (DNS-9) and `OFFLINE` (DNS-12): the caller's result is `not-evaluated`. |
 
 ## Layers

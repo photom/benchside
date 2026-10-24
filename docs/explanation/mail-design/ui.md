@@ -78,7 +78,7 @@ The full layout above is the target. The page grows towards it method by method.
 
 ```mermaid
 flowchart TD
-  App --> Summary["Summary<br/>one line per method (SUM-2 for DKIM)"]
+  App --> Summary["Summary<br/>one line per method (SUM-2, SUM-5)"]
   App --> Receiver[Receiver results]
   App --> Dkim["DkimDetail<br/>one card per signature"]
   App --> Notes["Notes<br/>findings of no single result"]
@@ -89,7 +89,7 @@ flowchart TD
 
 | Element | Shows | REQ |
 |---|---|---|
-| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures | REQ-MAIL-002 |
+| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures. `ARC: pass (2 sets)`. A `not-evaluated` reason comes before the counts: `ARC: not evaluated (offline; 1 set)` | REQ-MAIL-002, SUM-2, SUM-5 |
 | DKIM card | `d=`, `s=`, result as text, the `not-evaluated` reason, findings with severity | REQ-MAIL-002, REQ-MAIL-004 |
 | Trace (`<details>`) | Tags, signed header fields, key query, header hash input, body hash computed vs `bh=` | DKIM-16 |
 | Canonical body | Shown open when the computed body hash differs from `bh=`; marked when only the first 64 KiB is shown | REQ-MAIL-004 |

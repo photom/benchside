@@ -18,7 +18,7 @@ packages/mail/
     dkim/      verify.ts
     dkim2/     fields.ts  recipes.ts  custody.ts  hashes.ts  verify.ts
     dmarc/     author.ts  record.ts  discover-rfc9989.ts  discover-rfc7489.ts  align.ts  policy.ts  evaluate.ts
-    arc/       sets.ts  seal.ts  validate.ts
+    arc/       sets.ts  verify.ts
     authres/   parse.ts  list.ts  compare.ts
     psl/       lookup.ts
     shared/    bytes.ts  tag-list.ts  canonicalize.ts  crypto.ts  domain.ts  ip.ts  base64.ts  findings.ts  trace.ts
