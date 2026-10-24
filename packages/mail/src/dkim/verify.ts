@@ -7,10 +7,23 @@ import type { HeaderField } from '../message/headers.ts';
 import { isTimeout, untilAborted } from '../shared/abort.ts';
 import { decodeBase64 } from '../shared/base64.ts';
 import type { ByteRange } from '../shared/bytes.ts';
-import { bodyRelaxed, bodySimple } from '../shared/canonicalize.ts';
-import { type DkimKey, importDkimKey, verifySignature } from '../shared/crypto.ts';
+import { verifySignature } from '../shared/crypto.ts';
+import { isDomainName } from '../shared/domain.ts';
 import type { Evidence, Finding, Severity } from '../shared/findings.ts';
-import { headerHashData, selectHeaders } from '../shared/signature-core.ts';
+import {
+  ALGORITHMS,
+  bodyHash,
+  bytesEqual,
+  createSignatureMemo,
+  FUTURE_SLACK_SECONDS,
+  fetchKey,
+  headerHashData,
+  isAlgorithm,
+  isCanon,
+  type SignatureMemo,
+  selectHeaders,
+  toBase64,
+} from '../shared/signature-core.ts';
 import { parseTagList } from '../shared/tag-list.ts';
 
 export type DkimResult = 'pass' | 'fail' | 'temperror' | 'permerror' | 'not-evaluated';
@@ -61,44 +74,19 @@ export interface DkimContext {
   /** TIME-1..3 */
   readonly referenceTime: Date;
   readonly signal: AbortSignal;
+  /** Shared with ARC by `analyze`; a fresh one when absent. */
+  readonly memo?: SignatureMemo;
 }
 
 const MAX_SIGNATURES = 20; // DKIM-1
-const FUTURE_SLACK_SECONDS = 300; // DKIM-6
 const TRACE_BODY_BYTES = 64 * 1024; // DKIM-16
-const ALGORITHMS = {
-  'rsa-sha256': { k: 'rsa', hash: 'SHA-256', h: 'sha256' },
-  'rsa-sha1': { k: 'rsa', hash: 'SHA-1', h: 'sha1' },
-  'ed25519-sha256': { k: 'ed25519', hash: 'SHA-256', h: 'sha256' },
-} as const;
-type Algorithm = keyof typeof ALGORITHMS;
 /** dkim.unsigned-header: fields an attacker could add or change if left unsigned. */
 const SHOULD_SIGN = ['subject', 'date', 'to', 'cc', 'reply-to', 'message-id', 'content-type'];
 
 const utf8 = new TextDecoder('utf-8', { fatal: false });
-const toB64 = (bytes: Uint8Array) => {
-  let s = '';
-  for (const b of bytes) s += String.fromCharCode(b);
-  return btoa(s);
-};
-
-/** Memos shared by the signatures of one message (design: mail-design/dkim.md). */
-interface Memo {
-  readonly keys: Map<string, Promise<DnsAnswer>>;
-  readonly imported: Map<string, Promise<DkimKey>>;
-  /** Canonical body per body canonicalization. */
-  readonly bodies: Map<string, Promise<Uint8Array>>;
-  /** Body hash per (canon, hash, l). */
-  readonly digests: Map<string, Promise<Uint8Array>>;
-}
 
 export async function verifyDkim(ctx: DkimContext): Promise<DkimSignatureResult[]> {
-  const memo: Memo = {
-    keys: new Map(),
-    imported: new Map(),
-    bodies: new Map(),
-    digests: new Map(),
-  };
+  const memo = ctx.memo ?? createSignatureMemo();
   const signatures = ctx.headers.filter((h) => h.lname === 'dkim-signature');
   return Promise.all(
     signatures.map((sig, n) =>
@@ -174,7 +162,7 @@ function make(
 async function verifyOne(
   ctx: DkimContext,
   sig: HeaderField,
-  memo: Memo,
+  memo: SignatureMemo,
 ): Promise<DkimSignatureResult> {
   const findings: Finding[] = [];
   const list = parseTagList(sig.value);
@@ -218,10 +206,10 @@ async function verifyOne(
   }
   // DKIM-4
   const a = (tags.get('a') ?? '').toLowerCase();
-  if (!(a in ALGORITHMS)) {
+  if (!isAlgorithm(a)) {
     return fail('permerror', 'dkim.unknown-algorithm', `The algorithm "${a}" is not supported.`);
   }
-  const algorithm = ALGORITHMS[a as Algorithm];
+  const algorithm = ALGORITHMS[a];
 
   // DKIM-5
   const domain = (d ?? '').toLowerCase();
@@ -308,138 +296,58 @@ async function verifyOne(
     );
   }
 
-  // DKIM-7, DKIM-8
-  const name = `${s}._domainkey.${d}`;
-  const keyKey = name.toLowerCase();
-  let pending = memo.keys.get(keyKey);
-  if (!pending) {
-    pending = ctx.resolve(
-      { name, type: 'TXT', sensitivity: 'domain', purpose: `DKIM key for ${name}` },
-      ctx.signal,
-    );
-    memo.keys.set(keyKey, pending);
+  // DKIM-7..10
+  const fetched = await fetchKey(
+    { resolve: ctx.resolve, signal: ctx.signal, memo },
+    s ?? '',
+    domain,
+    a,
+    iDomain === domain,
+  );
+  keyQueryId = fetched.queryId;
+  const dns: Evidence[] = [{ kind: 'dns', queryId: fetched.queryId }];
+  for (const note of fetched.notes) {
+    findings.push(make(sig, `dkim.${note.id}`, note.severity, note.message, dns));
   }
-  const answer = await pending;
-  keyQueryId = answer.queryId;
-  const dns: Evidence[] = [{ kind: 'dns', queryId: answer.queryId }];
-  switch (answer.rcode) {
-    case 'NOERROR':
-      if (answer.records.length > 0) break;
-      return fail('permerror', 'dkim.no-key', `No key record at ${name}.`, dns);
-    case 'NXDOMAIN':
-      return fail('permerror', 'dkim.no-key', `No key record at ${name}.`, dns);
-    case 'SERVFAIL':
-    case 'TIMEOUT':
-    case 'BUDGET':
-      return done('temperror'); // DNS-3
-    case 'BLOCKED':
-      return done('not-evaluated', 'sensitive-query-blocked'); // DNS-4
-    case 'OFFLINE':
-      return done('not-evaluated', 'offline'); // DNS-4
-  }
-
-  // DKIM-9, DKIM-10
-  const keyRecord = answer.records.find((r) => {
-    const parsed = parseTagList(r);
-    return parsed.errors.length === 0 && parsed.duplicates.length === 0;
-  });
-  if (answer.records.length > 1 && keyRecord !== undefined) {
-    findings.push(
-      make(
-        sig,
-        'dkim.multiple-keys',
-        'warning',
-        'Several key records were found; the first valid one was used.',
-        dns,
-      ),
-    );
-  }
-  const keyTags = keyRecord === undefined ? null : parseTagList(keyRecord).tags;
-  const p = keyTags?.get('p');
-  if (!keyTags || p === undefined || (keyTags.has('v') && keyTags.get('v') !== 'DKIM1')) {
-    return fail('permerror', 'dkim.key-syntax', 'The key record is not valid.', dns);
-  }
-  if (p === '')
-    return fail('permerror', 'dkim.key-revoked', 'The key has been revoked (empty p=).', dns);
-  const list2 = (tag: string) =>
-    keyTags
-      .get(tag)
-      ?.split(':')
-      .map((v) => v.trim().toLowerCase());
-  const k = (keyTags.get('k') ?? 'rsa').toLowerCase();
-  const keyFlags = list2('t') ?? [];
-  const mismatch =
-    k !== algorithm.k
-      ? `The key type k=${k} does not match a=${a}.`
-      : list2('h') && !list2('h')?.includes(algorithm.h)
-        ? `The key does not allow ${algorithm.h}.`
-        : !(list2('s') ?? ['*']).some((v) => v === 'email' || v === '*')
-          ? 'The key is not for email (s=).'
-          : keyFlags.includes('s') && iDomain !== domain
-            ? 'The key requires i= to be exactly d= (t=s).'
-            : null;
-  if (mismatch) return fail('permerror', 'dkim.key-mismatch', mismatch, dns);
-  const pBytes = decodeBase64(p);
-  const importKey = `${algorithm.hash} ${keyRecord}`;
-  let importing = memo.imported.get(importKey);
-  if (!importing) {
-    importing = pBytes
-      ? importDkimKey(k, pBytes, algorithm.hash)
-      : Promise.resolve({ ok: false } as const);
-    memo.imported.set(importKey, importing);
-  }
-  const key = await importing;
-  if (!key.ok) return fail('permerror', 'dkim.key-syntax', 'The key could not be read.', dns);
-  if (key.bits !== undefined && key.bits < 1024) {
-    return fail(
-      'permerror',
-      'dkim.key-too-short',
-      `The RSA key has only ${key.bits} bits (RFC 8301 §3.2).`,
-      dns,
-    );
-  }
-  if (key.bits !== undefined && key.bits < 2048) {
-    findings.push(
-      make(
-        sig,
-        'dkim.weak-key',
-        'warning',
-        `The RSA key has ${key.bits} bits; 2048 or more is recommended.`,
-        dns,
-      ),
-    );
-  }
-  if (keyFlags.includes('y')) {
-    findings.push(
-      make(sig, 'dkim.testing', 'info', 'The domain says it is testing DKIM (t=y).', dns),
-    );
+  if (!fetched.ok) {
+    switch (fetched.problem) {
+      case 'SERVFAIL':
+      case 'TIMEOUT':
+      case 'BUDGET':
+        return done('temperror'); // DNS-3
+      case 'BLOCKED':
+        return done('not-evaluated', 'sensitive-query-blocked'); // DNS-4
+      case 'OFFLINE':
+        return done('not-evaluated', 'offline'); // DNS-4
+      default:
+        return fail('permerror', `dkim.${fetched.problem}`, fetched.message, dns);
+    }
   }
 
   // DKIM-11..13
   if (!ctx.body) return done('not-evaluated', 'no-body');
-  const canonical = await canonicalBody(ctx, ctx.body, bc as 'simple' | 'relaxed', memo);
-  if (l !== undefined && Number(l) > canonical.length) {
+  const { canonical, computed } = await bodyHash(
+    memo,
+    ctx.bytes,
+    ctx.body,
+    bc as 'simple' | 'relaxed',
+    algorithm.hash,
+    l === undefined ? undefined : Number(l),
+  );
+  if (!computed) {
     return fail(
       'permerror',
       'dkim.invalid-tag',
       `l=${l} is longer than the body (${canonical.length} bytes).`,
     );
   }
-  const digestKey = `${bc}/${algorithm.hash}/${l ?? ''}`;
-  let digesting = memo.digests.get(digestKey);
-  if (!digesting) {
-    const hashed = l === undefined ? canonical : canonical.subarray(0, Number(l));
-    digesting = crypto.subtle.digest(algorithm.hash, hashed.slice()).then((h) => new Uint8Array(h));
-    memo.digests.set(digestKey, digesting);
-  }
-  const computed = await digesting;
   trace.body = {
     canonical: utf8.decode(canonical.subarray(0, TRACE_BODY_BYTES)),
     length: canonical.length,
-    computed: toB64(computed),
-    expected: toB64(bh),
+    computed: toBase64(computed),
+    expected: toBase64(bh),
   };
-  if (!equal(computed, bh)) {
+  if (!bytesEqual(computed, bh)) {
     return fail(
       'fail',
       'dkim.body-hash-mismatch',
@@ -452,7 +360,7 @@ async function verifyOne(
   trace.selectedHeaders = selected.map((h) => h.index);
   const data = headerHashData(ctx.bytes, selected, sig, hc as 'simple' | 'relaxed');
   trace.headerData = utf8.decode(data);
-  if (!(await verifySignature(key, data, b))) {
+  if (!(await verifySignature(fetched.key, data, b))) {
     return fail(
       'fail',
       'dkim.signature-mismatch',
@@ -464,45 +372,4 @@ async function verifyOne(
   if (a === 'rsa-sha1')
     return fail('fail', 'dkim.sha1', 'rsa-sha1 is no longer acceptable (RFC 8301).');
   return done('pass');
-}
-
-/**
- * RFC 6376 §3.5 domain-name / selector: dot-separated labels of letters, digits,
- * "-", and "_" (non-ASCII labels are converted later, DNS-18). Anything else
- * must never reach a DNS query.
- */
-function isDomainName(name: string): boolean {
-  return name.length > 0 && name.length <= 253 && name.split('.').every(isLabel);
-}
-
-function isLabel(label: string): boolean {
-  if (label.length === 0 || label.length > 63 || label.startsWith('-') || label.endsWith('-')) {
-    return false;
-  }
-  // ASCII characters must be letters, digits, "-", or "_"; non-ASCII is left to DNS-18.
-  return [...label].every((c) => c.charCodeAt(0) >= 0x80 || /[A-Za-z0-9_-]/.test(c));
-}
-
-function isCanon(c: string): boolean {
-  return c === 'simple' || c === 'relaxed';
-}
-
-function equal(x: Uint8Array, y: Uint8Array): boolean {
-  return x.length === y.length && x.every((v, n) => v === y[n]);
-}
-
-/** Canonicalized once per body canonicalization; `l=` and the hash are applied by the caller. */
-function canonicalBody(
-  ctx: DkimContext,
-  body: ByteRange,
-  canon: 'simple' | 'relaxed',
-  memo: Memo,
-): Promise<Uint8Array> {
-  let pending = memo.bodies.get(canon);
-  if (!pending) {
-    const bytes = ctx.bytes.subarray(body.start, body.end);
-    pending = Promise.resolve(canon === 'simple' ? bodySimple(bytes) : bodyRelaxed(bytes));
-    memo.bodies.set(canon, pending);
-  }
-  return pending;
 }

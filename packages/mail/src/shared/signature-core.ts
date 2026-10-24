@@ -2,8 +2,14 @@
  * Shared by DKIM signatures and ARC-Message-Signatures (design: mail-design/dkim.md).
  * Works on the CRLF-normalized bytes; header `raw` ranges point into them.
  */
+import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
-import { headerRelaxed, headerSimple } from './canonicalize.ts';
+import { decodeBase64 } from './base64.ts';
+import type { ByteRange } from './bytes.ts';
+import { bodyRelaxed, bodySimple, headerRelaxed, headerSimple } from './canonicalize.ts';
+import { type DkimKey, importDkimKey } from './crypto.ts';
+import type { Severity } from './findings.ts';
+import { parseTagList } from './tag-list.ts';
 
 const CR = 0x0d;
 const LF = 0x0a;
@@ -107,4 +113,220 @@ function withCrlf(field: Uint8Array): Uint8Array {
   out[field.length] = CR;
   out[field.length + 1] = LF;
   return out;
+}
+
+/** DKIM-6, ARC-9: a `t=` this far after the reference time is "in the future". */
+export const FUTURE_SLACK_SECONDS = 300;
+
+export function isCanon(c: string): c is 'simple' | 'relaxed' {
+  return c === 'simple' || c === 'relaxed';
+}
+
+export function bytesEqual(x: Uint8Array, y: Uint8Array): boolean {
+  return x.length === y.length && x.every((v, n) => v === y[n]);
+}
+
+export function toBase64(bytes: Uint8Array): string {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+
+/** DKIM-4: algorithms shared by DKIM signatures and ARC (ARC-8). */
+export const ALGORITHMS = {
+  'rsa-sha256': { k: 'rsa', hash: 'SHA-256', h: 'sha256' },
+  'rsa-sha1': { k: 'rsa', hash: 'SHA-1', h: 'sha1' },
+  'ed25519-sha256': { k: 'ed25519', hash: 'SHA-256', h: 'sha256' },
+} as const;
+export type Algorithm = keyof typeof ALGORITHMS;
+
+export function isAlgorithm(a: string): a is Algorithm {
+  return a in ALGORITHMS;
+}
+
+/** Memos shared by every signature of one analysis, DKIM and ARC alike. */
+export interface SignatureMemo {
+  readonly keys: Map<string, Promise<DnsAnswer>>;
+  readonly imported: Map<string, Promise<DkimKey>>;
+  /** Canonical body per body canonicalization. */
+  readonly bodies: Map<string, Promise<Uint8Array>>;
+  /** Body hash per (canon, hash, l). */
+  readonly digests: Map<string, Promise<Uint8Array>>;
+}
+
+export function createSignatureMemo(): SignatureMemo {
+  return { keys: new Map(), imported: new Map(), bodies: new Map(), digests: new Map() };
+}
+
+export interface KeyContext {
+  readonly resolve: (query: DnsQuery, signal: AbortSignal) => Promise<DnsAnswer>;
+  readonly signal: AbortSignal;
+  readonly memo: SignatureMemo;
+}
+
+export type KeyProblem = 'no-key' | 'key-syntax' | 'key-revoked' | 'key-mismatch' | 'key-too-short';
+/** DNS answers that carry no key (DNS-3, DNS-4). */
+export type KeyDnsFailure = 'SERVFAIL' | 'TIMEOUT' | 'BUDGET' | 'BLOCKED' | 'OFFLINE';
+
+/** Remarks about a usable key; each method turns them into its own findings. */
+export interface KeyNote {
+  readonly id: 'multiple-keys' | 'weak-key' | 'testing';
+  readonly severity: Severity;
+  readonly message: string;
+}
+
+export type KeyResult =
+  | {
+      readonly ok: true;
+      readonly key: Extract<DkimKey, { ok: true }>;
+      readonly queryId: string;
+      readonly notes: readonly KeyNote[];
+    }
+  | {
+      readonly ok: false;
+      readonly queryId: string;
+      readonly problem: KeyProblem | KeyDnsFailure;
+      readonly message: string;
+      /** Remarks gathered before the problem, such as which record was used. */
+      readonly notes: readonly KeyNote[];
+    };
+
+/**
+ * DKIM-7..10: fetches, checks, and imports the key for `s=` and `d=`.
+ * `identityMatches` is false when `i=` is a subdomain of `d=` (key flag t=s).
+ */
+export async function fetchKey(
+  ctx: KeyContext,
+  s: string,
+  d: string,
+  a: Algorithm,
+  identityMatches: boolean,
+): Promise<KeyResult> {
+  const algorithm = ALGORITHMS[a];
+  const name = `${s}._domainkey.${d}`;
+  const memoKey = name.toLowerCase();
+  let pending = ctx.memo.keys.get(memoKey);
+  if (!pending) {
+    pending = ctx.resolve(
+      { name, type: 'TXT', sensitivity: 'domain', purpose: `DKIM key for ${name}` },
+      ctx.signal,
+    );
+    ctx.memo.keys.set(memoKey, pending);
+  }
+  const answer = await pending;
+  const queryId = answer.queryId;
+  const notes: KeyNote[] = [];
+  const problem = (p: KeyProblem | KeyDnsFailure, message: string): KeyResult => ({
+    ok: false,
+    queryId,
+    problem: p,
+    message,
+    notes,
+  });
+  switch (answer.rcode) {
+    case 'NOERROR':
+      if (answer.records.length > 0) break;
+      return problem('no-key', `No key record at ${name}.`);
+    case 'NXDOMAIN':
+      return problem('no-key', `No key record at ${name}.`);
+    default:
+      return problem(answer.rcode, `The key lookup for ${name} returned ${answer.rcode}.`);
+  }
+
+  // DKIM-9, DKIM-10
+  const keyRecord = answer.records.find((r) => {
+    const parsed = parseTagList(r);
+    return parsed.errors.length === 0 && parsed.duplicates.length === 0;
+  });
+  if (answer.records.length > 1 && keyRecord !== undefined) {
+    notes.push({
+      id: 'multiple-keys',
+      severity: 'warning',
+      message: 'Several key records were found; the first valid one was used.',
+    });
+  }
+  const keyTags = keyRecord === undefined ? null : parseTagList(keyRecord).tags;
+  const p = keyTags?.get('p');
+  if (!keyTags || p === undefined || (keyTags.has('v') && keyTags.get('v') !== 'DKIM1')) {
+    return problem('key-syntax', 'The key record is not valid.');
+  }
+  if (p === '') return problem('key-revoked', 'The key has been revoked (empty p=).');
+  const list = (tag: string) =>
+    keyTags
+      .get(tag)
+      ?.split(':')
+      .map((v) => v.trim().toLowerCase());
+  const k = (keyTags.get('k') ?? 'rsa').toLowerCase();
+  const flags = list('t') ?? [];
+  const mismatch =
+    k !== algorithm.k
+      ? `The key type k=${k} does not match a=${a}.`
+      : list('h') && !list('h')?.includes(algorithm.h)
+        ? `The key does not allow ${algorithm.h}.`
+        : !(list('s') ?? ['*']).some((v) => v === 'email' || v === '*')
+          ? 'The key is not for email (s=).'
+          : flags.includes('s') && !identityMatches
+            ? 'The key requires i= to be exactly d= (t=s).'
+            : null;
+  if (mismatch) return problem('key-mismatch', mismatch);
+  const pBytes = decodeBase64(p);
+  const importKey = `${algorithm.hash} ${keyRecord}`;
+  let importing = ctx.memo.imported.get(importKey);
+  if (!importing) {
+    importing = pBytes
+      ? importDkimKey(k, pBytes, algorithm.hash)
+      : Promise.resolve({ ok: false } as const);
+    ctx.memo.imported.set(importKey, importing);
+  }
+  const key = await importing;
+  if (!key.ok) return problem('key-syntax', 'The key could not be read.');
+  if (key.bits !== undefined && key.bits < 1024) {
+    return problem('key-too-short', `The RSA key has only ${key.bits} bits (RFC 8301 §3.2).`);
+  }
+  if (key.bits !== undefined && key.bits < 2048) {
+    notes.push({
+      id: 'weak-key',
+      severity: 'warning',
+      message: `The RSA key has ${key.bits} bits; 2048 or more is recommended.`,
+    });
+  }
+  if (flags.includes('y')) {
+    notes.push({
+      id: 'testing',
+      severity: 'info',
+      message: 'The domain says it is testing DKIM (t=y).',
+    });
+  }
+  return { ok: true, key, queryId, notes };
+}
+
+/**
+ * DKIM-11..13: the canonical body (memoized per canonicalization) and its hash
+ * over the first `l` bytes (memoized per canon, hash, l). `computed` is null
+ * when `l` is longer than the canonical body.
+ */
+export async function bodyHash(
+  memo: SignatureMemo,
+  bytes: Uint8Array,
+  body: ByteRange,
+  canon: 'simple' | 'relaxed',
+  hash: 'SHA-256' | 'SHA-1',
+  l?: number,
+): Promise<{ readonly canonical: Uint8Array; readonly computed: Uint8Array | null }> {
+  let canonicalizing = memo.bodies.get(canon);
+  if (!canonicalizing) {
+    const raw = bytes.subarray(body.start, body.end);
+    canonicalizing = Promise.resolve(canon === 'simple' ? bodySimple(raw) : bodyRelaxed(raw));
+    memo.bodies.set(canon, canonicalizing);
+  }
+  const canonical = await canonicalizing;
+  if (l !== undefined && l > canonical.length) return { canonical, computed: null };
+  const digestKey = `${canon}/${hash}/${l ?? ''}`;
+  let digesting = memo.digests.get(digestKey);
+  if (!digesting) {
+    const hashed = l === undefined ? canonical : canonical.subarray(0, l);
+    digesting = crypto.subtle.digest(hash, hashed.slice()).then((h) => new Uint8Array(h));
+    memo.digests.set(digestKey, digesting);
+  }
+  return { canonical, computed: await digesting };
 }
