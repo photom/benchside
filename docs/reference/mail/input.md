@@ -30,6 +30,7 @@ flowchart TD
 |---|---|
 | IN-7 | Every LF not preceded by CR becomes CRLF. Bare CR is unchanged. |
 | IN-8 | The normalized bytes are used for all checks. Byte ranges in the report refer to the original bytes. |
+| IN-13 | Evidence for line-ending findings uses original offsets: `input.lf-converted` and `input.line-endings-mixed` point at the first bare LF; `input.bare-cr` points at each bare CR, up to 100. |
 
 | Finding | Severity | Condition |
 |---|---|---|

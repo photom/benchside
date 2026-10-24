@@ -63,6 +63,30 @@ describe('analyze (receiver results slice)', () => {
     expect(report.receiver.results[0]?.trusted).toBe(true);
   });
 
+  it('IN-7: given a message with LF line endings, when analyzed, then fields are split and input.lf-converted is reported', () => {
+    const report = analyze(
+      new TextEncoder().encode(
+        `Received: from a.example (a.example [192.0.2.1]) by mx.example.org with SMTP${DATE}\nAuthentication-Results: mx.example.org; spf=pass\n\nbody\n`,
+      ),
+    );
+    expect(report.headers.map((h) => h.name)).toEqual(['Received', 'Authentication-Results']);
+    expect(report.receiver.results[0]?.trusted).toBe(true);
+    expect(report.findings.map((f) => f.id)).toContain('input.lf-converted');
+  });
+
+  it('IN-3: given input over 50 MiB, when analyzed, then only input.too-large is reported', () => {
+    const input = new Uint8Array(50 * 1024 * 1024 + 1).fill(0x0a);
+    const report = analyze(input);
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        id: 'input.too-large',
+        severity: 'error',
+        evidence: [{ kind: 'bytes', range: { start: 0, end: input.length } }],
+      }),
+    ]);
+    expect(report.headers).toEqual([]);
+  });
+
   const privateSample = new URL('../../../samples/private/test.eml', import.meta.url);
   it.skipIf(!existsSync(privateSample))(
     'REQ-MAIL-008: given the private Gmail sample, when analyzed, then mx.google.com results are trusted and pass',

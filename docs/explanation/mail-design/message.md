@@ -8,7 +8,7 @@ Spec: [Input](../../reference/mail/input.md).
 flowchart LR
   in[/original bytes/] --> size{"> 50 MiB?"}
   size -->|yes| stop[input.too-large]
-  size -->|no| le["line-endings.ts<br/>one pass"]
+  size -->|no| le["line-endings.ts<br/>find, then copy"]
   le --> norm[/"normalized + insertion points"/]
   norm --> hdr["headers.ts<br/>split fields"]
   hdr --> end_{"empty line found?"}
@@ -22,18 +22,18 @@ flowchart LR
 ```ts
 interface Normalized {
   bytes: Uint8Array;            // CRLF everywhere a bare LF was
-  inserted: Int32Array;         // sorted normalized offsets where a CR was inserted
-  kind: 'crlf' | 'lf' | 'mixed';
-  bareCr: ByteRange[];          // for input.bare-cr evidence (first 100)
+  findings: Finding[];          // input.lf-converted / line-endings-mixed / bare-cr (IN-13)
+  toOriginal(offset: number): number; // binary search over the inserted-CR offsets
 }
 ```
 
 | Step | Detail |
 |---|---|
-| Count | First pass counts bare LFs, to allocate `bytes` once |
-| Copy | Second pass copies, inserting CR before bare LF and recording the offset |
-| Map back | `toOriginal(n) = n − (number of inserted ≤ n)`, binary search: O(log k) |
+| Find | `indexOf` finds the bare LFs (and up to 100 bare CRs), to allocate `bytes` once |
+| Copy | Copies the segments between bare LFs with `set`, inserting a CR before each and recording its offset |
+| Map back | `toOriginal(n) = n − (number of inserted < n)`, binary search: O(log k). An inserted CR maps to the LF after it |
 | CRLF-only input | `bytes` is the original array itself; no copy |
+| Evidence | First bare LF offset and up to 100 bare CR offsets, recorded during the find step (IN-13) |
 
 ## Header fields (`headers.ts`)
 

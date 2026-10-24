@@ -136,4 +136,23 @@ describe('App', () => {
       'No Authentication-Results field',
     );
   });
+
+  it('IN-13: given findings not tied to a receiver result, when shown, then they are listed under Notes', async () => {
+    const report: PartialReport = {
+      ...emptyReport,
+      findings: [
+        {
+          id: 'input.lf-converted',
+          severity: 'warning',
+          message: 'LF converted.',
+          evidence: [{ kind: 'bytes', range: { start: 4, end: 5 } }],
+        },
+      ],
+    };
+    const container = mount({ analyze: async () => report });
+    await choose(container, 'x');
+    const notes = container.querySelector('[aria-label="Notes"]');
+    expect(notes?.textContent).toContain('Warning');
+    expect(notes?.textContent).toContain('LF converted.');
+  });
 });
