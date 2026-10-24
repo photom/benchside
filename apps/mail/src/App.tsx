@@ -1,11 +1,11 @@
+import type { AuthResult, Finding, PartialReport } from '@benchside/mail';
 import { useState } from 'preact/hooks';
 import type { WorkerHost } from './worker/host.ts';
-import type { SkeletonReport } from './worker/protocol.ts';
 
 type Status =
   | { kind: 'idle' }
   | { kind: 'running' }
-  | { kind: 'done'; report: SkeletonReport }
+  | { kind: 'done'; report: PartialReport }
   | { kind: 'failed'; message: string };
 
 export function App({ host }: { host: WorkerHost }) {
@@ -65,15 +65,68 @@ function Result({ status }: { status: Status }) {
       return <p role="alert">Analysis failed: {status.message}</p>;
     case 'done':
       return (
-        <section aria-label="Header fields">
-          <h2>{status.report.headers.length} header fields</h2>
-          <ol>
-            {status.report.headers.map((h) => (
-              <li key={h.index}>{h.name || '(malformed line)'}</li>
-            ))}
-          </ol>
-          <p>{status.report.hasBody ? 'Body present.' : 'Headers only.'}</p>
-        </section>
+        <>
+          <ReceiverResults
+            results={status.report.receiver.results}
+            findings={status.report.findings}
+          />
+          <HeaderFields report={status.report} />
+        </>
       );
   }
+}
+
+function ReceiverResults({
+  results,
+  findings,
+}: {
+  results: readonly AuthResult[];
+  findings: readonly Finding[];
+}) {
+  // Findings about one field (authres.untrusted, authres.syntax) are shown with it.
+  const about = (field: number) =>
+    findings.filter((f) => f.evidence.some((e) => e.kind === 'header' && e.index === field));
+  return (
+    <section aria-label="Receiver results">
+      <h2>Receiver results</h2>
+      {results.length === 0 && <p>No Authentication-Results field.</p>}
+      {results.map((r) => (
+        <article key={r.field} class="authres" data-trusted={r.trusted}>
+          <h3>
+            {r.authservId || '(no authserv-id)'}{' '}
+            <span class="trust">{r.trusted ? 'Trusted' : 'Untrusted'}</span>
+          </h3>
+          <p>Header field {r.field + 1}</p>
+          {about(r.field).map((f, i) => (
+            <p key={i}>{f.message}</p>
+          ))}
+          <ul>
+            {r.entries.map((e, i) => (
+              <li key={i}>
+                <strong>
+                  {e.method}={e.result}
+                </strong>
+                {e.reason !== undefined && ` reason: ${e.reason}`}
+                {Object.entries(e.props).map(([k, v]) => ` ${k}=${v}`)}
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function HeaderFields({ report }: { report: PartialReport }) {
+  return (
+    <section aria-label="Header fields">
+      <h2>{report.headers.length} header fields</h2>
+      <ol>
+        {report.headers.map((h) => (
+          <li key={h.index}>{h.name || '(malformed line)'}</li>
+        ))}
+      </ol>
+      <p>{report.hasBody ? 'Body present.' : 'Headers only.'}</p>
+    </section>
+  );
 }

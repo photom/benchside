@@ -1,3 +1,4 @@
+import type { PartialReport } from '@benchside/mail';
 import { describe, expect, it } from 'vitest';
 import { createWorkerHost } from './host.ts';
 import type { FromWorker, ToWorker } from './protocol.ts';
@@ -16,7 +17,14 @@ function fakeWorker() {
   return { worker: worker as unknown as Worker, sent, reply };
 }
 
-const report = { headers: [{ index: 0, name: 'From' }], hasBody: true };
+const report: PartialReport = {
+  headers: [{ index: 0, name: 'From' }],
+  hasBody: true,
+  received: [],
+  boundary: null,
+  receiver: { results: [], comparisons: [] },
+  findings: [],
+};
 
 describe('worker host', () => {
   it('given one request, when the worker reports, then the promise resolves with the report', async () => {
