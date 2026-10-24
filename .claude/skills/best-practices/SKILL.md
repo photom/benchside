@@ -1,0 +1,64 @@
+---
+name: best-practices
+description: Best practices for benchside's stack (TypeScript / Vite / Preact / vitest / browser APIs / GitHub Pages) and for binary parsing and security. Use when writing or reviewing code, adding a dependency, configuring the build, CI, or CSP, and when using browser APIs such as File, DecompressionStream, DataView, or Web Crypto.
+---
+
+# Best practices
+
+When in doubt, follow the official documentation of each product. This page covers what matters most in this repository and where we deliberately deviate from the defaults.
+
+## Privacy (top priority)
+
+- Never send user file contents anywhere. Do not add `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, or external images or fonts. No analytics, no CDNs.
+- The only outbound traffic is DoH (domain names only), and users can turn it off.
+- Keep the CSP meta tag on every page. Any change that widens the allowlist needs a rationale in docs/explanation, and the README must be updated to match.
+  ```html
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src https://cloudflare-dns.com https://dns.google; img-src 'self' blob: data:; object-src 'none'">
+  ```
+- Do not persist file contents in `localStorage` or similar.
+
+## Dependencies
+
+- Keep runtime dependencies to a minimum. Write parsers (ZIP / PDF / MIME / DKIM, etc.) in-house. Use Web Crypto (`crypto.subtle`) for cryptography and `DecompressionStream` for decompression.
+- Before adding a dependency, check whether a standard API or a few dozen lines of our own code would do. If you add one, state why in the commit message.
+- Commit `package-lock.json`; CI uses `npm ci`. Versions are pinned by the lockfile.
+
+## TypeScript
+
+- `strict: true`, plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. No `any` (accept `unknown` at boundaries and narrow it).
+- ESM only. Enable `verbatimModuleSyntax` and use `import type` for types.
+- Represent structures and diagnostics as discriminated unions (a `kind` field) and check exhaustiveness in `switch` with `never`.
+- Exceptions are for programming bugs; anomalies in input are returned as diagnostics.
+- Make units explicit in names for offsets and lengths (`offset`, `byteLength`). Use branded types where it helps.
+
+## Binary parsing
+
+- Never trust input. Bounds-check every read; out-of-range reads become diagnostics, then continue or stop.
+- Don't allocate huge buffers based on length or count fields. Cap them by file size or a limit.
+- Loops and recursion (PDF `/Prev`, ObjStm, nested ZIPs, nested MIME) get a visited set and a depth limit.
+- Decompression has an output size limit; read as a stream and abort when exceeded (zip bomb defense).
+- Read 64-bit values with `getBigUint64` and report a diagnostic if they exceed `Number.MAX_SAFE_INTEGER`.
+- For large files, read only the needed ranges with `File.slice()`. Run heavy parsing in a Web Worker so the UI stays responsive.
+- Decode text with `TextDecoder`; when the encoding was guessed, say so in the result.
+
+## UI (Preact)
+
+- Function components and hooks. Keep state in the smallest scope that needs it.
+- Always render strings from files as text. Never use `dangerouslySetInnerHTML`. Never execute or render HTML from files or JavaScript from PDFs.
+- Use virtual scrolling for long lists (hex dumps, object lists).
+- Accessibility: keyboard operation, distinctions that don't rely on color alone (add labels or patterns), proper landmarks and labels.
+- Accept files both by drag and drop and via `<input type="file">`.
+
+## Vite / build / CI
+
+- Multi-page build (one HTML per tool in `build.rollupOptions.input`). Set `base` to the GitHub Pages path.
+- No inline scripts, so the CSP never has to be loosened.
+- CI (GitHub Actions): `npm ci` → type check (`tsc --noEmit`) → lint → `vitest run` → build → deploy to Pages. Pin actions by commit SHA and keep `permissions` minimal.
+- Publishing source maps is fine (the code is public anyway).
+
+## Code conventions
+
+- Leave formatting and linting to the tools (follow the Prettier / ESLint config; don't debate by hand).
+- Comments explain why. Cite the source for spec-derived values (e.g. `// APPNOTE 4.3.16`).
+- Small commits, one purpose per commit.
