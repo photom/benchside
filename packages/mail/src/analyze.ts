@@ -8,6 +8,7 @@ import { type ParsedReceived, readReceived } from './envelope/received.ts';
 import { type ReferenceTimeMode, referenceTime } from './envelope/reference-time.ts';
 import { splitHeaders } from './message/headers.ts';
 import { normalizeLineEndings } from './message/line-endings.ts';
+import { type SummaryLine, summarizeDkim } from './report/summary.ts';
 import type { Finding } from './shared/findings.ts';
 
 export interface AnalyzeOptions {
@@ -46,6 +47,8 @@ export interface PartialReport {
   readonly boundary: number | null;
   /** ISO 8601 (TIME-1..3). */
   readonly referenceTime: string;
+  /** One line per method evaluated so far (SUM-1..5). */
+  readonly summary: readonly SummaryLine[];
   readonly receiver: {
     readonly results: readonly AuthResult[];
     /** Empty until our own checks exist (AR-11). */
@@ -121,6 +124,7 @@ export async function analyze(
     received: received.received,
     boundary: boundary.boundary?.field ?? null,
     referenceTime: reference.time.toISOString(),
+    summary: [summarizeDkim(dkim, checkFindings.length > 0 ? 'internal-error' : undefined)],
     receiver: { results: receiver.results, comparisons: [] },
     dkim,
     dnsLog: log,
@@ -176,6 +180,7 @@ function tooLarge(byteLength: number, now: Date): PartialReport {
     received: [],
     boundary: null,
     referenceTime: now.toISOString(),
+    summary: [summarizeDkim([], 'invalid-input')],
     receiver: { results: [], comparisons: [] },
     dkim: [],
     dnsLog: [],

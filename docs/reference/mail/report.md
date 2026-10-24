@@ -61,6 +61,7 @@ classDiagram
   class SummaryLine {
     method: Method
     result: string
+    reason?: string
     counts?: Map~string, number~
     findingIds: string[]
   }
@@ -134,7 +135,7 @@ classDiagram
 | ID | Method | Summary result |
 |---|---|---|
 | SUM-1 | SPF | The MAIL FROM identity's result |
-| SUM-2 | DKIM | Precedence over all signatures: `pass` > `fail` > `permerror` > `temperror` > `neutral` > `not-evaluated`; `none` if no signatures. `counts` per result |
+| SUM-2 | DKIM | Precedence over all signatures: `pass` > `fail` > `permerror` > `temperror` > `neutral` > `not-evaluated`; `none` if no signatures. `counts` per result, listed in that order. If DKIM could not run at all: `not-evaluated` with `reason` (`internal-error`, or `invalid-input` for input over 50 MiB) |
 | SUM-3 | DKIM2 | The DKIM2 result, plus stage |
 | SUM-4 | DMARC | The selected default mode's result and disposition |
 | SUM-5 | ARC | The chain result |

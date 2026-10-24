@@ -71,3 +71,31 @@ sequenceDiagram
 | Trace is a `tree` role with arrow-key navigation |
 | Selecting evidence moves focus to SourceView and announces the field name |
 | Experimental results (DKIM2) carry a visible "experimental" label |
+
+## Current build (DKIM)
+
+The full layout above is the target. The page grows towards it method by method.
+
+```mermaid
+flowchart TD
+  App --> Summary["Summary<br/>one line per method (SUM-2 for DKIM)"]
+  App --> Receiver[Receiver results]
+  App --> Dkim["DkimDetail<br/>one card per signature"]
+  App --> Notes["Notes<br/>findings of no single result"]
+  App --> Headers["Header fields<br/>id=field-N"]
+  App --> DnsLog["DnsLog<br/>id=dns-qN"]
+  Dkim -- "evidence link" --> Headers & DnsLog
+```
+
+| Element | Shows | REQ |
+|---|---|---|
+| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures | REQ-MAIL-002 |
+| DKIM card | `d=`, `s=`, result as text, the `not-evaluated` reason, findings with severity | REQ-MAIL-002, REQ-MAIL-004 |
+| Trace (`<details>`) | Tags, signed header fields, key query, header hash input, body hash computed vs `bh=` | DKIM-16 |
+| Canonical body | Shown open when the computed body hash differs from `bh=`; marked when only the first 64 KiB is shown | REQ-MAIL-004 |
+| Evidence | In-page links: `header` → the header list item, `dns` → the DNS log row. Every finding list (DKIM, receiver results, Notes) uses the same `FindingList` view | REQ-MAIL-002 |
+| DNS log | Query ID, name, type, result, DNSSEC flag (`n/a` when no answer was received), cache hit, purpose | DNS-15 |
+
+- Result words are always text; color is only a second cue.
+- `not-evaluated` reads "Not evaluated (offline)", never like a failure.
+- Views live in `apps/mail/src/views/`; `summarizeDkim` (SUM-2) lives in the package.
