@@ -60,6 +60,7 @@ function sign(key: TestKey, o: Partial<SignOptions> = {}): Promise<string> {
 async function verify(
   text: string,
   dns: readonly ManualRecord[] | Transport = [],
+  signal: AbortSignal = new AbortController().signal,
 ): Promise<DkimSignatureResult[]> {
   const bytes = enc.encode(text);
   const { headers, body } = splitHeaders(bytes);
@@ -77,7 +78,7 @@ async function verify(
     body,
     resolve: (q, s) => r.resolve(q, s),
     referenceTime: NOW,
-    signal: new AbortController().signal,
+    signal,
   });
 }
 
@@ -338,5 +339,61 @@ describe('DKIM: limits, warnings, and trace', () => {
   it('REP-4: given any finding, when verified, then it has evidence pointing at the signature field', async () => {
     const [r] = await verify((await sign(rsa)).replace('Hello', 'Hallo'), [record(rsa)]);
     expect(r?.findings[0]?.evidence).toContainEqual({ kind: 'header', index: 0 });
+  });
+});
+
+describe('DKIM: one signature failing does not affect the others', () => {
+  /** Signed by `sel` (answered) and by `bad` (handled by `onBad`). */
+  async function twoSignatures(onBad: Transport): Promise<[string, Transport]> {
+    const good = signatureOf(await sign(rsa));
+    const text = good + (await sign(rsa, { s: 'bad' }));
+    const offline = offlineTransport([record(rsa)]);
+    const transport: Transport = (q, s) =>
+      q.name.startsWith('bad.') ? onBad(q, s) : offline(q, s);
+    return [text, transport];
+  }
+
+  it('REP-7: given an unexpected error for one signature, when verified, then only that one is not-evaluated with internal-error', async () => {
+    const [text, transport] = await twoSignatures(async () => {
+      throw new TypeError('bug');
+    });
+    const results = await verify(text, transport);
+    expect(results[0]?.result).toBe('pass');
+    expect(results[1]).toMatchObject({
+      result: 'not-evaluated',
+      reason: 'internal-error',
+      d: 'example.com',
+      s: 'bad',
+    });
+    expect(ids(results[1])).toEqual(['analysis.internal-error']);
+  });
+
+  it('REP-8: given one key lookup that never answers, when the deadline passes, then only that signature is not-evaluated with timeout', async () => {
+    const [text, transport] = await twoSignatures(
+      (_q, s) => new Promise((_, reject) => s.addEventListener('abort', () => reject(s.reason))),
+    );
+    const results = await verify(text, transport, AbortSignal.timeout(50));
+    expect(results[0]?.result).toBe('pass');
+    expect(results[1]).toMatchObject({ result: 'not-evaluated', reason: 'timeout', s: 'bad' });
+    expect(ids(results[1])).toEqual(['analysis.timeout']);
+  });
+
+  it('given the caller cancels, when verifying, then verifyDkim rejects with AbortError', async () => {
+    const [text, transport] = await twoSignatures(
+      (_q, s) => new Promise((_, reject) => s.addEventListener('abort', () => reject(s.reason))),
+    );
+    const controller = new AbortController();
+    const pending = verify(text, transport, controller.signal);
+    setTimeout(() => controller.abort(), 10);
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('DKIM-1: given more than 20 signatures and a deadline, when it passes, then signatures past 20 keep reason limit', async () => {
+    const sig = signatureOf(await sign(rsa, { s: 'bad' }));
+    const hang: Transport = (_q, s) =>
+      new Promise((_, reject) => s.addEventListener('abort', () => reject(s.reason)));
+    const results = await verify(sig.repeat(21) + (await sign(rsa)), hang, AbortSignal.timeout(50));
+    expect(results.slice(0, 20).every((r) => r.reason === 'timeout')).toBe(true);
+    expect(results.slice(20).every((r) => r.reason === 'limit')).toBe(true);
   });
 });
