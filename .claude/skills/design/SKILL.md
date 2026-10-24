@@ -30,17 +30,27 @@ Add further layers only when they become necessary.
 3. Does it tolerate broken input? Avoid designs whose strict types can only represent a "valid ZIP"; anomalies must be representable as diagnostics.
 4. Does it avoid adding runtime dependencies?
 
-## Suggested layout
+## Layout
+
+See [0002](../../../docs/explanation/decisions/0002-one-app-per-tool.md) for why.
 
 ```
+apps/
+  home/   # landing page listing the tools
+  mail/   # one Vite + Preact app per tool
+  zip/
+  pdf/
 packages/
-  core/   # byte reader (thin DataView wrapper), ranges, diagnostic types — only what multiple parsers actually share
-  zip/    # ZIP parser and checks
-  pdf/    # PDF parser and checks
-  mail/   # MIME and authentication
-apps/web/ # Vite multi-page UI (one entry per tool)
+  mail/   # @benchside/mail — MIME and authentication
+  zip/    # @benchside/zip — ZIP parser and checks
+  pdf/    # @benchside/pdf — PDF parser and checks
+  core/   # @benchside/core — byte reader, ranges, diagnostic types; only what multiple parsers actually share
+  ui/     # @benchside/ui — shared Preact parts (file drop, hex view, byte-range bar)
 ```
 
-Move something into `core` only once two or more packages use it. Until then, keep it inside the package.
+- Apps never import from other apps. When a second app needs some UI (e.g. the mail app showing a ZIP attachment), move it into a package then, not before.
+- Packages never import Preact or touch the DOM, except `ui`.
+- Move something into `core` or `ui` only once two or more packages or apps use it. Until then, keep it where it is used.
+- Create a package or app only when work on it starts. Don't commit empty skeletons.
 
 Record design decisions that remain debatable in docs/explanation/decisions/ (see the `docs` skill).

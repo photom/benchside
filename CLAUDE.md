@@ -6,11 +6,22 @@ Everything in this repository — code, comments, docs, skills, commit messages 
 
 ## Tech stack
 
-TypeScript + Vite (multi-page), Preact for the UI, vitest for tests. Node is used only for building and testing during development; the deliverable is static files on GitHub Pages.
+TypeScript, Vite, Preact for the UI, vitest for tests, npm workspaces. Node is used only for building and testing during development; the deliverable is static files on GitHub Pages.
 
-- Parsers and analysis logic are pure, DOM-independent TypeScript (`packages/*`). The UI (`apps/web`) only displays their results.
+```
+apps/       # one Vite + Preact app per tool (home, mail, zip, pdf), each deployed to /benchside/<tool>/
+packages/   # @benchside/* — parsers (mail, zip, pdf), shared code (core), shared Preact parts (ui)
+docs/       # Diátaxis documentation
+samples/    # test files; samples/private/ is ignored by git
+scripts/    # build and deploy helpers
+```
+
+- Parsers and analysis logic are pure, DOM-independent TypeScript in `packages/`. Apps only display their results.
+- Apps never import from other apps. Shared UI moves into a package when a second app needs it.
 - Keep runtime dependencies to a minimum. Write parsers in-house.
-- Each page's CSP restricts `connect-src` to the DoH endpoints.
+- Each app has its own CSP, injected at build time. Apps that need no network use `connect-src 'none'`; only the mail app allows the DoH endpoints.
+
+See [docs/explanation/decisions/](docs/explanation/decisions/) for the reasoning.
 
 ## Workflow (always in this order)
 

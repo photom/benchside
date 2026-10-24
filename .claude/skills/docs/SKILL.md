@@ -33,7 +33,7 @@ Questions to ask when unsure:
 3. **How-to** (when users gain a new action): how to use it.
 4. Tutorials come once the feature is stable.
 
-Add every new page to the index in `docs/README.md`.
+Add every new page to the index in `docs/README.md`, except decision records: the index links only to the `decisions/` folder.
 
 ## Style
 
