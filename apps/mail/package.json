@@ -1,0 +1,13 @@
+{
+  "name": "@benchside/mail-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@benchside/mail": "*",
+    "preact": "11.0.2"
+  }
+}
