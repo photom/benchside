@@ -24,6 +24,7 @@ const emptyReport: PartialReport = {
   received: [],
   boundary: null,
   referenceTime: '2026-10-24T00:00:00.000Z',
+  summary: [],
   receiver: { results: [], comparisons: [] },
   dkim: [],
   dnsLog: [],
@@ -165,5 +166,193 @@ describe('App', () => {
     });
     await choose(container, 'x');
     expect(container.querySelector('[role=alert]')).toBeNull();
+  });
+
+  describe('DKIM', () => {
+    const dkimReport: PartialReport = {
+      ...emptyReport,
+      headers: [
+        { index: 0, name: 'DKIM-Signature' },
+        { index: 1, name: 'From' },
+      ],
+      summary: [{ method: 'dkim', result: 'fail', counts: { fail: 1, 'not-evaluated': 1 } }],
+      dkim: [
+        {
+          field: 0,
+          result: 'fail',
+          d: 'example.com',
+          s: 'sel',
+          keyQueryId: 'q1',
+          findings: [
+            {
+              id: 'dkim.body-hash-mismatch',
+              severity: 'error',
+              message: 'The body was changed.',
+              evidence: [
+                { kind: 'header', index: 0 },
+                { kind: 'dns', queryId: 'q1' },
+              ],
+            },
+          ],
+          trace: {
+            tags: [
+              ['d', 'example.com'],
+              ['s', 'sel'],
+            ],
+            selectedHeaders: [1],
+            body: { canonical: 'Hallo\r\n', length: 7, computed: 'AAA=', expected: 'BBB=' },
+          },
+        },
+        {
+          field: 0,
+          result: 'not-evaluated',
+          reason: 'offline',
+          d: 'other.example',
+          s: 'k1',
+          findings: [],
+          trace: { tags: [], selectedHeaders: [] },
+        },
+      ],
+      dnsLog: [
+        {
+          queryId: 'q1',
+          name: 'sel._domainkey.example.com',
+          type: 'TXT',
+          sensitivity: 'domain',
+          purpose: 'DKIM key for sel._domainkey.example.com',
+          rcode: 'NOERROR',
+          records: ['v=DKIM1; p=abc'],
+          authenticated: false,
+          durationMs: 12,
+          cacheHit: false,
+        },
+      ],
+    };
+
+    async function show(report: PartialReport) {
+      const container = mount({ analyze: async () => report });
+      await choose(container, 'x');
+      return container;
+    }
+
+    it('SUM-2, REQ-MAIL-002: given DKIM results, when shown, then the summary line has the result and the counts', async () => {
+      const c = await show(dkimReport);
+      expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain(
+        'DKIM: fail (1 fail, 1 not evaluated)',
+      );
+    });
+
+    it('SUM-2: given no signatures, when shown, then the summary says none', async () => {
+      const c = await show({
+        ...emptyReport,
+        summary: [{ method: 'dkim', result: 'none', counts: {} }],
+      });
+      expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain('DKIM: none');
+    });
+
+    it('REQ-MAIL-002: given a signature, when shown, then its card has d=, s=, the result in words, and its findings', async () => {
+      const c = await show(dkimReport);
+      const [first] = [...c.querySelectorAll('[aria-label="DKIM"] article')];
+      expect(first?.textContent).toContain('d=example.com');
+      expect(first?.textContent).toContain('s=sel');
+      expect(first?.textContent).toContain('Fail');
+      expect(first?.textContent).toContain('The body was changed.');
+    });
+
+    it('REQ-MAIL-002: given a not-evaluated signature, when shown, then it reads as not evaluated with its reason', async () => {
+      const c = await show(dkimReport);
+      const second = c.querySelectorAll('[aria-label="DKIM"] article')[1];
+      expect(second?.textContent).toContain('Not evaluated (offline)');
+      expect(second?.textContent).not.toContain('Fail');
+    });
+
+    it('REQ-MAIL-002: given finding evidence, when shown, then it links to the header field and the DNS log row', async () => {
+      const c = await show(dkimReport);
+      const links = [...c.querySelectorAll('[aria-label="DKIM"] article a')].map((a) =>
+        a.getAttribute('href'),
+      );
+      expect(links).toContain('#field-1');
+      expect(links).toContain('#dns-q1');
+      expect(c.querySelector('#field-1')?.textContent).toBe('DKIM-Signature');
+      expect(c.querySelector('#dns-q1')?.textContent).toContain('sel._domainkey.example.com');
+    });
+
+    it('REQ-MAIL-004: given a body hash mismatch, when shown, then the canonicalized body and both hashes are shown open', async () => {
+      const c = await show(dkimReport);
+      const body = c.querySelector(
+        '[aria-label="DKIM"] details[data-part="body"]',
+      ) as HTMLDetailsElement;
+      expect(body.open).toBe(true);
+      expect(body.textContent).toContain('Hallo');
+      expect(body.textContent).toContain('AAA=');
+      expect(body.textContent).toContain('BBB=');
+    });
+
+    it('DNS-15: given DNS queries, when shown, then the log lists name, type, result, DNSSEC, and cache hit', async () => {
+      const c = await show(dkimReport);
+      const row = c.querySelector('#dns-q1');
+      expect(row?.textContent).toContain('TXT');
+      expect(row?.textContent).toContain('NOERROR');
+      expect(row?.textContent).toContain('not authenticated');
+    });
+
+    it('REQ-MAIL-004: given hashes that differ without a mismatch finding, when shown, then the body is still open', async () => {
+      const [first] = dkimReport.dkim;
+      if (!first) throw new Error('fixture');
+      const c = await show({ ...dkimReport, dkim: [{ ...first, findings: [] }] });
+      expect((c.querySelector('details[data-part="body"]') as HTMLDetailsElement).open).toBe(true);
+    });
+
+    it('DKIM-16: given a body longer than the 64 KiB shown, when shown, then the cut is marked', async () => {
+      const [first] = dkimReport.dkim;
+      if (!first?.trace.body) throw new Error('fixture');
+      const body = { ...first.trace.body, length: 200_000 };
+      const c = await show({
+        ...dkimReport,
+        dkim: [{ ...first, trace: { ...first.trace, body } }],
+      });
+      expect(c.querySelector('details[data-part="body"]')?.textContent).toContain(
+        'first 65536 bytes shown',
+      );
+    });
+
+    it('DNS-15: given a query that was never sent, when shown, then DNSSEC reads n/a', async () => {
+      const [entry] = dkimReport.dnsLog;
+      if (!entry) throw new Error('fixture');
+      const c = await show({ ...dkimReport, dnsLog: [{ ...entry, rcode: 'BLOCKED' }] });
+      expect(c.querySelector('#dns-q1')?.textContent).toContain('n/a');
+      expect(c.querySelector('#dns-q1')?.textContent).not.toContain('not authenticated');
+    });
+
+    it('REQ-MAIL-002: given a note with DNS evidence, when shown, then it links to the DNS log row', async () => {
+      const c = await show({
+        ...dkimReport,
+        findings: [
+          {
+            id: 'dns.unauthenticated',
+            severity: 'info',
+            message: 'Not DNSSEC-authenticated.',
+            evidence: [{ kind: 'dns', queryId: 'q1' }],
+          },
+        ],
+      });
+      expect(c.querySelector('[aria-label="Notes"] a')?.getAttribute('href')).toBe('#dns-q1');
+    });
+  });
+
+  it('REQ-MAIL-002: given a receiver result, when shown, then its header field is a link', async () => {
+    const container = mount({
+      analyze: async () => ({
+        ...emptyReport,
+        receiver: {
+          comparisons: [],
+          results: [{ field: 4, trusted: true, authservId: 'mx.example.org', entries: [] }],
+        },
+      }),
+    });
+    await choose(container, 'x');
+    expect(container.querySelector('[aria-label="Receiver results"] a')?.getAttribute('href')).toBe(
+      '#field-5',
+    );
   });
 });

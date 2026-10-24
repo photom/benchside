@@ -23,6 +23,7 @@ const report: PartialReport = {
   received: [],
   boundary: null,
   referenceTime: '2026-10-24T00:00:00.000Z',
+  summary: [],
   receiver: { results: [], comparisons: [] },
   dkim: [],
   dnsLog: [],
