@@ -119,6 +119,9 @@ describe('analyze', () => {
       }),
     ]);
     expect(report.headers).toEqual([]);
+    expect(report.summary).toEqual([
+      { method: 'dkim', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
+    ]);
   });
 
   const privateSample = new URL('../../../samples/private/test.eml', import.meta.url);
@@ -171,6 +174,7 @@ describe('analyze', () => {
       expect(report.dnsLog).toEqual([
         expect.objectContaining({ queryId: 'q1', name: 'sel._domainkey.example.com', type: 'TXT' }),
       ]);
+      expect(report.summary).toEqual([{ method: 'dkim', result: 'pass', counts: { pass: 1 } }]);
     });
 
     it('TIME-2: given x= after the boundary date but before now, when analyzed, then the signature is not expired', async () => {
