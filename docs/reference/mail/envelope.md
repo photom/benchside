@@ -52,7 +52,7 @@ Heuristics (examples are synthetic):
 
 | ID | Rule |
 |---|---|
-| ENV-8 | Default: the topmost `Received` field whose client IP is a public address. Private (RFC 1918, RFC 4193), loopback, and link-local addresses are skipped. |
+| ENV-8 | Default: the topmost `Received` field whose client IP is a public address. Private (RFC 1918, RFC 6598, RFC 4193), loopback, and link-local addresses are skipped. |
 | ENV-9 | If none qualifies: the topmost `Received` field, with `envelope.no-public-hop` (warning). |
 | ENV-10 | The user can choose any `Received` field as the boundary. |
 

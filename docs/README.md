@@ -21,4 +21,5 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Architecture](explanation/architecture.md) — apps, packages, build, deploy, and tests
 - [Mail analyzer architecture](explanation/mail-architecture.md) — modules, data flow, and key types
 - [Mail analyzer detailed design](explanation/mail-detailed-design.md) — files, interfaces, worker protocol, DNS composition
+- [Mail analyzer module design](explanation/mail-design/) — internals of each module
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made

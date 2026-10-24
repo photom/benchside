@@ -1,6 +1,6 @@
 # Mail analyzer detailed design
 
-Builds on [Mail analyzer architecture](mail-architecture.md). Behavior rules: [specification](../reference/mail/).
+Builds on [Mail analyzer architecture](mail-architecture.md). Behavior rules: [specification](../reference/mail/). Module internals: [module design](mail-design/).
 
 ## 1. File layout
 
@@ -15,13 +15,15 @@ packages/mail/
     envelope/  received.ts  heuristics.ts  boundary.ts  infer.ts  reference-time.ts
     dns/       types.ts  compose.ts  log.ts  budget.ts  policy.ts  cache.ts  offline.ts  txt.ts
     spf/       record.ts  macro.ts  evaluate.ts
-    dkim/      signature.ts  key.ts  header-selection.ts  verify.ts
+    dkim/      verify.ts
     dkim2/     fields.ts  recipes.ts  custody.ts  hashes.ts  verify.ts
-    dmarc/     record.ts  discover-rfc9989.ts  discover-rfc7489.ts  align.ts  policy.ts  evaluate.ts
+    dmarc/     author.ts  record.ts  discover-rfc9989.ts  discover-rfc7489.ts  align.ts  policy.ts  evaluate.ts
     arc/       sets.ts  seal.ts  validate.ts
     authres/   parse.ts  received-spf.ts  compare.ts
     psl/       lookup.ts
     shared/    bytes.ts  tag-list.ts  canonicalize.ts  crypto.ts  domain.ts  ip.ts  base64.ts  findings.ts  trace.ts
+               signature-core.ts         # DKIM + ARC: header selection, body hash, keys, verify
+               rfc5322-tokens.ts         # envelope + authres: CFWS, quoted strings
     report/    build.ts  summary.ts  export.ts
   test/support/  message-builder.ts  dkim-signer.ts  arc-sealer.ts  keys.ts
 
