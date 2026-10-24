@@ -16,6 +16,7 @@ flowchart LR
 |---|---|---|
 | [Message](message.md) | `message/` | [Input](../../reference/mail/input.md) |
 | [Envelope](envelope.md) | `envelope/` | [Delivery details](../../reference/mail/envelope.md) |
+| [DNS](dns.md) | `dns/`, `apps/mail/src/dns/doh.ts` | [DNS](../../reference/mail/dns.md) |
 | [SPF](spf.md) | `spf/` | [SPF](../../reference/mail/spf.md) |
 | [Signature core and DKIM](dkim.md) | `shared/signature-core.ts`, `dkim/` | [DKIM](../../reference/mail/dkim.md) |
 | [DKIM2](dkim2.md) | `dkim2/` | [DKIM2](../../reference/mail/dkim2.md) |

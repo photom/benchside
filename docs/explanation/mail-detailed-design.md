@@ -202,11 +202,10 @@ flowchart LR
 ```ts
 // dns/compose.ts
 export function composeResolver(o: {
-  transport: Transport; cache: DnsCache; budget: number;
-  allowSensitive: boolean; log: DnsLog;
-}): Resolver {
-  return withLog(o.log, withBudget(o.budget, withPolicy(o.allowSensitive, withCache(o.cache, o.transport))));
-}
+  transport: Transport; source: string;  // 'cloudflare' | 'google' | 'offline'
+  cache: DnsCache; budget: number; allowSensitive: boolean;
+}): { resolve: Resolver; log: readonly DnsLogEntry[] };
+// The layers are steps inside resolve(); see mail-design/dns.md.
 ```
 
 | Layer | Detail |
@@ -214,10 +213,10 @@ export function composeResolver(o: {
 | `log` | Outermost, so blocked and cached queries are logged too (DNS-11, DNS-15) |
 | `budget` | Counts every query, cached or not (DNS-13) |
 | `policy` | Uses `query.sensitivity`, set by the caller (SPF marks macro-expanded and `PTR` names) |
-| `cache` | Stores settled answers only. Concurrent identical queries in one analysis share one in-flight promise |
+| `cache` | Stores finished `NOERROR`/`NXDOMAIN` answers per `(source, name, type)`. Concurrent identical queries in one analysis share one in-flight promise |
 | `doh.ts` | `fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]), credentials: 'omit', referrerPolicy: 'no-referrer' })` |
 
-IDN: query names are converted to A-labels with `new URL('http://' + name).hostname`. No punycode library.
+IDN: `shared/domain.ts` converts each non-ASCII label with the URL parser and refuses labels the parser would treat as URL syntax (DNS-18). No punycode library.
 
 ## 7. Shared primitives
 
