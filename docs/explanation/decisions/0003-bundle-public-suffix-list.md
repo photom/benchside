@@ -14,12 +14,12 @@ The [Public Suffix List](https://publicsuffix.org/) changes several times a mont
 
 - Commit a snapshot of the list to `packages/mail` and bundle it into the mail app.
 - A scheduled GitHub Actions workflow opens a pull request when the upstream list changes.
-- The report shows the snapshot date and the list entry that matched.
+- The report shows the snapshot's `VERSION` (a timestamp) and the list entry that matched.
 - Use the whole list, both the ICANN and private sections.
 
 ## Consequences
 
 - No extra network access, and builds are reproducible.
 - The mail app grows by roughly 200 KB before compression.
-- Results can differ from a receiver's if their copy of the list is older or newer. The snapshot date in the report makes this visible.
+- Results can differ from a receiver's if their copy of the list is older or newer. The snapshot `VERSION` in the report makes this visible.
 - The list is licensed under MPL 2.0. The snapshot keeps its license header, and the README credits it.

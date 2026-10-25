@@ -17,7 +17,7 @@ flowchart TD
   psl --> al
 ```
 
-Build order: `rfc9989` first (no PSL needed), then `rfc7489` with the PSL snapshot and the mode option. Until then `ModeStrategy` has one implementation; `align.ts` and `policy.ts` live in `evaluate.ts` and move out when the second mode arrives. `record.ts` parses and validates records (DMARC-9..11, DMARC-23).
+Build order: `rfc9989` first (no PSL needed), then `rfc7489` with the PSL snapshot and the mode option. With the second mode, `ModeStrategy` gets its second implementation and the alignment and policy steps move out of `evaluate.ts`. `record.ts` parses and validates records (DMARC-9..11, DMARC-23).
 
 Both modes share one interface. `evaluate.ts` does not branch on mode except to pick the discovery and org-domain functions.
 
@@ -76,8 +76,45 @@ flowchart LR
   name[domain] --> trie --> rule[longest match] --> org[org domain = suffix + 1 label]
 ```
 
-- Snapshot date comes from the file's `// VERSION:` header line.
-- Parse cost is paid once per worker lifetime.
+- The snapshot is `packages/mail/data/public_suffix_list.dat`, the upstream file byte for byte, license header included.
+- `pslVersion` comes from the file's `// VERSION:` header line.
+- Rules are parsed on first use, once per worker lifetime. Lookups compare ASCII only (DMARC-26): the `!` prefix and `*` labels are kept as they are, and each other label with non-ASCII characters becomes an A-label through `URL` host parsing. Only a few hundred rules have such labels.
+- `parsePsl(text)` is separate from the bundled snapshot, so tests use small rule lists.
+
+### Snapshot updates
+
+```mermaid
+flowchart LR
+  cron["psl.yml<br/>weekly, or by hand"] --> fetch["fetch publicsuffix.org/list/public_suffix_list.dat"]
+  fetch --> check{"looks like the list?<br/>VERSION, both sections, over 5000 rules"}
+  check -->|no| failRun[fail the run]
+  check -->|yes| same{changed?}
+  same -->|no| done[stop]
+  same -->|yes| had{"branch psl/VERSION<br/>ever had a pull request?"}
+  had -->|yes| done
+  had -->|no| pr["push branch, start CI,<br/>open pull request"]
+  pr --> old["close older psl/* pull requests"]
+  pr --> merge[a maintainer merges when CI is green]
+```
+
+- The workflow only proposes. A person reviews and merges, so an upstream mistake never ships unseen.
+- A closed pull request is not reopened for the same `VERSION`. Only the newest snapshot stays open, so an older one cannot be merged over it.
+- Pull requests opened with `GITHUB_TOKEN` start no workflows, so the workflow starts CI on the branch itself.
+- It needs the repository setting that lets GitHub Actions create pull requests ([how-to](../../how-to/update-public-suffix-list.md)).
+
+## Multiple author domains (`rfc7489`)
+
+```mermaid
+flowchart LR
+  from["From: a@x.example, b@y.example"] --> each["evaluate x.example<br/>evaluate y.example"]
+  each --> pick{"any fail?"}
+  pick -->|yes| strict["mode = strictest failing domain"]
+  pick -->|no| first["mode = first domain with the combined result"]
+  each --> per[perDomain]
+```
+
+- Each domain runs the whole procedure; the mode report copies the deciding domain's details (DMARC-3).
+- `rfc9989` never gets here: several domains are `not-evaluated` (DMARC-2).
 
 ## Alignment table (`align.ts`)
 
@@ -115,3 +152,5 @@ flowchart TD
 
 - The existence query runs only when the record came from the org domain.
 - Both modes can run concurrently; they share the DNS cache.
+- `pct` < 100 (`rfc7489`) adds `dispositions` with weights. `disposition` stays the policy, so the summary has one value (DMARC-18).
+- With both modes, `analyze` compares results and dispositions and adds `dmarc.modes-differ` (DMARC-28).
