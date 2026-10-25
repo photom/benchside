@@ -123,12 +123,21 @@ describe('analyze', () => {
     expect(report.summary).toEqual([
       { method: 'spf', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
       { method: 'dkim', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
+      { method: 'dmarc', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
       { method: 'arc', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
     ]);
     expect(report.arc).toEqual({
       result: 'not-evaluated',
       reason: 'invalid-input',
       sets: [],
+      findings: [],
+    });
+    expect(report.dmarc.rfc9989).toEqual({
+      result: 'not-evaluated',
+      reason: 'invalid-input',
+      testing: false,
+      alignment: [],
+      queryIds: [],
       findings: [],
     });
   });
@@ -188,10 +197,12 @@ describe('analyze', () => {
           type: 'TXT',
         }),
       );
-      expect(report.summary.slice(1)).toEqual([
-        { method: 'dkim', result: 'pass', counts: { pass: 1 } },
-        { method: 'arc', result: 'none', counts: {} },
-      ]);
+      expect(report.summary).toContainEqual({
+        method: 'dkim',
+        result: 'pass',
+        counts: { pass: 1 },
+      });
+      expect(report.summary).toContainEqual({ method: 'arc', result: 'none', counts: {} });
     });
 
     it('TIME-2: given x= after the boundary date but before now, when analyzed, then the signature is not expired', async () => {
@@ -224,9 +235,11 @@ describe('analyze', () => {
       const { text } = await signed();
       const nx: Transport = async () => ({ rcode: 'NXDOMAIN', records: [], authenticated: false });
       const report = await analyze(enc(text), {}, deps({ transport: nx, source: 'cloudflare' }));
-      expect(report.findings.find((f) => f.id === 'dns.unauthenticated')?.evidence).toEqual([
-        { kind: 'dns', queryId: 'q1' },
-      ]);
+      // DMARC's _dmarc lookups answer NXDOMAIN too, so the key query is one of several.
+      expect(report.findings.find((f) => f.id === 'dns.unauthenticated')?.evidence).toContainEqual({
+        kind: 'dns',
+        queryId: report.dkim[0]?.keyQueryId,
+      });
     });
 
     it('DNS: given no DNS query, when analyzed, then there is no dns.answers-are-current', async () => {
@@ -307,10 +320,12 @@ describe('analyze', () => {
       const { text, record } = await sealed();
       const report = await analyze(enc(text), {}, deps({ records: [record] }));
       expect(report.arc).toMatchObject({ result: 'pass', oldestPass: 0 });
-      expect(report.summary.slice(1)).toEqual([
-        { method: 'dkim', result: 'pass', counts: { pass: 1 } },
-        { method: 'arc', result: 'pass', counts: { sets: 1 } },
-      ]);
+      expect(report.summary).toContainEqual({
+        method: 'dkim',
+        result: 'pass',
+        counts: { pass: 1 },
+      });
+      expect(report.summary).toContainEqual({ method: 'arc', result: 'pass', counts: { sets: 1 } });
     });
 
     it('given the caller cancels while DKIM and ARC wait, when analyzing, then analyze rejects and no rejection is left unhandled', async () => {
@@ -339,9 +354,10 @@ describe('analyze', () => {
     it('given DKIM and ARC signed with the same key, when analyzed, then the key is queried once', async () => {
       const { text, record } = await sealed();
       const report = await analyze(enc(text), {}, deps({ records: [record] }));
-      expect(report.dnsLog).toHaveLength(1);
-      expect(report.arc.sets[0]?.seal?.keyQueryId).toBe('q1');
-      expect(report.dkim[0]?.keyQueryId).toBe('q1');
+      const keyQueries = report.dnsLog.filter((e) => e.name === 'sel._domainkey.example.com');
+      expect(keyQueries).toHaveLength(1);
+      expect(report.arc.sets[0]?.seal?.keyQueryId).toBe(keyQueries[0]?.queryId);
+      expect(report.dkim[0]?.keyQueryId).toBe(keyQueries[0]?.queryId);
     });
 
     it('DNS: given an unauthenticated key used only by ARC, when analyzed, then dns.unauthenticated points at it', async () => {
@@ -353,9 +369,11 @@ describe('analyze', () => {
         deps({ records: [record], source: 'cloudflare' }),
       );
       expect(report.dkim).toEqual([]);
-      expect(report.findings.find((f) => f.id === 'dns.unauthenticated')?.evidence).toEqual([
-        { kind: 'dns', queryId: 'q1' },
-      ]);
+      const keyQuery = report.dnsLog.find((e) => e.name === 'sel._domainkey.example.com');
+      expect(report.findings.find((f) => f.id === 'dns.unauthenticated')?.evidence).toContainEqual({
+        kind: 'dns',
+        queryId: keyQuery?.queryId,
+      });
     });
   });
 
@@ -416,6 +434,46 @@ describe('analyze', () => {
         deps(),
       );
       expect(report.findings.map((f) => f.id)).toContain('envelope.multiple-return-path');
+    });
+  });
+
+  describe('DMARC', () => {
+    const DELIVERED = [
+      `Received: from out.example.com (out.example.com [192.0.2.1]) by mx.example.org with ESMTP id x${DATE}`,
+      'Return-Path: <bounce@example.com>',
+      'From: Alice <a@example.com>',
+    ];
+    const txt = (name: string, data: string): ManualRecord => ({ name, type: 'TXT', data });
+
+    it('REQ-MAIL-006, SUM-4: given aligned SPF and a DMARC record, when analyzed, then DMARC passes and its line has the disposition', async () => {
+      const report = await analyze(
+        bytes(DELIVERED),
+        {},
+        deps({
+          records: [
+            txt('example.com', 'v=spf1 ip4:192.0.2.0/24 -all'),
+            txt('_dmarc.example.com', 'v=DMARC1; p=reject; rua=mailto:d@example.com'),
+          ],
+        }),
+      );
+      expect(report.dmarc.rfc9989).toMatchObject({ result: 'pass', authorDomain: 'example.com' });
+      expect(report.summary.map((l) => l.method)).toEqual(['spf', 'dkim', 'dmarc', 'arc']);
+      expect(report.summary[2]).toEqual({
+        method: 'dmarc',
+        result: 'pass',
+        disposition: 'none',
+        counts: {},
+      });
+    });
+
+    it('SUM-4: given a not-evaluated DMARC, when summarized, then the line has the reason and no disposition', async () => {
+      const report = await analyze(bytes(DELIVERED), {}, deps());
+      expect(report.summary[2]).toEqual({
+        method: 'dmarc',
+        result: 'not-evaluated',
+        reason: 'offline',
+        counts: {},
+      });
     });
   });
 });

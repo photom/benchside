@@ -32,6 +32,9 @@ const emptyReport: PartialReport = {
     mailFrom: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
     helo: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
   },
+  dmarc: {
+    rfc9989: { result: 'none', testing: false, alignment: [], queryIds: [], findings: [] },
+  },
   arc: { result: 'none', sets: [], findings: [] },
   dnsLog: [],
   findings: [],
@@ -659,6 +662,130 @@ describe('App', () => {
       const links = [...(section?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'));
       expect(links).toContain('#dns-q1');
       expect(links).toContain('#dns-q2');
+    });
+  });
+
+  describe('DMARC', () => {
+    const dmarcReport: PartialReport = {
+      ...emptyReport,
+      summary: [{ method: 'dmarc', result: 'fail', disposition: 'reject', counts: {} }],
+      dmarc: {
+        rfc9989: {
+          result: 'fail',
+          authorDomain: 'example.com',
+          recordAt: 'example.com',
+          record: 'v=DMARC1; p=reject; adkim=s',
+          orgDomain: 'example.com',
+          orgDomainRule: 'shortest name with a DMARC record',
+          policy: 'reject',
+          policySource: 'p',
+          testing: false,
+          disposition: 'reject',
+          alignment: [
+            {
+              identifier: 'dkim',
+              domain: 'mail.example.com',
+              authResult: 'pass',
+              mode: 'strict',
+              aligned: false,
+              counts: false,
+            },
+          ],
+          queryIds: ['q1'],
+          findings: [
+            {
+              id: 'dmarc.no-rua',
+              severity: 'info',
+              message: 'No-rua text.',
+              evidence: [{ kind: 'dns', queryId: 'q1' }],
+            },
+          ],
+        },
+      },
+    };
+
+    async function show(report: PartialReport) {
+      const container = mount({ analyze: async () => report });
+      await choose(container, 'x');
+      return container;
+    }
+
+    it('SUM-4: given a DMARC fail, when shown, then the summary line has the disposition', async () => {
+      const c = await show(dmarcReport);
+      expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain(
+        'DMARC: fail (disposition reject)',
+      );
+    });
+
+    it('REQ-MAIL-006: given a DMARC result, when shown, then the author domain, record, organizational domain, policy, disposition, and findings are shown', async () => {
+      const section = (await show(dmarcReport)).querySelector('[aria-label="DMARC"]');
+      expect(section?.querySelector('h3')?.textContent).toContain('RFC 9989: example.com');
+      expect(section?.querySelector('h3')?.textContent).toContain('Fail');
+      expect(section?.textContent).toContain('v=DMARC1; p=reject; adkim=s');
+      expect(section?.textContent).toContain(
+        'Organizational domain: example.com (shortest name with a DMARC record)',
+      );
+      expect(section?.textContent).toContain('Policy: reject (p)');
+      expect(section?.textContent).toContain('Disposition: reject');
+      expect(section?.textContent).toContain('No-rua text.');
+      expect(section?.querySelector('a[href="#dns-q1"]')).not.toBeNull();
+    });
+
+    it('REQ-MAIL-006: given alignment rows, when shown, then each row has identifier, domain, result, mode, and alignment', async () => {
+      const section = (await show(dmarcReport)).querySelector('[aria-label="DMARC"]');
+      const cells = [...(section?.querySelectorAll('tbody tr td') ?? [])].map(
+        (td) => td.textContent,
+      );
+      expect(cells).toEqual(['DKIM', 'mail.example.com', 'Pass', 'strict', '', 'no', 'no']);
+    });
+
+    it('DMARC-17: given test mode, when shown, then the policy says so', async () => {
+      const mode = {
+        ...dmarcReport.dmarc.rfc9989,
+        testing: true,
+        declaredPolicy: 'reject' as const,
+        policy: 'quarantine' as const,
+      };
+      const section = (await show({ ...dmarcReport, dmarc: { rfc9989: mode } })).querySelector(
+        '[aria-label="DMARC"]',
+      );
+      expect(section?.textContent).toContain('Policy: quarantine (p, lowered by t=y)');
+    });
+
+    it('DMARC-17: given test mode with p=none, when shown, then the policy is not called lowered', async () => {
+      const mode = {
+        ...dmarcReport.dmarc.rfc9989,
+        testing: true,
+        declaredPolicy: 'none' as const,
+        policy: 'none' as const,
+      };
+      const section = (await show({ ...dmarcReport, dmarc: { rfc9989: mode } })).querySelector(
+        '[aria-label="DMARC"]',
+      );
+      expect(section?.textContent).toContain('Policy: none (p)');
+      expect(section?.textContent).not.toContain('lowered');
+    });
+
+    it('REQ-MAIL-002: given a not-evaluated DMARC, when shown, then its reason is shown', async () => {
+      const mode = {
+        result: 'not-evaluated' as const,
+        reason: 'offline' as const,
+        testing: false,
+        alignment: [],
+        queryIds: [],
+        findings: [],
+      };
+      const c = await show({
+        ...emptyReport,
+        summary: [{ method: 'dmarc', result: 'not-evaluated', reason: 'offline', counts: {} }],
+        dmarc: { rfc9989: mode },
+      });
+      expect(c.querySelector('[aria-label="DMARC"] h3')?.textContent).toContain(
+        'Not evaluated (offline)',
+      );
+      expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain(
+        'DMARC: not evaluated (offline)',
+      );
     });
   });
 });
