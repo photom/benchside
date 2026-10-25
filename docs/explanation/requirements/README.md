@@ -32,3 +32,5 @@ flowchart LR
 | [REQ-MAIL-010](REQ-MAIL-010-dns-control.md) | Control what DNS lookups reveal | Accepted |
 | [REQ-MAIL-011](REQ-MAIL-011-export.md) | Export the report | Accepted |
 | [REQ-MAIL-012](REQ-MAIL-012-robust-responsive.md) | Robust and responsive analysis | Accepted |
+| [REQ-MAIL-013](REQ-MAIL-013-show-used-header-fields.md) | Show the header fields the checks read | Accepted |
+| [REQ-MAIL-014](REQ-MAIL-014-cite-standards.md) | Cite the standard behind each step | Accepted |
