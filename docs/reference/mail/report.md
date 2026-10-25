@@ -78,9 +78,49 @@ classDiagram
     cv?: string
     keyQueryId?: string
   }
+  class Envelope {
+    clientIp?: EnvelopeValue
+    helo?: EnvelopeValue
+    mailFrom?: EnvelopeValue
+  }
+  class EnvelopeValue {
+    value: string
+    source: "user" | FieldSource
+  }
+  class FieldSource {
+    field: number
+    rule: string
+  }
   class SpfReport {
-    mailFrom: MethodReport
-    helo: MethodReport
+    mailFrom: SpfIdentityReport
+    helo: SpfIdentityReport
+  }
+  class SpfIdentityReport {
+    result: string | "not-evaluated"
+    reason?: string
+    domain?: string
+    sender?: string
+    counters: SpfCounters
+    trace?: SpfNode
+    explanation?: string
+    findingIds: string[]
+  }
+  class SpfCounters {
+    dnsTerms: number
+    voids: number
+  }
+  class SpfNode {
+    domain: string
+    record?: string
+    queryId?: string
+    result: string
+    terms: SpfTermTrace[]
+  }
+  class SpfTermTrace {
+    term: string
+    outcome: "match" | "no-match" | "error" | "not-reached"
+    queryIds: string[]
+    child?: SpfNode
   }
   class DmarcReport {
     rfc9989?: MethodReport
@@ -136,7 +176,14 @@ classDiagram
   ArcReport --> ArcSetTrace
   ArcSetTrace --> ArcAar
   ArcSetTrace --> ArcSignatureTrace
+  Report --> Envelope
+  Envelope --> EnvelopeValue
+  EnvelopeValue --> FieldSource
   Report --> SpfReport
+  SpfReport --> SpfIdentityReport
+  SpfIdentityReport --> SpfCounters
+  SpfIdentityReport --> SpfNode
+  SpfNode --> SpfTermTrace
   Report --> DmarcReport
   Report --> SummaryLine
   Report --> Finding
@@ -160,13 +207,13 @@ classDiagram
 | REP-5 | `not-evaluated` always has `reason`, one of: `no-body`, `missing-delivery-detail`, `sensitive-query-blocked`, `offline`, `budget-exhausted`, `timeout`, `unsupported`, `limit`, `invalid-input`, `internal-error`. |
 | REP-6 | `dmarc.rfc7489` and `dmarc.rfc9989` are present for the modes the user selected. |
 | REP-7 | An unexpected error inside one method makes that method `not-evaluated` (reason `internal-error`) with `analysis.internal-error` (error). Other methods are unaffected. DKIM guards each signature on its own: the finding sits with that signature, and finished signatures keep their results. A failure outside any signature points at the whole input. |
-| REP-8 | When the 60 s deadline passes, unfinished methods are `not-evaluated` (reason `timeout`) with `analysis.timeout` (error). For DKIM this applies per unfinished signature. ARC is one method ([ARC-12](arc.md#signatures)). |
+| REP-8 | When the 60 s deadline passes, unfinished methods are `not-evaluated` (reason `timeout`) with `analysis.timeout` (error). For DKIM this applies per unfinished signature. ARC is one method ([ARC-12](arc.md#signatures)). SPF guards each identity on its own. |
 
 ## Summary
 
 | ID | Method | Summary result |
 |---|---|---|
-| SUM-1 | SPF | The MAIL FROM identity's result |
+| SUM-1 | SPF | The MAIL FROM identity's result and its `reason`. `counts` is empty. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 | SUM-2 | DKIM | Precedence over all signatures: `pass` > `fail` > `permerror` > `temperror` > `neutral` > `not-evaluated`; `none` if no signatures. `counts` per result, listed in that order. If DKIM could not run at all: `not-evaluated` with `reason` (`internal-error`, or `invalid-input` for input over 50 MiB) |
 | SUM-3 | DKIM2 | The DKIM2 result, plus stage |
 | SUM-4 | DMARC | The selected default mode's result and disposition |

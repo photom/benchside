@@ -72,30 +72,34 @@ sequenceDiagram
 | Selecting evidence moves focus to SourceView and announces the field name |
 | Experimental results (DKIM2) carry a visible "experimental" label |
 
-## Current build (DKIM, ARC)
+## Current build (SPF, DKIM, ARC)
 
 The full layout above is the target. The page grows towards it method by method.
 
 ```mermaid
 flowchart TD
-  App --> Summary["Summary<br/>one line per method (SUM-2, SUM-5)"]
+  App --> Summary["Summary<br/>one line per method (SUM-1, SUM-2, SUM-5)"]
+  App --> Delivery["DeliveryDetails<br/>client IP, HELO, MAIL FROM"]
   App --> Receiver[Receiver results]
+  App --> Spf["SpfDetail<br/>one tree per identity"]
   App --> Dkim["DkimDetail<br/>one card per signature"]
   App --> Arc["ArcDetail<br/>one row per hop"]
   App --> Notes["Notes<br/>findings of no single result"]
   App --> Headers["Header fields<br/>id=field-N"]
   App --> DnsLog["DnsLog<br/>id=dns-qN"]
-  Dkim & Arc -- "evidence link" --> Headers & DnsLog
+  Delivery & Spf & Dkim & Arc -- "evidence link" --> Headers & DnsLog
 ```
 
 | Element | Shows | REQ |
 |---|---|---|
-| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures. `ARC: pass (2 sets)`. A `not-evaluated` reason comes before the counts: `ARC: not evaluated (offline; 1 set)` | REQ-MAIL-002, SUM-2, SUM-5 |
+| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures. `ARC: pass (2 sets)`. `SPF: softfail`. A `not-evaluated` reason comes before the counts: `ARC: not evaluated (offline; 1 set)` | REQ-MAIL-002, SUM-1, SUM-2, SUM-5 |
+| Delivery details | Client IP, HELO, MAIL FROM, each with the header field and rule it came from (ENV-15), or "not found" | REQ-MAIL-009 |
+| SPF | Per identity (MAIL FROM, HELO): domain, result in words with its reason, counters (DNS terms / 10, void lookups / 2), findings, and the record tree: each record with its domain, each term with its outcome and DNS links; `include`/`redirect` nest; the matching term is marked | REQ-MAIL-003, SPF-18, SPF-19 |
 | DKIM card | `d=`, `s=`, result as text, the `not-evaluated` reason, findings with severity | REQ-MAIL-002, REQ-MAIL-004 |
 | Trace (`<details>`) | Tags, signed header fields, key query, header hash input, body hash computed vs `bh=` | DKIM-16 |
 | Canonical body | Shown open when the computed body hash differs from `bh=`; marked when only the first 64 KiB is shown | REQ-MAIL-004 |
 | ARC chain | Chain result in words with its reason; the oldest hop whose message signature still verifies (ARC-6); the chain's findings; a table with one row per hop: instance, sealer `d=` and `s=` and seal time (`t=` in UTC, as written when it is not decimal seconds; from the message signature when the seal is missing), `cv=`, message signature result, seal result, the hop's own results (AAR authserv-id and its entries worded as in receiver results, or "(no results)"), links to the ARC fields and key queries | REQ-MAIL-007, ARC-10 |
-| Evidence | In-page links: `header` → the header list item, `dns` → the DNS log row. Every finding list (DKIM, ARC, receiver results, Notes) uses the same `FindingList` view | REQ-MAIL-002 |
+| Evidence | In-page links: `header` → the header list item, `dns` → the DNS log row. Every finding list (SPF, DKIM, ARC, receiver results, Notes) uses the same `FindingList` view | REQ-MAIL-002 |
 | DNS log | Query ID, name, type, result, DNSSEC flag (`n/a` when no answer was received), cache hit, purpose | DNS-15 |
 
 - Result words are always text; color is only a second cue.

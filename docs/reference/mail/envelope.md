@@ -64,7 +64,7 @@ Heuristics (examples are synthetic):
 |---|---|---|
 | ENV-11 | Client IP | From the boundary field |
 | ENV-12 | HELO | From the boundary field |
-| ENV-13 | MAIL FROM | The topmost `Return-Path`. `<>` means null reverse-path. Absent: `not-evaluated` |
+| ENV-13 | MAIL FROM | The topmost `Return-Path`: the address between the first `<` and the following `>`, with whitespace and comments around it removed; without angle brackets, the trimmed value. `<>` means null reverse-path. Absent: `not-evaluated` |
 | ENV-14 | RCPT TO | The boundary field's `for` clause; else all `Delivered-To` fields; else absent |
 | ENV-15 | Each value records its source: `{ field index, rule ID }` or `user` |
 
