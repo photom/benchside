@@ -88,7 +88,9 @@ flowchart TD
   App --> Dmarc["DmarcDetail<br/>one card per mode, side by side"]
   App --> Arc["ArcDetail<br/>one row per hop"]
   App --> Notes["Notes<br/>findings of no single result"]
-  App --> Headers["Header fields<br/>id=field-N"]
+  App --> Headers["Header fields<br/>id=field-N, value + used by"]
+  App --> Refs["References<br/>RFC list"]
+  Delivery & Spf & Dkim & Dmarc & Arc & Receiver --> Steps["HowChecked<br/>steps + RFC links (CITE-1)"]
   App --> DnsLog["DnsLog<br/>id=dns-qN"]
   Delivery & Spf & Dkim & Dmarc & Arc -- "evidence link" --> Headers & DnsLog
 ```
@@ -105,6 +107,9 @@ flowchart TD
 | DMARC | Per mode: author domain, result in words with its reason, where the record was found and its text, the organizational domain and how it was chosen, the policy in effect (`p`/`sp`/`np`, test mode), the disposition (with `pct` weights: `reject (50%), quarantine (50%)`), findings, and an alignment table: identifier, domain, its SPF/DKIM result, strict or relaxed, organizational domain, aligned, counts. RFC 7489 adds the PSL rule and version, and with several author domains one line per domain. Two modes sit side by side on wide screens | REQ-MAIL-006, DMARC-3, DMARC-7, DMARC-18 |
 | ARC chain | Chain result in words with its reason; the oldest hop whose message signature still verifies (ARC-6); the chain's findings; a table with one row per hop: instance, sealer `d=` and `s=` and seal time (`t=` in UTC, as written when it is not decimal seconds; from the message signature when the seal is missing), `cv=`, message signature result, seal result, the hop's own results (AAR authserv-id and its entries worded as in receiver results, or "(no results)"), links to the ARC fields and key queries | REQ-MAIL-007, ARC-10 |
 | Evidence | In-page links: `header` → the header list item, `dns` → the DNS log row. Every finding list (SPF, DKIM, DMARC, ARC, receiver results, Notes) uses the same `FindingList` view | REQ-MAIL-002 |
+| Header fields | Every field's name in order. A field some check reads (REP-9) also shows which checks read it ("Read by: DKIM, DMARC") and its value as preformatted, wrapping text | REQ-MAIL-013 |
+| How this is checked | A closed `<details>` at the end of each method section: an ordered list of steps, each with its RFC links and its reason (CITE-1, CITE-2). The data lives in `views/citations.ts`; a test checks it against the citations reference page | REQ-MAIL-014 |
+| References | Last section on the page: each RFC with number, title, and link (CITE-3) | REQ-MAIL-014 |
 | DNS log | Query ID, name, type, result, DNSSEC flag (`n/a` when no answer was received), cache hit, purpose | DNS-15 |
 
 - Result words are always text; color is only a second cue.

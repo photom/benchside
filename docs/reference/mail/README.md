@@ -27,7 +27,8 @@ flowchart LR
 | [DMARC](dmarc.md) | RFC 7489 and RFC 9989 |
 | [ARC](arc.md) | RFC 8617 |
 | [Receiver results](authres.md) | RFC 8601 parsing and comparison |
-| [Report](report.md) | Output data model, summary rules, findings |
+| [Report](report.md) | Output data model, header fields, summary rules, findings |
+| [Citations](citations.md) | The RFC section behind each evaluation step, as shown on the page |
 
 ## Conventions
 

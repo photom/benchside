@@ -11,6 +11,7 @@ classDiagram
     analyzedAt: string
     options: Options
     envelope: Envelope
+    headers: HeaderEntry[]
     summary: SummaryLine[]
     spf: SpfReport
     dkim: DkimSignatureReport[]
@@ -20,6 +21,12 @@ classDiagram
     receiver: ReceiverReport
     findings: Finding[]
     dnsLog: DnsLogEntry[]
+  }
+  class HeaderEntry {
+    index: number
+    name: string
+    usedBy: FieldUse[]
+    value?: string
   }
   class MethodReport {
     method: Method
@@ -202,6 +209,7 @@ classDiagram
     bytes(start, end)
     dns(queryId)
   }
+  Report --> HeaderEntry
   Report --> MethodReport
   Report --> DkimSignatureReport
   DkimSignatureReport --> DkimTrace
@@ -231,7 +239,7 @@ classDiagram
   Finding --> Evidence
 ```
 
-`Method` is `"spf" | "dkim" | "dkim2" | "dmarc" | "arc"`.
+`Method` is `"spf" | "dkim" | "dkim2" | "dmarc" | "arc"`. `FieldUse` is `"delivery" | "dkim" | "dmarc" | "arc" | "receiver"`.
 
 ## Rules
 
@@ -245,6 +253,30 @@ classDiagram
 | REP-6 | `dmarc.rfc7489` and `dmarc.rfc9989` are present for the modes the user selected. |
 | REP-7 | An unexpected error inside one method makes that method `not-evaluated` (reason `internal-error`) with `analysis.internal-error` (error). Other methods are unaffected. DKIM guards each signature on its own: the finding sits with that signature, and finished signatures keep their results. A failure outside any signature points at the whole input. |
 | REP-8 | When the 60 s deadline passes, unfinished methods are `not-evaluated` (reason `timeout`) with `analysis.timeout` (error). For DKIM this applies per unfinished signature. ARC is one method ([ARC-12](arc.md#signatures)). SPF guards each identity on its own. |
+
+## Header fields
+
+One `HeaderEntry` per header field, in message order.
+
+| ID | Rule |
+|---|---|
+| REP-9 | `usedBy` lists the checks that read the field, in the order of the table below, each once. Empty when no check reads it. |
+| REP-10 | `value` is present exactly when `usedBy` is not empty: the field's unfolded value ([IN-6](input.md)), decoded as UTF-8. RFC 2047 encoded words stay as written, since the checks read them that way. |
+
+| Field | `usedBy` | Why |
+|---|---|---|
+| `Received` | `delivery` | Trust boundary, client IP, HELO ([ENV-1..12](envelope.md)) |
+| `Return-Path` | `delivery` | MAIL FROM ([ENV-13](envelope.md)) |
+| The first `Date` field, only when the reference time mode is `date` | `delivery` | Reference time ([TIME-1](envelope.md#reference-time)) |
+| `DKIM-Signature` | `dkim` | The signatures ([DKIM-1](dkim.md)) |
+| Each field a `DKIM-Signature` selects with its `h=` tag (the [DKIM-14](dkim.md) selection), even when verification stopped earlier | `dkim` | Signed header data |
+| With any `DKIM-Signature`: every `From` field, and each field a signature should sign but does not list in `h=` | `dkim` | `dkim.from-not-oversigned`, `dkim.unsigned-header` ([DKIM findings](dkim.md)) |
+| `From` | `dmarc` | Author domain ([DMARC-1](dmarc.md)) |
+| `ARC-Seal`, `ARC-Message-Signature`, `ARC-Authentication-Results` | `arc` | The chain ([ARC-1](arc.md)) |
+| Each field an `ARC-Message-Signature` selects with its `h=` tag, the same way | `arc` | Signed header data ([ARC-5](arc.md)) |
+| `Authentication-Results` | `receiver` | Receiver results ([AR-1](authres.md)) |
+
+`Received-SPF` is not read: SPF is evaluated from the delivery details, not from earlier verdicts.
 
 ## Summary
 
