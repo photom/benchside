@@ -154,7 +154,20 @@ describe('analyze', () => {
     expect(report.summary).toEqual([
       { method: 'spf', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
       { method: 'dkim', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
-      { method: 'dmarc', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
+      {
+        method: 'dmarc',
+        mode: 'rfc9989',
+        result: 'not-evaluated',
+        reason: 'invalid-input',
+        counts: {},
+      },
+      {
+        method: 'dmarc',
+        mode: 'rfc7489',
+        result: 'not-evaluated',
+        reason: 'invalid-input',
+        counts: {},
+      },
       { method: 'arc', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
     ]);
     expect(report.arc).toEqual({
@@ -488,9 +501,10 @@ describe('analyze', () => {
         }),
       );
       expect(report.dmarc.rfc9989).toMatchObject({ result: 'pass', authorDomain: 'example.com' });
-      expect(report.summary.map((l) => l.method)).toEqual(['spf', 'dkim', 'dmarc', 'arc']);
+      expect(report.summary.map((l) => l.method)).toEqual(['spf', 'dkim', 'dmarc', 'dmarc', 'arc']);
       expect(report.summary[2]).toEqual({
         method: 'dmarc',
+        mode: 'rfc9989',
         result: 'pass',
         disposition: 'none',
         counts: {},
@@ -501,10 +515,71 @@ describe('analyze', () => {
       const report = await analyze(bytes(DELIVERED), {}, deps());
       expect(report.summary[2]).toEqual({
         method: 'dmarc',
+        mode: 'rfc9989',
         result: 'not-evaluated',
         reason: 'offline',
         counts: {},
       });
+    });
+
+    const tested = (record: string) =>
+      deps({
+        records: [txt('example.com', 'v=spf1 -all'), txt('_dmarc.example.com', record)],
+      });
+
+    it('DMARC-27, SUM-4: given both modes, when analyzed, then each has a result and a summary line, RFC 9989 first', async () => {
+      const report = await analyze(
+        bytes(DELIVERED),
+        { dmarcModes: ['rfc7489', 'rfc9989'] },
+        tested('v=DMARC1; p=reject'),
+      );
+      expect(report.dmarc.rfc7489).toMatchObject({ result: 'fail', orgDomainRule: 'PSL rule com' });
+      expect(report.summary.filter((l) => l.method === 'dmarc').map((l) => l.mode)).toEqual([
+        'rfc9989',
+        'rfc7489',
+      ]);
+    });
+
+    it('DMARC-27: given no mode option, when analyzed, then both modes are evaluated', async () => {
+      const report = await analyze(bytes(DELIVERED), {}, tested('v=DMARC1; p=reject'));
+      expect(report.dmarc.rfc9989?.result).toBe('fail');
+      expect(report.dmarc.rfc7489?.result).toBe('fail');
+    });
+
+    it('DMARC-27: given only rfc9989, when analyzed, then there is no rfc7489 result', async () => {
+      const report = await analyze(
+        bytes(DELIVERED),
+        { dmarcModes: ['rfc9989'] },
+        tested('v=DMARC1; p=reject'),
+      );
+      expect(report.dmarc.rfc7489).toBeUndefined();
+    });
+
+    it('DMARC-28: given both modes and dispositions that differ, when analyzed, then dmarc.modes-differ points at From', async () => {
+      // t=y lowers reject only under RFC 9989.
+      const report = await analyze(
+        bytes(DELIVERED),
+        { dmarcModes: ['rfc9989', 'rfc7489'] },
+        tested('v=DMARC1; p=reject; t=y'),
+      );
+      expect(report.findings.find((f) => f.id === 'dmarc.modes-differ')?.evidence).toEqual([
+        { kind: 'header', index: 2 },
+      ]);
+    });
+
+    it('DMARC-28: given pct that weights only RFC 7489, when analyzed, then dmarc.modes-differ is reported', async () => {
+      const report = await analyze(bytes(DELIVERED), {}, tested('v=DMARC1; p=reject; pct=10'));
+      expect(report.dmarc.rfc9989?.disposition).toBe(report.dmarc.rfc7489?.disposition);
+      expect(report.findings.map((f) => f.id)).toContain('dmarc.modes-differ');
+    });
+
+    it('DMARC-28: given both modes that agree, when analyzed, then there is no dmarc.modes-differ', async () => {
+      const report = await analyze(
+        bytes(DELIVERED),
+        { dmarcModes: ['rfc9989', 'rfc7489'] },
+        tested('v=DMARC1; p=reject'),
+      );
+      expect(report.findings.map((f) => f.id)).not.toContain('dmarc.modes-differ');
     });
   });
 });
