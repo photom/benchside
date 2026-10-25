@@ -25,6 +25,8 @@ export interface Walk {
 export interface WalkContext {
   readonly resolve: (query: DnsQuery, signal: AbortSignal) => Promise<DnsAnswer>;
   readonly signal: AbortSignal;
+  /** Told each query ID as it is answered, so a timeout keeps it (REP-8). */
+  readonly onQuery?: (queryId: string) => void;
 }
 
 const MAX_QUERIES = 8; // DMARC-5
@@ -61,6 +63,7 @@ export async function treeWalk(ctx: WalkContext, domain: string): Promise<Walk> 
       ctx.signal,
     );
     queryIds.push(answer.queryId);
+    ctx.onQuery?.(answer.queryId);
     // DMARC-22: after a record is found, a lookup problem only ends the walk.
     const failed = answer.rcode !== 'NOERROR' && answer.rcode !== 'NXDOMAIN';
     if (failed && records.length > 0) break;
