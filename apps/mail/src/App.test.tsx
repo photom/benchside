@@ -1,4 +1,4 @@
-import type { PartialReport } from '@benchside/mail';
+import type { DmarcModeResult, PartialReport } from '@benchside/mail';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -703,7 +703,9 @@ describe('App', () => {
   describe('DMARC', () => {
     const dmarcReport: PartialReport = {
       ...emptyReport,
-      summary: [{ method: 'dmarc', result: 'fail', disposition: 'reject', counts: {} }],
+      summary: [
+        { method: 'dmarc', mode: 'rfc9989', result: 'fail', disposition: 'reject', counts: {} },
+      ],
       dmarc: {
         rfc9989: {
           result: 'fail',
@@ -748,13 +750,13 @@ describe('App', () => {
     it('SUM-4: given a DMARC fail, when shown, then the summary line has the disposition', async () => {
       const c = await show(dmarcReport);
       expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain(
-        'DMARC: fail (disposition reject)',
+        'DMARC (RFC 9989): fail (disposition reject)',
       );
     });
 
     it('REQ-MAIL-006: given a DMARC result, when shown, then the author domain, record, organizational domain, policy, disposition, and findings are shown', async () => {
-      const section = (await show(dmarcReport)).querySelector('[aria-label="DMARC"]');
-      expect(section?.querySelector('h3')?.textContent).toContain('RFC 9989: example.com');
+      const section = (await show(dmarcReport)).querySelector('[aria-label="DMARC (RFC 9989)"]');
+      expect(section?.querySelector('h3')?.textContent).toContain('example.com');
       expect(section?.querySelector('h3')?.textContent).toContain('Fail');
       expect(section?.textContent).toContain('v=DMARC1; p=reject; adkim=s');
       expect(section?.textContent).toContain(
@@ -767,7 +769,7 @@ describe('App', () => {
     });
 
     it('REQ-MAIL-006: given alignment rows, when shown, then each row has identifier, domain, result, mode, and alignment', async () => {
-      const section = (await show(dmarcReport)).querySelector('[aria-label="DMARC"]');
+      const section = (await show(dmarcReport)).querySelector('[aria-label="DMARC (RFC 9989)"]');
       const cells = [...(section?.querySelectorAll('tbody tr td') ?? [])].map(
         (td) => td.textContent,
       );
@@ -776,26 +778,26 @@ describe('App', () => {
 
     it('DMARC-17: given test mode, when shown, then the policy says so', async () => {
       const mode = {
-        ...dmarcReport.dmarc.rfc9989,
+        ...(dmarcReport.dmarc.rfc9989 as DmarcModeResult),
         testing: true,
         declaredPolicy: 'reject' as const,
         policy: 'quarantine' as const,
       };
       const section = (await show({ ...dmarcReport, dmarc: { rfc9989: mode } })).querySelector(
-        '[aria-label="DMARC"]',
+        '[aria-label="DMARC (RFC 9989)"]',
       );
       expect(section?.textContent).toContain('Policy: quarantine (p, lowered by t=y)');
     });
 
     it('DMARC-17: given test mode with p=none, when shown, then the policy is not called lowered', async () => {
       const mode = {
-        ...dmarcReport.dmarc.rfc9989,
+        ...(dmarcReport.dmarc.rfc9989 as DmarcModeResult),
         testing: true,
         declaredPolicy: 'none' as const,
         policy: 'none' as const,
       };
       const section = (await show({ ...dmarcReport, dmarc: { rfc9989: mode } })).querySelector(
-        '[aria-label="DMARC"]',
+        '[aria-label="DMARC (RFC 9989)"]',
       );
       expect(section?.textContent).toContain('Policy: none (p)');
       expect(section?.textContent).not.toContain('lowered');
@@ -812,15 +814,191 @@ describe('App', () => {
       };
       const c = await show({
         ...emptyReport,
-        summary: [{ method: 'dmarc', result: 'not-evaluated', reason: 'offline', counts: {} }],
+        summary: [
+          {
+            method: 'dmarc',
+            mode: 'rfc9989',
+            result: 'not-evaluated',
+            reason: 'offline',
+            counts: {},
+          },
+        ],
         dmarc: { rfc9989: mode },
       });
-      expect(c.querySelector('[aria-label="DMARC"] h3')?.textContent).toContain(
+      expect(c.querySelector('[aria-label="DMARC (RFC 9989)"] h3')?.textContent).toContain(
         'Not evaluated (offline)',
       );
       expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain(
-        'DMARC: not evaluated (offline)',
+        'DMARC (RFC 9989): not evaluated (offline)',
       );
+    });
+  });
+
+  describe('DMARC (RFC 7489)', () => {
+    const dmarc1: DmarcModeResult = {
+      result: 'fail',
+      authorDomain: 'mail.example.co.uk',
+      recordAt: 'example.co.uk',
+      record: 'v=DMARC1; p=reject; pct=30',
+      orgDomain: 'example.co.uk',
+      orgDomainRule: 'PSL rule co.uk',
+      pslVersion: '2026-10-22_08-36-41_UTC',
+      policy: 'reject',
+      policySource: 'p',
+      testing: false,
+      disposition: 'reject',
+      dispositions: [
+        { disposition: 'reject', weight: 30 },
+        { disposition: 'quarantine', weight: 70 },
+      ],
+      alignment: [],
+      queryIds: [],
+      findings: [],
+    };
+    const both: PartialReport = {
+      ...emptyReport,
+      summary: [
+        { method: 'dmarc', mode: 'rfc9989', result: 'none', counts: {} },
+        { method: 'dmarc', mode: 'rfc7489', result: 'fail', disposition: 'reject', counts: {} },
+      ],
+      dmarc: { ...emptyReport.dmarc, rfc7489: dmarc1 },
+    };
+    async function show(report: PartialReport) {
+      const container = mount({ analyze: async () => report });
+      await choose(container, 'x');
+      return container;
+    }
+
+    it('DMARC-27, SUM-4: given both modes, when shown, then each has its own summary line and its own section', async () => {
+      const c = await show(both);
+      const summary = c.querySelector('[aria-label="Summary"]')?.textContent;
+      expect(summary).toContain('DMARC (RFC 9989): none');
+      expect(summary).toContain('DMARC (RFC 7489): fail (disposition reject)');
+      expect(c.querySelector('[aria-label="DMARC (RFC 9989)"] h2')?.textContent).toBe(
+        'DMARC (RFC 9989, DMARCbis)',
+      );
+      expect(c.querySelector('[aria-label="DMARC (RFC 7489)"] h2')?.textContent).toBe(
+        'DMARC (RFC 7489, DMARC1)',
+      );
+    });
+
+    it('DMARC-7, DMARC-18: given an RFC 7489 result, when shown, then the PSL rule and version and the weighted dispositions are shown', async () => {
+      const section = (await show(both)).querySelector('[aria-label="DMARC (RFC 7489)"]');
+      expect(section?.textContent).toContain(
+        'Organizational domain: example.co.uk (PSL rule co.uk; list 2026-10-22_08-36-41_UTC)',
+      );
+      expect(section?.textContent).toContain('Disposition: reject (30%), quarantine (70%)');
+    });
+
+    it('DMARC-3: given several author domains, when shown, then each domain has its own line', async () => {
+      const perDomain = [
+        { ...dmarc1, authorDomain: 'x.example', policy: 'quarantine' as const },
+        { ...dmarc1, authorDomain: 'y.example' },
+      ];
+      const section = (
+        await show({ ...both, dmarc: { rfc7489: { ...dmarc1, perDomain } } })
+      ).querySelector('[aria-label="DMARC (RFC 7489)"]');
+      const items = [...(section?.querySelectorAll('[data-part="per-domain"] li') ?? [])];
+      expect(items.map((li) => li.textContent)).toEqual([
+        'x.example: Fail (policy quarantine)',
+        'y.example: Fail (policy reject)',
+      ]);
+    });
+
+    it('DMARC-27: given only RFC 9989, when shown, then there is no RFC 7489 section', async () => {
+      const c = await show(emptyReport);
+      expect(c.querySelector('[aria-label="DMARC (RFC 7489)"]')).toBeNull();
+    });
+  });
+
+  describe('Options', () => {
+    it('DMARC-27: given the page, when shown, then both modes are checked', () => {
+      const c = mount({ analyze: async () => emptyReport });
+      const boxes = [...c.querySelectorAll('[aria-label="Options"] input[type=checkbox]')];
+      expect(
+        boxes.map((b) => [b.parentElement?.textContent, (b as HTMLInputElement).checked]),
+      ).toEqual([
+        ['RFC 9989 (DMARCbis)', true],
+        ['RFC 7489 (DMARC1)', true],
+      ]);
+    });
+
+    it('DMARC-27: given an analyzed file, when RFC 7489 is unchecked, then the file is analyzed again with RFC 9989 only', async () => {
+      const calls: unknown[] = [];
+      const c = mount({
+        analyze: async (_bytes, options) => {
+          calls.push(options);
+          return emptyReport;
+        },
+      });
+      await choose(c, 'x');
+      const box = c.querySelectorAll(
+        '[aria-label="Options"] input[type=checkbox]',
+      )[1] as HTMLInputElement;
+      await act(async () => {
+        box.click();
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(calls).toEqual([{ dmarcModes: ['rfc9989', 'rfc7489'] }, { dmarcModes: ['rfc9989'] }]);
+    });
+
+    it('DMARC-27: given one mode checked, when shown, then its checkbox cannot be unchecked', async () => {
+      const c = mount({ analyze: async () => emptyReport });
+      const boxes = () => [
+        ...c.querySelectorAll<HTMLInputElement>('[aria-label="Options"] input[type=checkbox]'),
+      ];
+      expect(boxes().map((b) => b.disabled)).toEqual([false, false]);
+      await act(async () => {
+        boxes()[1]?.click();
+      });
+      expect(boxes().map((b) => b.disabled)).toEqual([true, false]);
+    });
+
+    it('DMARC-27: given a mode change while a file is still being read, when the read ends, then the new modes are used', async () => {
+      const calls: unknown[] = [];
+      const c = mount({
+        analyze: async (_bytes, options) => {
+          calls.push(options);
+          return emptyReport;
+        },
+      });
+      let finish: (b: ArrayBuffer) => void = () => {};
+      const file = new File(['x'], 'm.eml');
+      Object.defineProperty(file, 'arrayBuffer', {
+        value: () => new Promise<ArrayBuffer>((r) => (finish = r)),
+      });
+      const input = c.querySelector('input[type=file]') as HTMLInputElement;
+      Object.defineProperty(input, 'files', { value: [file] });
+      await act(async () => {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await act(async () => {
+        (
+          c.querySelectorAll('[aria-label="Options"] input[type=checkbox]')[1] as HTMLElement
+        ).click();
+      });
+      await act(async () => {
+        finish(new ArrayBuffer(1));
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(calls).toEqual([{ dmarcModes: ['rfc9989'] }]);
+    });
+  });
+
+  describe('Reading files', () => {
+    it('REQ-MAIL-012: given a file that cannot be read, when chosen, then an alert explains it', async () => {
+      const c = mount({ analyze: async () => emptyReport });
+      const file = new File(['x'], 'm.eml');
+      Object.defineProperty(file, 'arrayBuffer', {
+        value: () => Promise.reject(new Error('gone')),
+      });
+      const input = c.querySelector('input[type=file]') as HTMLInputElement;
+      Object.defineProperty(input, 'files', { value: [file] });
+      await act(async () => {
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      expect(c.querySelector('[role=alert]')?.textContent).toContain('gone');
     });
   });
 
@@ -829,6 +1007,10 @@ describe('App', () => {
       ...emptyReport,
       dkim: [{ field: 0, result: 'pass', findings: [], trace: { tags: [], selectedHeaders: [] } }],
       arc: { result: 'pass', sets: [], findings: [] },
+      dmarc: {
+        ...emptyReport.dmarc,
+        rfc7489: { result: 'none', testing: false, alignment: [], queryIds: [], findings: [] },
+      },
     };
     async function show() {
       const container = mount({ analyze: async () => report });
@@ -845,7 +1027,8 @@ describe('App', () => {
         delivery: '[aria-label="Delivery details"]',
         spf: '[aria-label="SPF"]',
         dkim: '[aria-label="DKIM"]',
-        rfc9989: '[aria-label="DMARC"]',
+        rfc9989: '[aria-label="DMARC (RFC 9989)"]',
+        rfc7489: '[aria-label="DMARC (RFC 7489)"]',
         arc: '[aria-label="ARC"]',
         receiver: '[aria-label="Receiver results"]',
       } as const;
