@@ -441,7 +441,12 @@ describe('SPF: guards', () => {
     const hang: Transport = (_q, s) =>
       new Promise((_, reject) => s.addEventListener('abort', () => reject(s.reason)));
     const r = await spf(hang, { signal: AbortSignal.timeout(30) });
-    expect(r.mailFrom).toMatchObject({ result: 'not-evaluated', reason: 'timeout' });
+    expect(r.mailFrom).toMatchObject({
+      result: 'not-evaluated',
+      reason: 'timeout',
+      domain: 'example.com',
+      sender: 'bounce@example.com',
+    });
   });
 
   it('given the caller cancels, when evaluating, then it rejects with AbortError', async () => {
