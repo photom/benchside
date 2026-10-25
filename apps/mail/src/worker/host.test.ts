@@ -31,6 +31,9 @@ const report: PartialReport = {
     mailFrom: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
     helo: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
   },
+  dmarc: {
+    rfc9989: { result: 'none', testing: false, alignment: [], queryIds: [], findings: [] },
+  },
   arc: { result: 'none', sets: [], findings: [] },
   dnsLog: [],
   findings: [],

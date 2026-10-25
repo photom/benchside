@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks';
 import { ArcDetail } from './views/ArcDetail.tsx';
 import { DeliveryDetails } from './views/DeliveryDetails.tsx';
 import { DkimDetail } from './views/DkimDetail.tsx';
+import { DmarcDetail } from './views/DmarcDetail.tsx';
 import { DnsLog } from './views/DnsLog.tsx';
 import { FindingList } from './views/Findings.tsx';
 import { entryText } from './views/labels.ts';
@@ -84,6 +85,7 @@ function Result({ status }: { status: Status }) {
           />
           <SpfDetail spf={status.report.spf} />
           <DkimDetail results={status.report.dkim} />
+          <DmarcDetail dmarc={status.report.dmarc} />
           <ArcDetail arc={status.report.arc} />
           <Notes report={status.report} />
           <HeaderFields report={status.report} />

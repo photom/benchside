@@ -1,6 +1,7 @@
 import { type ArcReport, verifyArc } from './arc/verify.ts';
 import { type AuthResult, listReceiverResults } from './authres/list.ts';
 import { type DkimSignatureResult, verifyDkim } from './dkim/verify.ts';
+import { type DmarcResults, evaluateDmarc } from './dmarc/evaluate.ts';
 import type { DnsCache } from './dns/cache.ts';
 import { composeResolver, dnsFindings } from './dns/compose.ts';
 import type { DnsLogEntry, Transport } from './dns/types.ts';
@@ -10,7 +11,13 @@ import { type ReferenceTimeMode, referenceTime } from './envelope/reference-time
 import { type Envelope, envelopeValues } from './envelope/values.ts';
 import { splitHeaders } from './message/headers.ts';
 import { normalizeLineEndings } from './message/line-endings.ts';
-import { type SummaryLine, summarizeArc, summarizeDkim, summarizeSpf } from './report/summary.ts';
+import {
+  type SummaryLine,
+  summarizeArc,
+  summarizeDkim,
+  summarizeDmarc,
+  summarizeSpf,
+} from './report/summary.ts';
 import type { Finding } from './shared/findings.ts';
 import { createSignatureMemo } from './shared/signature-core.ts';
 import { evaluateSpf, type SpfNode, type SpfResults } from './spf/evaluate.ts';
@@ -64,6 +71,8 @@ export interface PartialReport {
   readonly spf: SpfResults;
   /** One per DKIM-Signature field; each carries its own findings (DKIM-1). */
   readonly dkim: readonly DkimSignatureResult[];
+  /** DMARC per mode (REP-6); each carries its own findings. */
+  readonly dmarc: DmarcResults;
   /** ARC-1..12; carries its own findings. */
   readonly arc: ArcReport;
   readonly dnsLog: readonly DnsLogEntry[];
@@ -118,21 +127,35 @@ export async function analyze(
   };
   // verifyArc guards itself (ARC-12) and only rejects on the caller's cancel. Each
   // DKIM signature is guarded inside verifyDkim (REP-7, REP-8); the catch takes the rest.
-  // Awaited together, so no rejection is ever left without a handler.
-  const [spf, arc, dkimOutcome] = await Promise.all([
-    // Each SPF identity is guarded inside evaluateSpf (REP-7, REP-8).
-    evaluateSpf({
-      envelope: delivery.envelope,
+  // Each SPF identity is guarded inside evaluateSpf (REP-7, REP-8).
+  const spfPending = evaluateSpf({
+    envelope: delivery.envelope,
+    resolve: resolver.resolve,
+    signal,
+    referenceTime: reference.time,
+    receiver: boundary.boundary?.by ?? 'unknown',
+  });
+  const dkimPending = verifyDkim(checkContext).then(
+    (results) => ({ ok: true, results }) as const,
+    (error: unknown) => ({ ok: false, error }) as const,
+  );
+  // DMARC needs only SPF and DKIM, so it runs alongside ARC; it guards itself too.
+  const dmarcPending = Promise.all([spfPending, dkimPending]).then(([spf, dkimOutcome]) =>
+    evaluateDmarc({
+      headers: block.headers,
+      spf,
+      dkim: dkimOutcome.ok ? dkimOutcome.results : [],
+      ...(dkimOutcome.ok ? {} : { dkimUnavailable: 'internal-error' as const }),
       resolve: resolver.resolve,
       signal,
-      referenceTime: reference.time,
-      receiver: boundary.boundary?.by ?? 'unknown',
     }),
+  );
+  // Awaited together, so no rejection is ever left without a handler.
+  const [spf, arc, dkimOutcome, dmarc] = await Promise.all([
+    spfPending,
     verifyArc(checkContext),
-    verifyDkim(checkContext).then(
-      (results) => ({ ok: true, results }) as const,
-      (error: unknown) => ({ ok: false, error }) as const,
-    ),
+    dkimPending,
+    dmarcPending,
   ]);
   let dkim: readonly DkimSignatureResult[] = [];
   const checkFindings: Finding[] = [];
@@ -160,11 +183,13 @@ export async function analyze(
     summary: [
       summarizeSpf(spf),
       summarizeDkim(dkim, checkFindings.length > 0 ? 'internal-error' : undefined),
+      summarizeDmarc(dmarc),
       summarizeArc(arc),
     ],
     receiver: { results: receiver.results, comparisons: [] },
     spf,
     dkim,
+    dmarc,
     arc,
     dnsLog: log,
     findings: [
@@ -177,7 +202,7 @@ export async function analyze(
       ...receiver.findings,
       ...checkFindings,
       ...dnsFindings(log),
-      ...answerFindings(log, decidingQueries(spf, dkim, arc), deps.source),
+      ...answerFindings(log, decidingQueries(spf, dkim, dmarc, arc), deps.source),
     ],
   };
 }
@@ -211,14 +236,16 @@ function answerFindings(
   return findings;
 }
 
-/** Queries whose answers decided a result: every SPF query, and DKIM and ARC keys. */
+/** Queries whose answers decided a result: every SPF and DMARC query, and DKIM and ARC keys. */
 function decidingQueries(
   spf: SpfResults,
   dkim: readonly DkimSignatureResult[],
+  dmarc: DmarcResults,
   arc: ArcReport,
 ): Set<string> {
   const ids = [
     ...[spf.mailFrom.trace, spf.helo.trace].flatMap(spfQueries),
+    ...dmarc.rfc9989.queryIds,
     ...dkim.map((r) => r.keyQueryId),
     ...arc.sets.flatMap((s) => [s.ams?.keyQueryId, s.seal?.keyQueryId]),
   ];
@@ -245,6 +272,16 @@ function tooLarge(byteLength: number, now: Date): PartialReport {
     findings: [],
   } as const;
   const spf: SpfResults = { mailFrom: notRun, helo: notRun };
+  const dmarc: DmarcResults = {
+    rfc9989: {
+      result: 'not-evaluated',
+      reason: 'invalid-input',
+      testing: false,
+      alignment: [],
+      queryIds: [],
+      findings: [],
+    },
+  };
   return {
     headers: [],
     hasBody: false,
@@ -252,10 +289,16 @@ function tooLarge(byteLength: number, now: Date): PartialReport {
     boundary: null,
     referenceTime: now.toISOString(),
     envelope: {},
-    summary: [summarizeSpf(spf), summarizeDkim([], 'invalid-input'), summarizeArc(arc)],
+    summary: [
+      summarizeSpf(spf),
+      summarizeDkim([], 'invalid-input'),
+      summarizeDmarc(dmarc),
+      summarizeArc(arc),
+    ],
     receiver: { results: [], comparisons: [] },
     spf,
     dkim: [],
+    dmarc,
     arc,
     dnsLog: [],
     findings: [

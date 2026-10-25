@@ -15,6 +15,14 @@ export type {
   DkimSignatureResult,
   DkimTrace,
 } from './dkim/verify.ts';
+export type {
+  AlignmentRow,
+  DmarcModeResult,
+  DmarcNotEvaluatedReason,
+  DmarcPolicy,
+  DmarcResult,
+  DmarcResults,
+} from './dmarc/evaluate.ts';
 export { createDnsCache, type DnsCache } from './dns/cache.ts';
 export { type ComposedResolver, composeResolver, dnsFindings } from './dns/compose.ts';
 export { type ManualRecord, offlineTransport } from './dns/offline.ts';
