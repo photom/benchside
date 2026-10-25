@@ -1,0 +1,64 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid #ccc;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+td {
+  overflow-wrap: anywhere;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+/* Buttons that read like links: entry names, the archive path. */
+button.link {
+  background: none;
+  border: none;
+  color: #06c;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
+tr[data-selected="true"] {
+  background: #eef4fb;
+}
+
+/* The word "differs" carries the meaning; the colour only helps. */
+tr[data-differs="true"] {
+  background: #fdf0e0;
+}
+
+.finding {
+  border-left: 4px solid #888;
+  margin-bottom: 0.25rem;
+  padding-left: 0.5rem;
+}
+
+.finding[data-severity="error"] {
+  border-left-color: #c33;
+}
+
+.finding[data-severity="warning"] {
+  border-left-color: #c80;
+}
+
+[aria-label="Archive path"] {
+  margin-block: 1rem;
+}
