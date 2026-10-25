@@ -64,3 +64,11 @@ td {
   padding: 0.25rem 0.5rem;
   text-align: left;
 }
+
+.spf-record {
+  margin-left: 1rem;
+}
+
+[data-outcome="match"] > code {
+  font-weight: bold;
+}

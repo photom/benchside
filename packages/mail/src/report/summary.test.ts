@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ArcReport, ArcSetTrace } from '../arc/verify.ts';
 import type { DkimSignatureResult } from '../dkim/verify.ts';
-import { summarizeArc, summarizeDkim } from './summary.ts';
+import type { SpfIdentityResult } from '../spf/evaluate.ts';
+import { summarizeArc, summarizeDkim, summarizeSpf } from './summary.ts';
 
 const sig = (result: DkimSignatureResult['result']): DkimSignatureResult => ({
   field: 0,
@@ -75,5 +76,32 @@ describe('summary: ARC', () => {
     expect(
       summarizeArc(arc({ result: 'not-evaluated', reason: 'offline', sets: [row(1)] })),
     ).toEqual({ method: 'arc', result: 'not-evaluated', reason: 'offline', counts: { sets: 1 } });
+  });
+});
+
+describe('summary: SPF', () => {
+  const identity = (o: Partial<SpfIdentityResult>): SpfIdentityResult => ({
+    result: 'pass',
+    counters: { dnsTerms: 0, voids: 0 },
+    findings: [],
+    ...o,
+  });
+
+  it('SUM-1: given SPF results, when summarized, then the MAIL FROM result is the line', () => {
+    expect(
+      summarizeSpf({
+        mailFrom: identity({ result: 'softfail' }),
+        helo: identity({ result: 'pass' }),
+      }),
+    ).toEqual({ method: 'spf', result: 'softfail', counts: {} });
+  });
+
+  it('SUM-1: given a not-evaluated MAIL FROM, when summarized, then its reason is kept', () => {
+    expect(
+      summarizeSpf({
+        mailFrom: identity({ result: 'not-evaluated', reason: 'offline' }),
+        helo: identity({}),
+      }),
+    ).toEqual({ method: 'spf', result: 'not-evaluated', reason: 'offline', counts: {} });
   });
 });

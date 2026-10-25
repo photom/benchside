@@ -1,15 +1,16 @@
 import type { ArcNotEvaluatedReason, ArcReport, ArcResult } from '../arc/verify.ts';
 import type { DkimResult, DkimSignatureResult } from '../dkim/verify.ts';
+import type { SpfNotEvaluatedReason, SpfResult, SpfResults } from '../spf/evaluate.ts';
 
 type CouldNotRun = 'internal-error' | 'invalid-input';
 
 /** One line per method (report spec, Summary). */
 export interface SummaryLine {
-  readonly method: 'dkim' | 'arc';
+  readonly method: 'spf' | 'dkim' | 'arc';
   /** A method result, or `none` when there is nothing to evaluate. */
-  readonly result: DkimResult | ArcResult;
-  /** Why the method is not-evaluated (SUM-2, SUM-5). */
-  readonly reason?: CouldNotRun | ArcNotEvaluatedReason;
+  readonly result: SpfResult | DkimResult | ArcResult;
+  /** Why the method is not-evaluated (SUM-1, SUM-2, SUM-5). */
+  readonly reason?: CouldNotRun | ArcNotEvaluatedReason | SpfNotEvaluatedReason;
   /** DKIM: signatures per result, in precedence order. ARC: `sets`. */
   readonly counts: Readonly<Record<string, number>>;
 }
@@ -22,6 +23,12 @@ const DKIM_PRECEDENCE: readonly DkimResult[] = [
   'temperror',
   'not-evaluated',
 ];
+
+/** SUM-1: the MAIL FROM identity's result. */
+export function summarizeSpf(results: SpfResults): SummaryLine {
+  const { result, reason } = results.mailFrom;
+  return { method: 'spf', result, ...(reason ? { reason } : {}), counts: {} };
+}
 
 /** SUM-5: the chain result, and the number of sets when there are any. */
 export function summarizeArc(report: ArcReport): SummaryLine {

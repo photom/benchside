@@ -1,7 +1,7 @@
 import type { SummaryLine } from '@benchside/mail';
 import { resultPhrase } from './labels.ts';
 
-const METHOD_NAMES = { dkim: 'DKIM', arc: 'ARC' } as const;
+const METHOD_NAMES = { spf: 'SPF', dkim: 'DKIM', arc: 'ARC' } as const;
 
 /** One line per method, first on the page (REQ-MAIL-002, SUM-1..5). */
 export function Summary({ lines }: { lines: readonly SummaryLine[] }) {
