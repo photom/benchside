@@ -72,3 +72,13 @@ td {
 [data-outcome="match"] > code {
   font-weight: bold;
 }
+
+/* REQ-MAIL-013: values of the header fields the checks read. */
+.used-by {
+  font-size: 0.875em;
+}
+
+.field-value {
+  margin: 0.25em 0 0.5em;
+  overflow-wrap: anywhere;
+}

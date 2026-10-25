@@ -1,5 +1,6 @@
 import type { ArcReport, ArcSetTrace, ArcSignatureTrace } from '@benchside/mail';
 import { FindingList } from './Findings.tsx';
+import { HowChecked } from './HowChecked.tsx';
 import { entryText, resultText } from './labels.ts';
 import { SourceLinks } from './SourceLinks.tsx';
 
@@ -39,6 +40,7 @@ export function ArcDetail({ arc }: { arc: ArcReport }) {
           </tbody>
         </table>
       )}
+      <HowChecked method="arc" />
     </section>
   );
 }

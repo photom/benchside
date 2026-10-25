@@ -18,7 +18,7 @@ function fakeWorker() {
 }
 
 const report: PartialReport = {
-  headers: [{ index: 0, name: 'From' }],
+  headers: [{ index: 0, name: 'From', usedBy: [] }],
   hasBody: true,
   received: [],
   boundary: null,

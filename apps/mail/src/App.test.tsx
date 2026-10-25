@@ -3,6 +3,7 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from './App.tsx';
+import { REFERENCES, STEPS } from './views/citations.ts';
 import type { WorkerHost } from './worker/host.ts';
 
 let root: HTMLElement;
@@ -67,9 +68,9 @@ describe('App', () => {
     const report: PartialReport = {
       ...emptyReport,
       headers: [
-        { index: 0, name: 'From' },
-        { index: 1, name: '' },
-        { index: 2, name: 'Subject' },
+        { index: 0, name: 'From', usedBy: [] },
+        { index: 1, name: '', usedBy: [] },
+        { index: 2, name: 'Subject', usedBy: [] },
       ],
       hasBody: true,
     };
@@ -81,6 +82,26 @@ describe('App', () => {
     expect(items).toEqual(['From', '(malformed line)', 'Subject']);
     expect(container.textContent).toContain('3 header fields');
     expect(container.textContent).toContain('Body present.');
+  });
+
+  it('REQ-MAIL-013: given fields a check reads, when shown, then each shows who reads it and its value; other fields show the name only', async () => {
+    const report: PartialReport = {
+      ...emptyReport,
+      headers: [
+        { index: 0, name: 'From', usedBy: ['dkim', 'dmarc'], value: ' a@example.com' },
+        { index: 1, name: 'X-Mailer', usedBy: [] },
+        { index: 2, name: 'Received', usedBy: ['delivery'], value: ' from a by b' },
+      ],
+    };
+    const container = mount({ analyze: async () => report });
+    await choose(container, 'x');
+    const [from, mailer, received] = [
+      ...container.querySelectorAll('[aria-label="Header fields"] li'),
+    ];
+    expect(from?.textContent).toContain('Read by: DKIM, DMARC');
+    expect(from?.querySelector('pre')?.textContent).toBe(' a@example.com');
+    expect(mailer?.textContent).toBe('X-Mailer');
+    expect(received?.textContent).toContain('Read by: Delivery details');
   });
 
   it('REQ-MAIL-012: given a failing analysis, when shown, then an alert explains it', async () => {
@@ -181,8 +202,8 @@ describe('App', () => {
     const dkimReport: PartialReport = {
       ...emptyReport,
       headers: [
-        { index: 0, name: 'DKIM-Signature' },
-        { index: 1, name: 'From' },
+        { index: 0, name: 'DKIM-Signature', usedBy: [] },
+        { index: 1, name: 'From', usedBy: [] },
       ],
       summary: [{ method: 'dkim', result: 'fail', counts: { fail: 1, 'not-evaluated': 1 } }],
       dkim: [
@@ -400,9 +421,9 @@ describe('App', () => {
     const arcReport: PartialReport = {
       ...emptyReport,
       headers: [
-        { index: 0, name: 'ARC-Seal' },
-        { index: 1, name: 'ARC-Message-Signature' },
-        { index: 2, name: 'ARC-Authentication-Results' },
+        { index: 0, name: 'ARC-Seal', usedBy: [] },
+        { index: 1, name: 'ARC-Message-Signature', usedBy: [] },
+        { index: 2, name: 'ARC-Authentication-Results', usedBy: [] },
       ],
       arc: {
         result: 'fail',
@@ -785,6 +806,69 @@ describe('App', () => {
       );
       expect(c.querySelector('[aria-label="Summary"]')?.textContent).toContain(
         'DMARC: not evaluated (offline)',
+      );
+    });
+  });
+
+  describe('Citations', () => {
+    const report: PartialReport = {
+      ...emptyReport,
+      dkim: [{ field: 0, result: 'pass', findings: [], trace: { tags: [], selectedHeaders: [] } }],
+      arc: { result: 'pass', sets: [], findings: [] },
+    };
+    async function show() {
+      const container = mount({ analyze: async () => report });
+      await choose(container, 'x');
+      return container;
+    }
+    const stepsIn = (c: HTMLElement, selector: string) => [
+      ...(c.querySelector(selector)?.querySelectorAll('details[data-part="steps"] li') ?? []),
+    ];
+
+    it('REQ-MAIL-014, CITE-1: given results, when shown, then each method section lists its steps with links and reasons', async () => {
+      const c = await show();
+      const sections = {
+        delivery: '[aria-label="Delivery details"]',
+        spf: '[aria-label="SPF"]',
+        dkim: '[aria-label="DKIM"]',
+        rfc9989: '[aria-label="DMARC"]',
+        arc: '[aria-label="ARC"]',
+        receiver: '[aria-label="Receiver results"]',
+      } as const;
+      for (const [key, selector] of Object.entries(sections)) {
+        const items = stepsIn(c, selector);
+        const steps = STEPS[key as keyof typeof sections];
+        expect(items.length, key).toBe(steps.length);
+        expect(items[0]?.textContent, key).toContain(steps[0]?.text);
+        expect(items[0]?.textContent, key).toContain(steps[0]?.why);
+        expect(items[0]?.textContent, key).toContain(steps[0]?.cites[0]);
+      }
+    });
+
+    it('CITE-2, CITE-4: given a step, when shown, then its link opens the RFC section in a new tab without a referrer', async () => {
+      const c = await show();
+      const link = stepsIn(c, '[aria-label="SPF"]')
+        .flatMap((li) => [...li.querySelectorAll('a')])
+        .find((a) => a.textContent === 'RFC 7208 §4.6.4');
+      expect(link?.textContent).toBe('RFC 7208 §4.6.4');
+      expect(link?.getAttribute('href')).toBe(
+        'https://www.rfc-editor.org/rfc/rfc7208#section-4.6.4',
+      );
+      expect(link?.getAttribute('target')).toBe('_blank');
+      expect(link?.getAttribute('rel')).toBe('noreferrer');
+    });
+
+    it('CITE-3: given results, when shown, then the last section lists every RFC with its title and link', async () => {
+      const c = await show();
+      const sections = c.querySelectorAll('section');
+      const last = sections[sections.length - 1];
+      expect(last?.getAttribute('aria-label')).toBe('References');
+      const items = [...(last?.querySelectorAll('li') ?? [])];
+      expect(items.map((li) => li.textContent)).toEqual(
+        REFERENCES.map((r) => `RFC ${r.rfc}: ${r.title}`),
+      );
+      expect(items[0]?.querySelector('a')?.getAttribute('href')).toBe(
+        'https://www.rfc-editor.org/rfc/rfc5321',
       );
     });
   });
