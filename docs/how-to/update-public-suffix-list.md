@@ -26,4 +26,4 @@ flowchart LR
 
 ## If the pull request was not opened
 
-The run log says so, and the branch `psl/<VERSION>` exists. Open the pull request from that branch by hand, or turn on the setting above and run the workflow again.
+The run log says so, and the branch `psl/<VERSION>` exists. Turn on the setting above and run the workflow again: it rebuilds the branch on the current `main` and opens the pull request. Or open the pull request from that branch by hand and use **Update branch** first.
