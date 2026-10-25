@@ -118,19 +118,22 @@ describe('summary: DMARC', () => {
   });
 
   it('SUM-4: given a fail with a disposition, when summarized, then the line has both', () => {
-    expect(summarizeDmarc({ rfc9989: mode({ disposition: 'reject' }) })).toEqual({
-      method: 'dmarc',
-      result: 'fail',
-      disposition: 'reject',
-      counts: {},
-    });
+    expect(summarizeDmarc({ rfc9989: mode({ disposition: 'reject' }) })).toEqual([
+      { method: 'dmarc', mode: 'rfc9989', result: 'fail', disposition: 'reject', counts: {} },
+    ]);
   });
 
   it('SUM-4: given none, when summarized, then the line has no disposition', () => {
-    expect(summarizeDmarc({ rfc9989: mode({ result: 'none' }) })).toEqual({
-      method: 'dmarc',
-      result: 'none',
-      counts: {},
-    });
+    expect(summarizeDmarc({ rfc9989: mode({ result: 'none' }) })).toEqual([
+      { method: 'dmarc', mode: 'rfc9989', result: 'none', counts: {} },
+    ]);
+  });
+
+  it('SUM-4: given both modes, when summarized, then one line each, RFC 9989 first', () => {
+    const lines = summarizeDmarc({ rfc7489: mode({ result: 'pass' }), rfc9989: mode({}) });
+    expect(lines.map((l) => [l.mode, l.result])).toEqual([
+      ['rfc9989', 'fail'],
+      ['rfc7489', 'pass'],
+    ]);
   });
 });

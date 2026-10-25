@@ -4,5 +4,5 @@
     "lib": ["es2024", "webworker"],
     "types": []
   },
-  "include": ["src/worker/worker.ts", "src/worker/protocol.ts"]
+  "include": ["src/worker/worker.ts", "src/worker/protocol.ts", "worker-env.d.ts"]
 }

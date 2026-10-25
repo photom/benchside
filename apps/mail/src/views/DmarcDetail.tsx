@@ -1,27 +1,50 @@
-import type { DmarcModeResult, DmarcResults } from '@benchside/mail';
+import type { DmarcMode, DmarcModeResult, DmarcResults } from '@benchside/mail';
 import { FindingList } from './Findings.tsx';
 import { HowChecked } from './HowChecked.tsx';
 import { resultText } from './labels.ts';
 
-/** DMARC per mode: result, record, policy, disposition, and alignment (REQ-MAIL-006). */
+const SECTIONS: Record<DmarcMode, { label: string; title: string }> = {
+  rfc9989: { label: 'DMARC (RFC 9989)', title: 'DMARC (RFC 9989, DMARCbis)' },
+  rfc7489: { label: 'DMARC (RFC 7489)', title: 'DMARC (RFC 7489, DMARC1)' },
+};
+
+/** One section per evaluated mode: result, record, policy, disposition, and alignment (REQ-MAIL-006). */
 export function DmarcDetail({ dmarc }: { dmarc: DmarcResults }) {
   return (
-    <section aria-label="DMARC">
-      <h2>DMARC</h2>
-      <Mode label="RFC 9989" mode={dmarc.rfc9989} />
-      <HowChecked method="rfc9989" />
-    </section>
+    <>
+      {(['rfc9989', 'rfc7489'] as const).map((key) => {
+        const mode = dmarc[key];
+        if (!mode) return null;
+        return (
+          <section key={key} aria-label={SECTIONS[key].label}>
+            <h2>{SECTIONS[key].title}</h2>
+            <Mode mode={mode} />
+            <HowChecked method={key} />
+          </section>
+        );
+      })}
+    </>
   );
 }
 
-function Mode({ label, mode }: { label: string; mode: DmarcModeResult }) {
+function Mode({ mode }: { mode: DmarcModeResult }) {
   return (
     <article class="method-result" data-result={mode.result}>
       <h3>
-        {label}
-        {mode.authorDomain !== undefined && `: ${mode.authorDomain}`}{' '}
+        {mode.authorDomain ?? 'No author domain'}{' '}
         <span class="result">{resultText(mode.result, mode.reason)}</span>
       </h3>
+      {mode.perDomain && (
+        // DMARC-3: the mode result above comes from the deciding domain.
+        <ul data-part="per-domain">
+          {mode.perDomain.map((d) => (
+            <li key={d.authorDomain}>
+              {d.authorDomain}: {resultText(d.result, d.reason)}
+              {d.policy !== undefined && ` (policy ${d.policy})`}
+            </li>
+          ))}
+        </ul>
+      )}
       {mode.record !== undefined && (
         <p>
           Record at _dmarc.{mode.recordAt}: <code>{mode.record}</code>
@@ -29,7 +52,8 @@ function Mode({ label, mode }: { label: string; mode: DmarcModeResult }) {
       )}
       {mode.orgDomain !== undefined && (
         <p>
-          Organizational domain: {mode.orgDomain} ({mode.orgDomainRule})
+          Organizational domain: {mode.orgDomain} ({mode.orgDomainRule}
+          {mode.pslVersion !== undefined && `; list ${mode.pslVersion}`})
         </p>
       )}
       {mode.policy !== undefined && (
@@ -38,7 +62,14 @@ function Mode({ label, mode }: { label: string; mode: DmarcModeResult }) {
           {mode.testing && mode.declaredPolicy !== mode.policy && ', lowered by t=y'})
         </p>
       )}
-      {mode.disposition !== undefined && <p>Disposition: {mode.disposition}</p>}
+      {mode.disposition !== undefined && (
+        <p>
+          Disposition:{' '}
+          {mode.dispositions
+            ? mode.dispositions.map((d) => `${d.disposition} (${d.weight}%)`).join(', ')
+            : mode.disposition}
+        </p>
+      )}
       <FindingList findings={mode.findings} />
       {mode.alignment.length > 0 && (
         <table>

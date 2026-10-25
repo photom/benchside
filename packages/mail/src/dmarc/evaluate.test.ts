@@ -69,8 +69,9 @@ async function dmarc(
     ...(o.dkimUnavailable ? { dkimUnavailable: o.dkimUnavailable } : {}),
     resolve: r.resolve,
     signal: o.signal ?? new AbortController().signal,
+    modes: ['rfc9989'],
   });
-  return results.rfc9989;
+  return results.rfc9989 as DmarcModeResult;
 }
 const ids = (r: DmarcModeResult) => r.findings.map((f) => f.id);
 const record = (text: string): Zone => ({ '_dmarc.example.com': { TXT: [text] } });

@@ -1,10 +1,10 @@
-import type { PartialReport } from '@benchside/mail';
+import type { AnalyzeOptions, PartialReport } from '@benchside/mail';
 import type { FromWorker, ToWorker } from './protocol.ts';
 // ?worker&inline starts the worker from a blob: URL, so it inherits the page's CSP (0004).
 import AnalysisWorker from './worker.ts?worker&inline';
 
 export interface WorkerHost {
-  analyze(bytes: Uint8Array): Promise<PartialReport>;
+  analyze(bytes: Uint8Array, options: AnalyzeOptions): Promise<PartialReport>;
 }
 
 /** Starts the worker and keeps only the latest request's answer (detailed design §8). */
@@ -25,7 +25,7 @@ export function createWorkerHost(worker: Worker = new AnalysisWorker()): WorkerH
   };
 
   return {
-    analyze(bytes) {
+    analyze(bytes, options) {
       if (latest > 0) {
         post({ type: 'cancel', id: latest });
         // The worker sends nothing for a cancelled run, so settle and drop it here.
@@ -37,7 +37,7 @@ export function createWorkerHost(worker: Worker = new AnalysisWorker()): WorkerH
       const id = ++latest;
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        post({ type: 'analyze', id, bytes });
+        post({ type: 'analyze', id, bytes, options });
       });
     },
   };
