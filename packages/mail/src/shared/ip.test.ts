@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isPublic, parseIp } from './ip.ts';
+import { inCidr, isPublic, parseIp } from './ip.ts';
 
 describe('IP addresses', () => {
   it('given a dotted quad, when parsed, then it is an IPv4 address', () => {
@@ -106,5 +106,24 @@ describe('IP addresses', () => {
       const ip = parseIp(text);
       expect(ip && isPublic(ip), text).toBe(true);
     }
+  });
+});
+
+describe('CIDR', () => {
+  const ip = (t: string) => parseIp(t) as NonNullable<ReturnType<typeof parseIp>>;
+
+  it('SPF-22: given addresses inside and outside a prefix, when matched, then only those inside match', () => {
+    expect(inCidr(ip('192.0.2.77'), ip('192.0.2.0'), 24)).toBe(true);
+    expect(inCidr(ip('192.0.3.1'), ip('192.0.2.0'), 24)).toBe(false);
+    expect(inCidr(ip('192.0.2.1'), ip('192.0.2.1'), 32)).toBe(true);
+    expect(inCidr(ip('203.0.113.9'), ip('192.0.2.1'), 0)).toBe(true);
+    expect(inCidr(ip('2001:db8::1'), ip('2001:db8::'), 32)).toBe(true);
+    expect(inCidr(ip('2001:db9::1'), ip('2001:db8::'), 32)).toBe(false);
+    expect(inCidr(ip('192.0.2.1'), ip('2001:db8::'), 0)).toBe(false);
+  });
+
+  it('SPF-22: given a prefix that is not a byte boundary, when matched, then the partial byte is compared', () => {
+    expect(inCidr(ip('192.0.2.127'), ip('192.0.2.0'), 25)).toBe(true);
+    expect(inCidr(ip('192.0.2.128'), ip('192.0.2.0'), 25)).toBe(false);
   });
 });
