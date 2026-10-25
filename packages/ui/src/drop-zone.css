@@ -1,0 +1,12 @@
+.drop {
+  /* A label is inline by default; its padding would spill over its neighbours. */
+  display: block;
+  margin-block: 1rem;
+  border: 2px dashed #888;
+  padding: 2rem;
+  text-align: center;
+}
+
+.drop[data-active="true"] {
+  border-color: #06c;
+}
