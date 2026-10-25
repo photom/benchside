@@ -1,6 +1,7 @@
 import type { DkimSignatureResult } from '@benchside/mail';
 import { FindingList } from './Findings.tsx';
 import { resultText } from './labels.ts';
+import { SourceLinks } from './SourceLinks.tsx';
 
 /** Only this much of the canonical body is kept in the trace (DKIM-16). */
 const TRACE_BODY_BYTES = 64 * 1024;
@@ -18,13 +19,7 @@ export function DkimDetail({ results }: { results: readonly DkimSignatureResult[
             <span class="result">{resultText(r.result, r.reason)}</span>
           </h3>
           <p>
-            Header field <a href={`#field-${r.field + 1}`}>{r.field + 1}</a>
-            {r.keyQueryId !== undefined && (
-              <>
-                {', key '}
-                <a href={`#dns-${r.keyQueryId}`}>DNS {r.keyQueryId}</a>
-              </>
-            )}
+            <SourceLinks field={r.field} keyQueryId={r.keyQueryId} />
           </p>
           <FindingList findings={r.findings} />
           <Trace result={r} />
