@@ -2,6 +2,8 @@ import type { SummaryLine } from '@benchside/mail';
 import { resultPhrase } from './labels.ts';
 
 const METHOD_NAMES = { spf: 'SPF', dkim: 'DKIM', dmarc: 'DMARC', arc: 'ARC' } as const;
+/** SUM-4: one DMARC line per mode. */
+const MODE_NAMES = { rfc9989: 'RFC 9989', rfc7489: 'RFC 7489' } as const;
 
 /** One line per method, first on the page (REQ-MAIL-002, SUM-1..5). */
 export function Summary({ lines }: { lines: readonly SummaryLine[] }) {
@@ -16,8 +18,9 @@ export function Summary({ lines }: { lines: readonly SummaryLine[] }) {
           const disposition = line.disposition && `disposition ${line.disposition}`;
           const detail = [line.reason, disposition, counts.join(', ')].filter(Boolean).join('; ');
           return (
-            <li key={line.method} data-result={line.result}>
-              {METHOD_NAMES[line.method]}: {resultPhrase(line.result)}
+            <li key={`${line.method} ${line.mode ?? ''}`} data-result={line.result}>
+              {METHOD_NAMES[line.method]}
+              {line.mode && ` (${MODE_NAMES[line.mode]})`}: {resultPhrase(line.result)}
               {detail && ` (${detail})`}
             </li>
           );

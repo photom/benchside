@@ -1,9 +1,14 @@
 /** Messages between the UI and the analysis worker (detailed design §8). */
 
-import type { PartialReport } from '@benchside/mail';
+import type { AnalyzeOptions, PartialReport } from '@benchside/mail';
 
 export type ToWorker =
-  | { readonly type: 'analyze'; readonly id: number; readonly bytes: Uint8Array }
+  | {
+      readonly type: 'analyze';
+      readonly id: number;
+      readonly bytes: Uint8Array;
+      readonly options: AnalyzeOptions;
+    }
   | { readonly type: 'cancel'; readonly id: number };
 
 export type FromWorker =

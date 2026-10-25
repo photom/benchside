@@ -1,7 +1,12 @@
 import { type ArcReport, verifyArc } from './arc/verify.ts';
 import { type AuthResult, listReceiverResults } from './authres/list.ts';
 import { type DkimSignatureResult, verifyDkim } from './dkim/verify.ts';
-import { type DmarcResults, evaluateDmarc } from './dmarc/evaluate.ts';
+import {
+  type DmarcMode,
+  type DmarcModeResult,
+  type DmarcResults,
+  evaluateDmarc,
+} from './dmarc/evaluate.ts';
 import type { DnsCache } from './dns/cache.ts';
 import { composeResolver, dnsFindings } from './dns/compose.ts';
 import type { DnsLogEntry, Transport } from './dns/types.ts';
@@ -9,8 +14,9 @@ import { chooseBoundary } from './envelope/boundary.ts';
 import { type ParsedReceived, readReceived } from './envelope/received.ts';
 import { type ReferenceTimeMode, referenceTime } from './envelope/reference-time.ts';
 import { type Envelope, envelopeValues } from './envelope/values.ts';
-import { splitHeaders } from './message/headers.ts';
+import { type HeaderField, splitHeaders } from './message/headers.ts';
 import { normalizeLineEndings } from './message/line-endings.ts';
+import { bundledPsl } from './psl/snapshot.ts';
 import { type HeaderEntry, headerEntries } from './report/header-entries.ts';
 import {
   type SummaryLine,
@@ -30,6 +36,8 @@ export interface AnalyzeOptions {
   readonly time?: ReferenceTimeMode;
   /** DNS-10; default false. */
   readonly allowSensitive?: boolean;
+  /** DMARC-27; default both. */
+  readonly dmarcModes?: readonly DmarcMode[];
 }
 
 /** What `analyze` needs from its caller (detailed design §4). */
@@ -92,7 +100,8 @@ export async function analyze(
   deps: AnalyzeDeps,
 ): Promise<PartialReport> {
   const now = deps.now ?? new Date();
-  if (input.length > MAX_INPUT_BYTES) return tooLarge(input.length, now);
+  const dmarcModes = selectedModes(options.dmarcModes);
+  if (input.length > MAX_INPUT_BYTES) return tooLarge(input.length, now, dmarcModes);
   // IN-7: every check reads the normalized bytes.
   const normalized = normalizeLineEndings(input);
   const block = splitHeaders(normalized.bytes);
@@ -151,6 +160,9 @@ export async function analyze(
       ...(dkimOutcome.ok ? {} : { dkimUnavailable: 'internal-error' as const }),
       resolve: resolver.resolve,
       signal,
+      modes: dmarcModes,
+      // DMARC-7: parsed only when RFC 7489 mode is selected.
+      ...(dmarcModes.includes('rfc7489') ? { psl: bundledPsl() } : {}),
     }),
   );
   // Awaited together, so no rejection is ever left without a handler.
@@ -186,7 +198,7 @@ export async function analyze(
     summary: [
       summarizeSpf(spf),
       summarizeDkim(dkim, checkFindings.length > 0 ? 'internal-error' : undefined),
-      summarizeDmarc(dmarc),
+      ...summarizeDmarc(dmarc),
       summarizeArc(arc),
     ],
     receiver: { results: receiver.results, comparisons: [] },
@@ -204,6 +216,7 @@ export async function analyze(
       ...reference.findings,
       ...receiver.findings,
       ...checkFindings,
+      ...modesDiffer(dmarc, block.headers),
       ...dnsFindings(log),
       ...answerFindings(log, decidingQueries(spf, dkim, dmarc, arc), deps.source),
     ],
@@ -248,7 +261,8 @@ function decidingQueries(
 ): Set<string> {
   const ids = [
     ...[spf.mailFrom.trace, spf.helo.trace].flatMap(spfQueries),
-    ...dmarc.rfc9989.queryIds,
+    ...(dmarc.rfc9989?.queryIds ?? []),
+    ...(dmarc.rfc7489?.queryIds ?? []),
     ...dkim.map((r) => r.keyQueryId),
     ...arc.sets.flatMap((s) => [s.ams?.keyQueryId, s.seal?.keyQueryId]),
   ];
@@ -260,8 +274,37 @@ function spfQueries(node: SpfNode | undefined): (string | undefined)[] {
   return [node.queryId, ...node.terms.flatMap((t) => [...t.queryIds, ...spfQueries(t.child)])];
 }
 
+const ALL_MODES: readonly DmarcMode[] = ['rfc9989', 'rfc7489'];
+
+/** DMARC-27: the selected modes in RFC 9989, RFC 7489 order; none selected means the default, both. */
+function selectedModes(modes: readonly DmarcMode[] | undefined): DmarcMode[] {
+  const chosen = ALL_MODES.filter((m) => modes?.includes(m));
+  return chosen.length > 0 ? chosen : [...ALL_MODES];
+}
+
+/** DMARC-28 */
+function modesDiffer(dmarc: DmarcResults, headers: readonly HeaderField[]): Finding[] {
+  const { rfc9989: a, rfc7489: b } = dmarc;
+  const weights = (r: typeof a) => JSON.stringify(r?.dispositions ?? []);
+  const same =
+    a?.result === b?.result && a?.disposition === b?.disposition && weights(a) === weights(b);
+  if (!a || !b || same) return [];
+  const from = headers.filter((h) => h.lname === 'from');
+  return [
+    {
+      id: 'dmarc.modes-differ',
+      severity: 'info',
+      message: `RFC 9989 and RFC 7489 disagree: ${a.result}${a.disposition ? ` (${a.disposition})` : ''} versus ${b.result}${b.disposition ? ` (${b.disposition})` : ''}.`,
+      evidence:
+        from.length > 0
+          ? from.map((h) => ({ kind: 'header', index: h.index }))
+          : [{ kind: 'bytes', range: { start: 0, end: 0 } }],
+    },
+  ];
+}
+
 /** IN-3: nothing else runs, so a huge input is never copied. */
-function tooLarge(byteLength: number, now: Date): PartialReport {
+function tooLarge(byteLength: number, now: Date, modes: readonly DmarcMode[]): PartialReport {
   const arc: ArcReport = {
     result: 'not-evaluated',
     reason: 'invalid-input',
@@ -275,15 +318,17 @@ function tooLarge(byteLength: number, now: Date): PartialReport {
     findings: [],
   } as const;
   const spf: SpfResults = { mailFrom: notRun, helo: notRun };
+  const notEvaluated: DmarcModeResult = {
+    result: 'not-evaluated',
+    reason: 'invalid-input',
+    testing: false,
+    alignment: [],
+    queryIds: [],
+    findings: [],
+  };
   const dmarc: DmarcResults = {
-    rfc9989: {
-      result: 'not-evaluated',
-      reason: 'invalid-input',
-      testing: false,
-      alignment: [],
-      queryIds: [],
-      findings: [],
-    },
+    ...(modes.includes('rfc9989') ? { rfc9989: notEvaluated } : {}),
+    ...(modes.includes('rfc7489') ? { rfc7489: notEvaluated } : {}),
   };
   return {
     headers: [],
@@ -295,7 +340,7 @@ function tooLarge(byteLength: number, now: Date): PartialReport {
     summary: [
       summarizeSpf(spf),
       summarizeDkim([], 'invalid-input'),
-      summarizeDmarc(dmarc),
+      ...summarizeDmarc(dmarc),
       summarizeArc(arc),
     ],
     receiver: { results: [], comparisons: [] },

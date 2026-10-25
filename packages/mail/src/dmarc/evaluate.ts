@@ -1,17 +1,20 @@
 /**
  * DMARC evaluation (docs/reference/mail/dmarc.md; design: mail-design/dmarc.md).
- * This build evaluates mode rfc9989. Never throws on input.
+ * Modes rfc9989 and rfc7489, each on its own (DMARC-27). Never throws on input.
  */
 import type { DkimNotEvaluatedReason, DkimSignatureResult } from '../dkim/verify.ts';
 import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
+import { organizationalDomain, type PublicSuffixList } from '../psl/lookup.ts';
 import { guard } from '../shared/abort.ts';
 import { isDomainName } from '../shared/domain.ts';
 import type { Evidence, Finding, Severity } from '../shared/findings.ts';
 import type { SpfNotEvaluatedReason, SpfResults } from '../spf/evaluate.ts';
 import { addressDomains } from './author.ts';
+import { discover7489 } from './discover-rfc7489.ts';
 import { treeWalk, type Walk, type WalkContext } from './discover-rfc9989.ts';
 
+export type DmarcMode = 'rfc9989' | 'rfc7489';
 export type DmarcResult = 'pass' | 'fail' | 'none' | 'temperror' | 'permerror' | 'not-evaluated';
 export type DmarcPolicy = 'none' | 'quarantine' | 'reject';
 /** REP-5; DMARC-24 passes on the reason of an SPF or DKIM input. */
@@ -34,6 +37,11 @@ export interface AlignmentRow {
   readonly counts: boolean;
 }
 
+export interface WeightedDisposition {
+  readonly disposition: DmarcPolicy;
+  readonly weight: number;
+}
+
 export interface DmarcModeResult {
   readonly result: DmarcResult;
   readonly reason?: DmarcNotEvaluatedReason;
@@ -48,13 +56,21 @@ export interface DmarcModeResult {
   readonly policySource?: 'p' | 'sp' | 'np';
   readonly testing: boolean;
   readonly disposition?: DmarcPolicy;
+  /** DMARC-18: `rfc7489` with `pct` below 100 and result `fail`. */
+  readonly dispositions?: readonly WeightedDisposition[];
+  /** DMARC-7: the PSL snapshot's `VERSION` (`rfc7489`). */
+  readonly pslVersion?: string;
+  /** DMARC-3: each author domain's own result, when there are several (`rfc7489`). */
+  readonly perDomain?: readonly DmarcModeResult[];
   readonly alignment: readonly AlignmentRow[];
   readonly queryIds: readonly string[];
   readonly findings: readonly Finding[];
 }
 
+/** REP-6: present for the selected modes. */
 export interface DmarcResults {
-  readonly rfc9989: DmarcModeResult;
+  readonly rfc9989?: DmarcModeResult;
+  readonly rfc7489?: DmarcModeResult;
 }
 
 export interface DmarcContext {
@@ -65,26 +81,55 @@ export interface DmarcContext {
   readonly dkimUnavailable?: 'internal-error';
   readonly resolve: (query: DnsQuery, signal: AbortSignal) => Promise<DnsAnswer>;
   readonly signal: AbortSignal;
+  /** DMARC-27; default both. */
+  readonly modes?: readonly DmarcMode[];
+  /** Required for `rfc7489` (DMARC-7). */
+  readonly psl?: PublicSuffixList;
 }
 
-/** DMARC-10: tags defined for rfc9989. */
-const TAGS = new Set(['v', 'p', 'sp', 'np', 'adkim', 'aspf', 'rua', 'ruf', 'fo', 'psd', 't']);
+/** DMARC-10: tags defined per mode. */
+const COMMON_TAGS = ['v', 'p', 'sp', 'adkim', 'aspf', 'rua', 'ruf', 'fo'];
+const TAGS: Record<DmarcMode, ReadonlySet<string>> = {
+  rfc9989: new Set([...COMMON_TAGS, 'np', 'psd', 't']),
+  rfc7489: new Set([...COMMON_TAGS, 'pct', 'rf', 'ri']),
+};
+const MODE_NAMES: Record<DmarcMode, string> = { rfc9989: 'RFC 9989', rfc7489: 'RFC 7489' };
 const POLICIES: readonly string[] = ['none', 'quarantine', 'reject'];
-/** DMARC-17: one level less strict. */
+/** DMARC-17, DMARC-18: one level less strict. */
 const LOWER: Record<DmarcPolicy, DmarcPolicy> = {
   reject: 'quarantine',
   quarantine: 'none',
   none: 'none',
 };
+/** DMARC-3: the first of these that any domain has is the mode result. */
+const COMBINED: readonly DmarcResult[] = [
+  'fail',
+  'permerror',
+  'temperror',
+  'not-evaluated',
+  'pass',
+  'none',
+];
+const STRICTNESS: Record<DmarcPolicy, number> = { reject: 2, quarantine: 1, none: 0 };
 
 export async function evaluateDmarc(ctx: DmarcContext): Promise<DmarcResults> {
+  const modes = ctx.modes ?? ['rfc9989', 'rfc7489'];
+  const [rfc9989, rfc7489] = await Promise.all(
+    (['rfc9989', 'rfc7489'] as const).map((mode) =>
+      modes.includes(mode) ? guarded(ctx, mode) : undefined,
+    ),
+  );
+  return { ...(rfc9989 ? { rfc9989 } : {}), ...(rfc7489 ? { rfc7489 } : {}) };
+}
+
+/** REP-7, REP-8 per mode. */
+function guarded(ctx: DmarcContext, mode: DmarcMode): Promise<DmarcModeResult> {
   const from = ctx.headers.filter((h) => h.lname === 'from');
   // Filled as queries are made, so a timeout keeps the ones already answered.
   const queryIds: string[] = [];
-  // REP-7, REP-8 for the mode.
-  const rfc9989 = await guard(
+  return guard(
     ctx.signal,
-    () => evaluateMode(ctx, queryIds),
+    () => evaluateMode(ctx, mode, queryIds),
     (kind, error): DmarcModeResult => ({
       result: 'not-evaluated',
       reason: kind,
@@ -104,7 +149,6 @@ export async function evaluateDmarc(ctx: DmarcContext): Promise<DmarcResults> {
       ],
     }),
   );
-  return { rfc9989 };
 }
 
 /** REP-4: the fields, or an empty range at the start when there are none. */
@@ -121,18 +165,24 @@ type Row = AlignmentRow & {
   readonly orgError?: NonNullable<Walk['error']>;
 };
 
-async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<DmarcModeResult> {
-  const findings: Finding[] = [];
-  const add = (id: string, severity: Severity, message: string, evidence: Evidence[]) =>
-    findings.push({ id, severity, message, evidence });
-  const empty = { testing: false, alignment: [], queryIds, findings } as const;
-
-  // DMARC-1, DMARC-2, DMARC-21
+async function evaluateMode(
+  ctx: DmarcContext,
+  mode: DmarcMode,
+  queryIds: string[],
+): Promise<DmarcModeResult> {
   const from = ctx.headers.filter((h) => h.lname === 'from');
-  const invalid = (message: string): DmarcModeResult => {
-    add('dmarc.from-invalid', 'error', message, fieldEvidence(from));
-    return { ...empty, result: 'not-evaluated', reason: 'invalid-input' };
-  };
+  const invalid = (message: string): DmarcModeResult => ({
+    result: 'not-evaluated',
+    reason: 'invalid-input',
+    testing: false,
+    alignment: [],
+    queryIds,
+    findings: [
+      { id: 'dmarc.from-invalid', severity: 'error', message, evidence: fieldEvidence(from) },
+    ],
+  });
+
+  // DMARC-1, DMARC-2, DMARC-3, DMARC-21
   const [fromField] = from;
   if (!fromField || from.length > 1) {
     return invalid(
@@ -142,25 +192,76 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
   const domains = addressDomains(fromField.value);
   if (!domains) return invalid('The From field has no usable address.');
   const unique = [...new Set(domains)];
-  const [author] = unique;
-  if (!author || unique.length > 1) {
-    return invalid('The From field has addresses in more than one domain (RFC 9989 §5.3.1).');
+  const [first] = unique;
+  if (!first) return invalid('The From field has no usable address.');
+  if (mode === 'rfc9989') {
+    if (unique.length > 1) {
+      return invalid('The From field has addresses in more than one domain (RFC 9989 §5.3.1).');
+    }
+    const warnings: Finding[] =
+      domains.length > 1
+        ? [
+            {
+              id: 'dmarc.from-multiple-addresses',
+              severity: 'warning',
+              message: 'The From field has several addresses; their one domain is used.',
+              evidence: fieldEvidence(from),
+            },
+          ]
+        : [];
+    return evaluateDomain(ctx, mode, first, queryIds, warnings);
   }
-  if (domains.length > 1) {
-    add(
-      'dmarc.from-multiple-addresses',
-      'warning',
-      'The From field has several addresses; their one domain is used.',
-      fieldEvidence(from),
-    );
-  }
+  if (unique.length === 1) return evaluateDomain(ctx, mode, first, queryIds, []);
+  // DMARC-3: each domain on its own, then combined. They share queryIds, so a
+  // timeout keeps every answered query.
+  const perDomain = await Promise.all(
+    unique.map((domain) => evaluateDomain(ctx, mode, domain, queryIds, [])),
+  );
+  const result = COMBINED.find((c) => perDomain.some((d) => d.result === c)) ?? 'none';
+  const candidates = perDomain.filter((d) => d.result === result);
+  const deciding =
+    result === 'fail'
+      ? candidates.reduce((best, d) =>
+          STRICTNESS[d.policy ?? 'none'] > STRICTNESS[best.policy ?? 'none'] ? d : best,
+        )
+      : (candidates[0] as DmarcModeResult);
+  // The mode reports every domain's findings, not only the deciding one's.
+  return { ...deciding, queryIds, findings: perDomain.flatMap((d) => d.findings), perDomain };
+}
 
-  // DMARC-4..6, DMARC-22, DMARC-23
-  const walkCtx: WalkContext = { resolve: ctx.resolve, signal: ctx.signal };
-  const walk = await treeWalk(walkCtx, author);
-  queryIds.push(...walk.queryIds);
+async function evaluateDomain(
+  ctx: DmarcContext,
+  mode: DmarcMode,
+  author: string,
+  queryIds: string[],
+  warnings: readonly Finding[],
+): Promise<DmarcModeResult> {
+  const findings: Finding[] = [...warnings];
+  const add = (id: string, severity: Severity, message: string, evidence: Evidence[]) =>
+    findings.push({ id, severity, message, evidence });
+  const walkCtx: WalkContext = {
+    resolve: ctx.resolve,
+    signal: ctx.signal,
+    onQuery: (id) => queryIds.push(id),
+  };
+  const psl = ctx.psl;
+  if (mode === 'rfc7489' && !psl) throw new Error('rfc7489 needs the Public Suffix List');
+  const pslVersion = mode === 'rfc7489' && psl?.version ? { pslVersion: psl.version } : {};
+  const found = {
+    testing: false,
+    alignment: [],
+    queryIds,
+    findings,
+    authorDomain: author,
+    ...pslVersion,
+  } as const;
+
+  // DMARC-4..8, DMARC-22, DMARC-23, DMARC-26
+  const walk =
+    mode === 'rfc9989'
+      ? await treeWalk(walkCtx, author)
+      : await discover7489(walkCtx, psl as PublicSuffixList, author);
   findings.push(...walk.findings);
-  const found = { ...empty, authorDomain: author };
   if (walk.error === 'temperror') return { ...found, result: 'temperror' };
   if (walk.error) return { ...found, result: 'not-evaluated', reason: walk.error };
   const org = { orgDomain: walk.orgDomain, orgDomainRule: walk.orgDomainRule };
@@ -171,29 +272,49 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
   const withRecord = { ...found, ...org, recordAt: rec.name, record: rec.text };
 
   // DMARC-10
-  const ignored = [...tags.keys()].filter((t) => !TAGS.has(t));
+  const ignored = [...tags.keys()].filter((t) => !TAGS[mode].has(t));
   if (ignored.length > 0) {
     add(
       'dmarc.ignored-tag',
       'info',
-      `Not defined in RFC 9989, so ignored: ${ignored.join(', ')}.`,
+      `Not defined in ${MODE_NAMES[mode]}, so ignored: ${ignored.join(', ')}.`,
       recordEvidence,
     );
+  }
+  let pct = 100;
+  const pctTag = mode === 'rfc7489' ? tags.get('pct') : undefined;
+  if (pctTag !== undefined) {
+    if (/^\d{1,3}$/.test(pctTag) && Number(pctTag) <= 100) {
+      pct = Number(pctTag);
+    } else {
+      add(
+        'dmarc.ignored-tag',
+        'info',
+        `pct=${pctTag} is not an integer from 0 to 100, so it is ignored.`,
+        recordEvidence,
+      );
+    }
   }
   // DMARC-11
   const rua = hasValidRua(tags.get('rua'));
   const read = (tag: string): DmarcPolicy | 'invalid' | undefined => {
+    if (!TAGS[mode].has(tag)) return undefined;
     const v = tags.get(tag)?.toLowerCase();
     if (v === undefined) return undefined;
     return POLICIES.includes(v) ? (v as DmarcPolicy) : 'invalid';
   };
-  const declared = { p: read('p'), sp: read('sp'), np: read('np') };
+  // rfc7489 has no default for p: a record without it is invalid.
+  const declared = {
+    p: read('p') ?? (mode === 'rfc7489' ? 'invalid' : undefined),
+    sp: read('sp'),
+    np: read('np'),
+  };
   const anyInvalid = Object.values(declared).includes('invalid');
   if (anyInvalid && !rua) {
     add(
       'dmarc.invalid-policy',
       'error',
-      'p, sp, or np is not none, quarantine, or reject, and there is no valid rua.',
+      'p, sp, or np is missing or not none, quarantine, or reject, and there is no valid rua.',
       recordEvidence,
     );
     return { ...withRecord, result: 'not-evaluated', reason: 'invalid-input' };
@@ -204,8 +325,11 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
   const sp = anyInvalid ? undefined : policyOf(declared.sp);
   const np = anyInvalid ? undefined : policyOf(declared.np);
 
-  // DMARC-12..14
-  const orgOf = memoOrgDomain(walkCtx, author, walk, queryIds);
+  // DMARC-12..14, DMARC-25
+  const orgOf: (domain: string) => Promise<OrgLookup> =
+    mode === 'rfc9989'
+      ? memoOrgDomain(walkCtx, author, walk)
+      : async (domain) => ({ org: organizationalDomain(psl as PublicSuffixList, domain).domain });
   const spf = ctx.spf.mailFrom;
   interface Identifier {
     readonly id: 'spf' | 'dkim';
@@ -273,7 +397,9 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
   // DMARC-15, DMARC-16
   let policy: DmarcPolicy = p;
   let policySource: 'p' | 'sp' | 'np' = 'p';
-  if (rec.name !== author) {
+  if (rec.name !== author && mode === 'rfc7489') {
+    if (sp !== undefined) [policy, policySource] = [sp, 'sp'];
+  } else if (rec.name !== author) {
     const exists = await ctx.resolve(
       {
         name: author,
@@ -292,7 +418,7 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
   }
   // DMARC-17
   const declaredPolicy = policy;
-  const testing = tags.get('t')?.toLowerCase() === 'y';
+  const testing = mode === 'rfc9989' && tags.get('t')?.toLowerCase() === 'y';
   if (testing) policy = LOWER[policy];
 
   if (policy === 'none')
@@ -310,8 +436,17 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
       recordEvidence,
     );
 
-  // DMARC-19
+  // DMARC-18, DMARC-19
   const disposition = result === 'pass' ? 'none' : result === 'fail' ? policy : undefined;
+  const dispositions: { dispositions?: readonly WeightedDisposition[] } =
+    result === 'fail' && pct < 100 && policy !== 'none'
+      ? {
+          dispositions: [
+            { disposition: policy, weight: pct },
+            { disposition: policy === 'reject' ? 'quarantine' : 'none', weight: 100 - pct },
+          ],
+        }
+      : {};
   return {
     ...withRecord,
     result,
@@ -321,6 +456,7 @@ async function evaluateMode(ctx: DmarcContext, queryIds: string[]): Promise<Dmar
     policySource,
     testing,
     ...(disposition ? { disposition } : {}),
+    ...dispositions,
     alignment: rows.map(({ authReason: _r, orgError: _e, ...row }) => row),
   };
 }
@@ -332,7 +468,6 @@ function memoOrgDomain(
   ctx: WalkContext,
   author: string,
   authorWalk: Walk,
-  queryIds: string[],
 ): (domain: string) => Promise<OrgLookup> {
   const known = new Map<string, Promise<OrgLookup>>([
     [author, Promise.resolve({ org: authorWalk.orgDomain })],
@@ -340,10 +475,9 @@ function memoOrgDomain(
   return (domain) => {
     let pending = known.get(domain);
     if (!pending) {
-      pending = treeWalk(ctx, domain).then((w) => {
-        queryIds.push(...w.queryIds);
-        return w.error ? { error: w.error } : { org: w.orgDomain };
-      });
+      pending = treeWalk(ctx, domain).then((w) =>
+        w.error ? { error: w.error } : { org: w.orgDomain },
+      );
       known.set(domain, pending);
     }
     return pending;

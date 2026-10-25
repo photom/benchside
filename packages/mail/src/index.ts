@@ -17,11 +17,13 @@ export type {
 } from './dkim/verify.ts';
 export type {
   AlignmentRow,
+  DmarcMode,
   DmarcModeResult,
   DmarcNotEvaluatedReason,
   DmarcPolicy,
   DmarcResult,
   DmarcResults,
+  WeightedDisposition,
 } from './dmarc/evaluate.ts';
 export { createDnsCache, type DnsCache } from './dns/cache.ts';
 export { type ComposedResolver, composeResolver, dnsFindings } from './dns/compose.ts';

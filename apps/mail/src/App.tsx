@@ -1,5 +1,5 @@
-import type { AuthResult, FieldUse, Finding, PartialReport } from '@benchside/mail';
-import { useState } from 'preact/hooks';
+import type { AuthResult, DmarcMode, FieldUse, Finding, PartialReport } from '@benchside/mail';
+import { useRef, useState } from 'preact/hooks';
 import { ArcDetail } from './views/ArcDetail.tsx';
 import { DeliveryDetails } from './views/DeliveryDetails.tsx';
 import { DkimDetail } from './views/DkimDetail.tsx';
@@ -22,11 +22,24 @@ type Status =
 export function App({ host }: { host: WorkerHost }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [active, setActive] = useState(false);
+  const [modes, setModes] = useState<readonly DmarcMode[]>(['rfc9989', 'rfc7489']);
+  // The latest modes, for a run that started before the user changed them.
+  const currentModes = useRef(modes);
+  // The last file, so an option change can analyze it again.
+  const last = useRef<Uint8Array | null>(null);
 
   async function analyze(file: File) {
+    await run(async () => {
+      last.current = new Uint8Array(await file.arrayBuffer());
+      return last.current;
+    });
+  }
+
+  async function run(read: () => Promise<Uint8Array>) {
     setStatus({ kind: 'running' });
     try {
-      const report = await host.analyze(new Uint8Array(await file.arrayBuffer()));
+      const bytes = await read();
+      const report = await host.analyze(bytes, { dmarcModes: currentModes.current });
       setStatus({ kind: 'done', report });
     } catch (error) {
       // A newer file replaced this analysis; its own result will be shown.
@@ -63,8 +76,59 @@ export function App({ host }: { host: WorkerHost }) {
           }}
         />
       </label>
+      <Options
+        modes={modes}
+        onChange={(next) => {
+          setModes(next);
+          currentModes.current = next;
+          const bytes = last.current;
+          if (bytes) void run(async () => bytes);
+        }}
+      />
       <Result status={status} />
     </main>
+  );
+}
+
+const MODE_OPTIONS: readonly { mode: DmarcMode; label: string }[] = [
+  { mode: 'rfc9989', label: 'RFC 9989 (DMARCbis)' },
+  { mode: 'rfc7489', label: 'RFC 7489 (DMARC1)' },
+];
+
+/** DMARC-27: the DMARC modes to evaluate; at least one stays checked. */
+function Options({
+  modes,
+  onChange,
+}: {
+  modes: readonly DmarcMode[];
+  onChange: (modes: readonly DmarcMode[]) => void;
+}) {
+  return (
+    <section aria-label="Options">
+      <fieldset>
+        <legend>DMARC</legend>
+        {MODE_OPTIONS.map(({ mode, label }) => {
+          const checked = modes.includes(mode);
+          return (
+            <label key={mode}>
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={checked && modes.length === 1}
+                onChange={() =>
+                  onChange(
+                    MODE_OPTIONS.map((o) => o.mode).filter((m) =>
+                      m === mode ? !checked : modes.includes(m),
+                    ),
+                  )
+                }
+              />
+              {label}
+            </label>
+          );
+        })}
+      </fieldset>
+    </section>
   );
 }
 

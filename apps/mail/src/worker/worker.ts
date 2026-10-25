@@ -21,11 +21,12 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
   const controller = new AbortController();
   running.set(message.id, controller);
   try {
-    const report = await analyze(
-      message.bytes,
-      {},
-      { transport, source: provider, cache, signal: controller.signal },
-    );
+    const report = await analyze(message.bytes, message.options, {
+      transport,
+      source: provider,
+      cache,
+      signal: controller.signal,
+    });
     const reply: FromWorker = { type: 'report', id: message.id, report };
     self.postMessage(reply);
   } catch (error) {

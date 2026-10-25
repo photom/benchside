@@ -1,6 +1,7 @@
 import type { ArcNotEvaluatedReason, ArcReport, ArcResult } from '../arc/verify.ts';
 import type { DkimResult, DkimSignatureResult } from '../dkim/verify.ts';
 import type {
+  DmarcMode,
   DmarcNotEvaluatedReason,
   DmarcPolicy,
   DmarcResult,
@@ -23,6 +24,8 @@ export interface SummaryLine {
     | ArcNotEvaluatedReason;
   /** SUM-4: what the receiver should do with the message. */
   readonly disposition?: DmarcPolicy;
+  /** SUM-4: the DMARC mode of this line. */
+  readonly mode?: DmarcMode;
   /** DKIM: signatures per result, in precedence order. ARC: `sets`. */
   readonly counts: Readonly<Record<string, number>>;
 }
@@ -42,16 +45,23 @@ export function summarizeSpf(results: SpfResults): SummaryLine {
   return { method: 'spf', result, ...(reason ? { reason } : {}), counts: {} };
 }
 
-/** SUM-4: the default mode's result and disposition. */
-export function summarizeDmarc(results: DmarcResults): SummaryLine {
-  const { result, reason, disposition } = results.rfc9989;
-  return {
-    method: 'dmarc',
-    result,
-    ...(reason ? { reason } : {}),
-    ...(disposition ? { disposition } : {}),
-    counts: {},
-  };
+/** SUM-4: one line per evaluated mode, RFC 9989 first. */
+export function summarizeDmarc(results: DmarcResults): SummaryLine[] {
+  return (['rfc9989', 'rfc7489'] as const).flatMap((mode) => {
+    const r = results[mode];
+    if (!r) return [];
+    const { result, reason, disposition } = r;
+    return [
+      {
+        method: 'dmarc',
+        mode,
+        result,
+        ...(reason ? { reason } : {}),
+        ...(disposition ? { disposition } : {}),
+        counts: {},
+      },
+    ];
+  });
 }
 
 /** SUM-5: the chain result, and the number of sets when there are any. */
