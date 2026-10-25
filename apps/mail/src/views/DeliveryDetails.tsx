@@ -1,4 +1,5 @@
 import type { Envelope, EnvelopeValue } from '@benchside/mail';
+import { HowChecked } from './HowChecked.tsx';
 import { SourceLinks } from './SourceLinks.tsx';
 
 /** The SMTP values SPF uses, each with where it came from (REQ-MAIL-009, ENV-15). */
@@ -13,6 +14,7 @@ export function DeliveryDetails({ envelope }: { envelope: Envelope }) {
           <Row label="MAIL FROM" value={envelope.mailFrom} />
         </tbody>
       </table>
+      <HowChecked method="delivery" />
     </section>
   );
 }

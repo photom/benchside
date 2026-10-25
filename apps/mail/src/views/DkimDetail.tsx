@@ -1,5 +1,6 @@
 import type { DkimSignatureResult } from '@benchside/mail';
 import { FindingList } from './Findings.tsx';
+import { HowChecked } from './HowChecked.tsx';
 import { resultText } from './labels.ts';
 import { SourceLinks } from './SourceLinks.tsx';
 
@@ -25,6 +26,7 @@ export function DkimDetail({ results }: { results: readonly DkimSignatureResult[
           <Trace result={r} />
         </article>
       ))}
+      <HowChecked method="dkim" />
     </section>
   );
 }

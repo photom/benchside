@@ -1,5 +1,6 @@
 import type { SpfIdentityResult, SpfNode, SpfResults, SpfTermTrace } from '@benchside/mail';
 import { FindingList } from './Findings.tsx';
+import { HowChecked } from './HowChecked.tsx';
 import { resultText } from './labels.ts';
 
 const OUTCOME_WORDS: Record<SpfTermTrace['outcome'], string> = {
@@ -16,6 +17,7 @@ export function SpfDetail({ spf }: { spf: SpfResults }) {
       <h2>SPF</h2>
       <Identity label="MAIL FROM" result={spf.mailFrom} />
       <Identity label="HELO" result={spf.helo} />
+      <HowChecked method="spf" />
     </section>
   );
 }

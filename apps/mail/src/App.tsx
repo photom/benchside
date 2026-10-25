@@ -1,4 +1,4 @@
-import type { AuthResult, Finding, PartialReport } from '@benchside/mail';
+import type { AuthResult, FieldUse, Finding, PartialReport } from '@benchside/mail';
 import { useState } from 'preact/hooks';
 import { ArcDetail } from './views/ArcDetail.tsx';
 import { DeliveryDetails } from './views/DeliveryDetails.tsx';
@@ -6,6 +6,7 @@ import { DkimDetail } from './views/DkimDetail.tsx';
 import { DmarcDetail } from './views/DmarcDetail.tsx';
 import { DnsLog } from './views/DnsLog.tsx';
 import { FindingList } from './views/Findings.tsx';
+import { HowChecked, References } from './views/HowChecked.tsx';
 import { entryText } from './views/labels.ts';
 import { SpfDetail } from './views/SpfDetail.tsx';
 import { Summary } from './views/Summary.tsx';
@@ -90,6 +91,7 @@ function Result({ status }: { status: Status }) {
           <Notes report={status.report} />
           <HeaderFields report={status.report} />
           <DnsLog entries={status.report.dnsLog} />
+          <References />
         </>
       );
   }
@@ -126,6 +128,7 @@ function ReceiverResults({
           </ul>
         </article>
       ))}
+      <HowChecked method="receiver" />
     </section>
   );
 }
@@ -145,6 +148,15 @@ function Notes({ report }: { report: PartialReport }) {
   );
 }
 
+const FIELD_USE_NAMES: Record<FieldUse, string> = {
+  delivery: 'Delivery details',
+  dkim: 'DKIM',
+  dmarc: 'DMARC',
+  arc: 'ARC',
+  receiver: 'Receiver results',
+};
+
+/** REQ-MAIL-013: every field's name; the fields a check reads also show who reads them and the value. */
 function HeaderFields({ report }: { report: PartialReport }) {
   return (
     <section aria-label="Header fields">
@@ -153,6 +165,15 @@ function HeaderFields({ report }: { report: PartialReport }) {
         {report.headers.map((h) => (
           <li key={h.index} id={`field-${h.index + 1}`}>
             {h.name || '(malformed line)'}
+            {h.usedBy.length > 0 && (
+              <>
+                {' '}
+                <span class="used-by">
+                  Read by: {h.usedBy.map((u) => FIELD_USE_NAMES[u]).join(', ')}
+                </span>
+                <pre class="field-value">{h.value}</pre>
+              </>
+            )}
           </li>
         ))}
       </ol>

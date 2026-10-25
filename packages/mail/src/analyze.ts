@@ -11,6 +11,7 @@ import { type ReferenceTimeMode, referenceTime } from './envelope/reference-time
 import { type Envelope, envelopeValues } from './envelope/values.ts';
 import { splitHeaders } from './message/headers.ts';
 import { normalizeLineEndings } from './message/line-endings.ts';
+import { type HeaderEntry, headerEntries } from './report/header-entries.ts';
 import {
   type SummaryLine,
   summarizeArc,
@@ -51,7 +52,8 @@ export interface AnalyzeDeps {
  * Grows into the full Report as the checks arrive.
  */
 export interface PartialReport {
-  readonly headers: readonly { readonly index: number; readonly name: string }[];
+  /** REP-9, REP-10: every field, with the value of those a check reads. */
+  readonly headers: readonly HeaderEntry[];
   readonly hasBody: boolean;
   readonly received: readonly ParsedReceived[];
   /** Header field index of the trust-boundary `Received` field, or null without one. */
@@ -98,8 +100,9 @@ export async function analyze(
   const boundary = chooseBoundary(received.received, options.boundary);
   const receiver = listReceiverResults(block.headers, received.received, boundary.boundary);
   const delivery = envelopeValues(block.headers, boundary.boundary);
+  const time = options.time ?? 'received';
   const reference = referenceTime({
-    mode: options.time ?? 'received',
+    mode: time,
     boundary: boundary.boundary,
     headers: block.headers,
     now,
@@ -174,7 +177,7 @@ export async function analyze(
 
   const log = resolver.log;
   return {
-    headers: block.headers.map(({ index, name }) => ({ index, name })),
+    headers: headerEntries(block.headers, time),
     hasBody: block.body !== null,
     received: received.received,
     boundary: boundary.boundary?.field ?? null,

@@ -54,6 +54,37 @@ describe('analyze', () => {
     expect(report.hasBody).toBe(true);
   });
 
+  it('REQ-MAIL-013: given a delivered, signed message, when analyzed, then the header list has the values the checks read and who reads them', async () => {
+    const report = await analyze(
+      bytes([
+        `Received: from a.example (a.example [192.0.2.1]) by mx.example.org with SMTP${DATE}`,
+        'DKIM-Signature: v=1; a=rsa-sha256; d=example.com; s=sel; h=from:subject; bh=; b=',
+        'Subject: Hi',
+        'From: a@example.com',
+        'X-Mailer: hidden',
+      ]),
+      {},
+      deps(),
+    );
+    expect(report.headers).toEqual([
+      {
+        index: 0,
+        name: 'Received',
+        usedBy: ['delivery'],
+        value: ` from a.example (a.example [192.0.2.1]) by mx.example.org with SMTP${DATE}`,
+      },
+      {
+        index: 1,
+        name: 'DKIM-Signature',
+        usedBy: ['dkim'],
+        value: ' v=1; a=rsa-sha256; d=example.com; s=sel; h=from:subject; bh=; b=',
+      },
+      { index: 2, name: 'Subject', usedBy: ['dkim'], value: ' Hi' },
+      { index: 3, name: 'From', usedBy: ['dkim', 'dmarc'], value: ' a@example.com' },
+      { index: 4, name: 'X-Mailer', usedBy: [] },
+    ]);
+  });
+
   it('AR-11: given receiver results but none of our own, when analyzed, then there are no comparisons and no authres.differs', async () => {
     const report = await analyze(
       bytes([

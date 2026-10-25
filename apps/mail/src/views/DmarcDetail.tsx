@@ -1,5 +1,6 @@
 import type { DmarcModeResult, DmarcResults } from '@benchside/mail';
 import { FindingList } from './Findings.tsx';
+import { HowChecked } from './HowChecked.tsx';
 import { resultText } from './labels.ts';
 
 /** DMARC per mode: result, record, policy, disposition, and alignment (REQ-MAIL-006). */
@@ -8,6 +9,7 @@ export function DmarcDetail({ dmarc }: { dmarc: DmarcResults }) {
     <section aria-label="DMARC">
       <h2>DMARC</h2>
       <Mode label="RFC 9989" mode={dmarc.rfc9989} />
+      <HowChecked method="rfc9989" />
     </section>
   );
 }
