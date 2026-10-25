@@ -15,7 +15,7 @@ timeline
 
 ## Requirement
 
-- The user selects RFC 9989 (default) or RFC 7489. Both can be shown side by side.
+- Both RFC 9989 (DMARCbis) and RFC 7489 (DMARC1) are evaluated by default, each in its own section. The user can turn either off.
 - RFC 7489 mode uses the Public Suffix List, bundled as a snapshot.
 - Show alignment for every SPF and DKIM identity, and the resulting disposition.
 

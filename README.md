@@ -23,3 +23,5 @@ Requires Node 24 or later.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+The mail analyzer bundles a snapshot of the [Public Suffix List](https://publicsuffix.org/) (`packages/mail/data/public_suffix_list.dat`), maintained by its contributors and licensed under the [Mozilla Public License 2.0](https://mozilla.org/MPL/2.0/). The file keeps its license header.

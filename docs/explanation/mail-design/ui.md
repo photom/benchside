@@ -85,7 +85,7 @@ flowchart TD
   App --> Receiver[Receiver results]
   App --> Spf["SpfDetail<br/>one tree per identity"]
   App --> Dkim["DkimDetail<br/>one card per signature"]
-  App --> Dmarc["DmarcDetail<br/>one card per mode, side by side"]
+  App --> Dmarc["DmarcDetail<br/>one section per mode:<br/>DMARCbis, DMARC1"]
   App --> Arc["ArcDetail<br/>one row per hop"]
   App --> Notes["Notes<br/>findings of no single result"]
   App --> Headers["Header fields<br/>id=field-N, value + used by"]
@@ -97,14 +97,14 @@ flowchart TD
 
 | Element | Shows | REQ |
 |---|---|---|
-| Options | DMARC modes as two checkboxes, RFC 9989 (checked by default) and RFC 7489. At least one stays checked. A change re-runs the analysis of the last file | DMARC-27 |
-| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures. `ARC: pass (2 sets)`. `SPF: softfail`. `DMARC: fail (disposition reject)`. A `not-evaluated` reason comes before the counts: `ARC: not evaluated (offline; 1 set)` | REQ-MAIL-002, SUM-1, SUM-2, SUM-4, SUM-5 |
+| Options | DMARC modes as two checkboxes, RFC 9989 and RFC 7489, both checked by default. At least one stays checked. A change re-runs the analysis of the last file | DMARC-27 |
+| Summary | `DKIM: pass (1 pass, 1 fail)`; `none` without signatures. `ARC: pass (2 sets)`. `SPF: softfail`. `DMARC (RFC 9989): fail (disposition reject)`, and a second line for `DMARC (RFC 7489)` when that mode is selected. A `not-evaluated` reason comes before the counts: `ARC: not evaluated (offline; 1 set)` | REQ-MAIL-002, SUM-1, SUM-2, SUM-4, SUM-5 |
 | Delivery details | Client IP, HELO, MAIL FROM, each with the header field and rule it came from (ENV-15), or "not found" | REQ-MAIL-009 |
 | SPF | Per identity (MAIL FROM, HELO): domain, result in words with its reason, counters (DNS terms / 10, void lookups / 2), findings, and the record tree: each record with its domain, each term with its outcome and DNS links; `include`/`redirect` nest; the matching term is marked | REQ-MAIL-003, SPF-18, SPF-19 |
 | DKIM card | `d=`, `s=`, result as text, the `not-evaluated` reason, findings with severity | REQ-MAIL-002, REQ-MAIL-004 |
 | Trace (`<details>`) | Tags, signed header fields, key query, header hash input, body hash computed vs `bh=` | DKIM-16 |
 | Canonical body | Shown open when the computed body hash differs from `bh=`; marked when only the first 64 KiB is shown | REQ-MAIL-004 |
-| DMARC | Per mode: author domain, result in words with its reason, where the record was found and its text, the organizational domain and how it was chosen, the policy in effect (`p`/`sp`/`np`, test mode), the disposition (with `pct` weights: `reject (50%), quarantine (50%)`), findings, and an alignment table: identifier, domain, its SPF/DKIM result, strict or relaxed, organizational domain, aligned, counts. RFC 7489 adds the PSL rule and version, and with several author domains one line per domain. Two modes sit side by side on wide screens | REQ-MAIL-006, DMARC-3, DMARC-7, DMARC-18 |
+| DMARC | One section per selected mode: "DMARC (RFC 9989, DMARCbis)" and "DMARC (RFC 7489, DMARC1)", each with its own "How this is checked" steps. Each shows: author domain, result in words with its reason, where the record was found and its text, the organizational domain and how it was chosen, the policy in effect (`p`/`sp`/`np`, test mode), the disposition (with `pct` weights: `reject (50%), quarantine (50%)`), findings, and an alignment table: identifier, domain, its SPF/DKIM result, strict or relaxed, organizational domain, aligned, counts. RFC 7489 adds the PSL rule and version, and with several author domains one line per domain | REQ-MAIL-006, DMARC-3, DMARC-7, DMARC-18 |
 | ARC chain | Chain result in words with its reason; the oldest hop whose message signature still verifies (ARC-6); the chain's findings; a table with one row per hop: instance, sealer `d=` and `s=` and seal time (`t=` in UTC, as written when it is not decimal seconds; from the message signature when the seal is missing), `cv=`, message signature result, seal result, the hop's own results (AAR authserv-id and its entries worded as in receiver results, or "(no results)"), links to the ARC fields and key queries | REQ-MAIL-007, ARC-10 |
 | Evidence | In-page links: `header` → the header list item, `dns` → the DNS log row. Every finding list (SPF, DKIM, DMARC, ARC, receiver results, Notes) uses the same `FindingList` view | REQ-MAIL-002 |
 | Header fields | Every field's name in order. A field some check reads (REP-9) also shows which checks read it ("Read by: DKIM, DMARC") and its value as written (REP-10): one line per folded line, wrapping. Each whitespace character that starts a continuation line shows as a `<SP>` or `<TAB>` marker, and so does every other tab. Markers are styled spans with an `aria-label` ("space", "tab"), so they never read as header text | REQ-MAIL-013 |

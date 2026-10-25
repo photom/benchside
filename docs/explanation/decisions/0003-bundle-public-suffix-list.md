@@ -20,6 +20,6 @@ The [Public Suffix List](https://publicsuffix.org/) changes several times a mont
 ## Consequences
 
 - No extra network access, and builds are reproducible.
-- The mail app grows by roughly 200 KB before compression.
+- The mail app grows by roughly 340 KB before compression (the 2026-10 snapshot).
 - Results can differ from a receiver's if their copy of the list is older or newer. The snapshot `VERSION` in the report makes this visible.
 - The list is licensed under MPL 2.0. The snapshot keeps its license header, and the README credits it.
