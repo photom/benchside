@@ -4,7 +4,7 @@
  */
 import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
-import { isTimeout, untilAborted } from '../shared/abort.ts';
+import { guard } from '../shared/abort.ts';
 import { decodeBase64 } from '../shared/base64.ts';
 import type { ByteRange } from '../shared/bytes.ts';
 import { verifySignature } from '../shared/crypto.ts';
@@ -104,11 +104,8 @@ async function guarded(
   sig: HeaderField,
   verify: () => Promise<DkimSignatureResult>,
 ): Promise<DkimSignatureResult> {
-  try {
-    return await untilAborted(verify(), ctx.signal);
-  } catch (error) {
-    if (ctx.signal.aborted && !isTimeout(ctx.signal)) throw ctx.signal.reason;
-    const timedOut = isTimeout(ctx.signal);
+  return guard(ctx.signal, verify, (kind, error) => {
+    const timedOut = kind === 'timeout';
     const tags = parseTagList(sig.value).tags;
     const d = tags.get('d');
     const s = tags.get('s');
@@ -130,7 +127,7 @@ async function guarded(
       ],
       trace: { tags: [...tags], selectedHeaders: [] },
     };
-  }
+  });
 }
 
 function tooMany(sig: HeaderField): DkimSignatureResult {
