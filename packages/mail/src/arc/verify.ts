@@ -24,6 +24,7 @@ import {
   type KeyResult,
   type SignatureMemo,
   selectHeaders,
+  signedHeaderNames,
 } from '../shared/signature-core.ts';
 import { parseTagList, type TagList } from '../shared/tag-list.ts';
 import { type ArcGroup, groupSets, isArcField } from './sets.ts';
@@ -410,10 +411,7 @@ async function verifyAms(
   if (!bytesEqual(computed, bh)) {
     return mismatch('The body hash does not match bh=: the body was changed.');
   }
-  const names = (tags.get('h') ?? '')
-    .split(':')
-    .map((n) => n.replace(/[ \t\r\n]/g, '').toLowerCase());
-  const selected = selectHeaders(ctx.headers, names, ams);
+  const selected = selectHeaders(ctx.headers, signedHeaderNames(tags.get('h')), ams);
   const data = headerHashData(ctx.bytes, selected, ams, hc);
   const b = decodeBase64(tags.get('b') ?? '') as Uint8Array;
   if (!(await verifySignature(fetched.key, data, b))) {

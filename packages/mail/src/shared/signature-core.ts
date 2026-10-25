@@ -17,6 +17,11 @@ const SEMI = 0x3b;
 const EQ = 0x3d;
 const COLON = 0x3a;
 
+/** The names in an `h=` tag, as DKIM-14 and ARC-5 select by them: WSP removed, lowercase, empty names kept. */
+export function signedHeaderNames(h: string | undefined): string[] {
+  return (h ?? '').split(':').map((n) => n.replace(/[ \t\r\n]/g, '').toLowerCase());
+}
+
 /**
  * RFC 6376 §5.4.2: for each name in `h=`, the next unused field with that name,
  * from the bottom up. Names with no field left select nothing (oversigning).

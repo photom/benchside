@@ -22,6 +22,7 @@ import {
   isCanon,
   type SignatureMemo,
   selectHeaders,
+  signedHeaderNames,
   toBase64,
 } from '../shared/signature-core.ts';
 import { parseTagList } from '../shared/tag-list.ts';
@@ -81,7 +82,15 @@ export interface DkimContext {
 const MAX_SIGNATURES = 20; // DKIM-1
 const TRACE_BODY_BYTES = 64 * 1024; // DKIM-16
 /** dkim.unsigned-header: fields an attacker could add or change if left unsigned. */
-const SHOULD_SIGN = ['subject', 'date', 'to', 'cc', 'reply-to', 'message-id', 'content-type'];
+export const SHOULD_SIGN: readonly string[] = [
+  'subject',
+  'date',
+  'to',
+  'cc',
+  'reply-to',
+  'message-id',
+  'content-type',
+];
 
 const utf8 = new TextDecoder('utf-8', { fatal: false });
 
@@ -210,9 +219,7 @@ async function verifyOne(
 
   // DKIM-5
   const domain = (d ?? '').toLowerCase();
-  const signedNames = (tags.get('h') ?? '')
-    .split(':')
-    .map((n) => n.replace(/[ \t\r\n]/g, '').toLowerCase());
+  const signedNames = signedHeaderNames(tags.get('h'));
   const [hc = 'simple', bc = 'simple', ...extraC] = (tags.get('c') ?? 'simple/simple')
     .toLowerCase()
     .split('/');
