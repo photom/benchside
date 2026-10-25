@@ -104,6 +104,20 @@ describe('App', () => {
     expect(received?.textContent).toContain('Read by: Delivery details');
   });
 
+  it('REQ-MAIL-013: given a folded value with tabs, when shown, then each fold is a line and its indent and every tab are marked', async () => {
+    const report: PartialReport = {
+      ...emptyReport,
+      headers: [{ index: 0, name: 'Subject', usedBy: ['dkim'], value: ' a\tb c\r\n\t <d>\r\n  e' }],
+    };
+    const container = mount({ analyze: async () => report });
+    await choose(container, 'x');
+    const pre = container.querySelector('[aria-label="Header fields"] pre');
+    expect(pre?.textContent).toBe(' a<TAB>b c\n<TAB><SP><d>\n<SP><SP>e');
+    expect(
+      [...(pre?.querySelectorAll('.ws') ?? [])].map((m) => m.getAttribute('aria-label')),
+    ).toEqual(['tab', 'tab', 'space', 'space', 'space']);
+  });
+
   it('REQ-MAIL-012: given a failing analysis, when shown, then an alert explains it', async () => {
     const container = mount({ analyze: async () => Promise.reject(new Error('boom')) });
     await choose(container, 'x');
