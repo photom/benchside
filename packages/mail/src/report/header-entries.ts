@@ -35,8 +35,18 @@ const SIGNATURES: Readonly<Record<string, FieldUse>> = {
   'arc-message-signature': 'arc',
 };
 
+const utf8 = new TextDecoder('utf-8', { fatal: false });
+
+/** REP-10: after the colon, folding kept, without the final CRLF. */
+function asWritten(bytes: Uint8Array, field: HeaderField): string {
+  const text = utf8.decode(bytes.subarray(field.raw.start, field.raw.end));
+  return text.slice(text.indexOf(':') + 1).replace(/\r\n$/, '');
+}
+
+/** `bytes` are the CRLF-normalized message bytes that the `raw` ranges point into. */
 export function headerEntries(
   headers: readonly HeaderField[],
+  bytes: Uint8Array,
   time: ReferenceTimeMode,
 ): HeaderEntry[] {
   const uses = headers.map(() => new Set<FieldUse>());
@@ -65,7 +75,7 @@ export function headerEntries(
       index: h.index,
       name: h.name,
       usedBy,
-      ...(usedBy.length > 0 ? { value: h.value } : {}),
+      ...(usedBy.length > 0 ? { value: asWritten(bytes, h) } : {}),
     };
   });
 }
