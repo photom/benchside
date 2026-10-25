@@ -51,6 +51,7 @@ flowchart LR
 | DNS-16 | Response `Status` 0 is `NOERROR`, 3 is `NXDOMAIN`; any other status, an HTTP error, a network error, or a body that is not the expected JSON is `SERVFAIL`. No answer within 5 s is `TIMEOUT`. |
 | DNS-17 | Only answer records of the queried type are used. Others, such as `CNAME` steps, are ignored. |
 | DNS-18 | Names are converted to A-labels (IDNA) before the cache, so both forms share one entry. A label containing `@`, `:`, `/`, `\`, `?`, `#`, `%`, `[`, `]`, whitespace, or anything that turns into a dot is not converted: the query is not sent and the answer is `SERVFAIL`. The log keeps the name as the check asked for it. |
+| DNS-19 | Record data as checks receive it: `A` dotted quad; `AAAA` IPv6 text; `MX` preference, a space, and the exchange name; `PTR` a name. A trailing dot on a name is dropped by the check. Offline records use the same forms. |
 
 ## Query policy
 
