@@ -17,6 +17,8 @@ flowchart TD
   psl --> al
 ```
 
+Build order: `rfc9989` first (no PSL needed), then `rfc7489` with the PSL snapshot and the mode option. Until then `ModeStrategy` has one implementation; `align.ts` and `policy.ts` live in `evaluate.ts` and move out when the second mode arrives. `record.ts` parses and validates records (DMARC-9..11, DMARC-23).
+
 Both modes share one interface. `evaluate.ts` does not branch on mode except to pick the discovery and org-domain functions.
 
 ```ts
@@ -84,13 +86,16 @@ interface AlignmentRow {
   identifier: 'spf' | 'dkim';
   domain: string;                // SPF MAIL FROM domain or DKIM d=
   authResult: string;            // spf / dkim result
-  strict: boolean;
-  relaxed: boolean;
-  counts: boolean;               // authResult is pass and aligned in the mode in effect
+  mode: 'strict' | 'relaxed';    // aspf / adkim
+  orgDomain?: string;            // relaxed only, when looked up
+  aligned: boolean;
+  counts: boolean;               // authResult is pass and aligned
 }
 ```
 
 - DMARC `pass` ⇔ some row has `counts: true`.
+- Rows are built concurrently. A relaxed row walks only domains that equal or end in the author's organizational domain (DMARC-25); others cannot align.
+- `analyze` starts DMARC as soon as SPF and DKIM finish, alongside ARC.
 
 ## Policy (`policy.ts`)
 
