@@ -18,3 +18,21 @@ export function isTimeout(signal: AbortSignal): boolean {
     signal.aborted && (signal.reason as { name?: string } | undefined)?.name === 'TimeoutError'
   );
 }
+
+/**
+ * REP-7, REP-8: runs `work` until the signal aborts. The deadline gives
+ * `onFailure('timeout')`, any other throw `onFailure('internal-error')`, and the
+ * caller's cancel rejects with its reason.
+ */
+export async function guard<T>(
+  signal: AbortSignal,
+  work: () => Promise<T>,
+  onFailure: (kind: 'timeout' | 'internal-error', error: unknown) => T,
+): Promise<T> {
+  try {
+    return await untilAborted(work(), signal);
+  } catch (error) {
+    if (signal.aborted && !isTimeout(signal)) throw signal.reason;
+    return onFailure(isTimeout(signal) ? 'timeout' : 'internal-error', error);
+  }
+}

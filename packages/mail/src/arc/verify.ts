@@ -5,7 +5,7 @@
 import { type AuthResultEntry, parseAuthResults } from '../authres/parse.ts';
 import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
-import { isTimeout, untilAborted } from '../shared/abort.ts';
+import { guard } from '../shared/abort.ts';
 import { decodeBase64 } from '../shared/base64.ts';
 import type { ByteRange } from '../shared/bytes.ts';
 import { verifySignature } from '../shared/crypto.ts';
@@ -101,17 +101,15 @@ export async function verifyArc(ctx: ArcContext): Promise<ArcReport> {
   const fields = ctx.headers.filter(isArcField);
   if (fields.length === 0) return { result: 'none', sets: [], findings: [] };
   // ARC-12: one guard for the whole method.
-  try {
-    return await untilAborted(validate(ctx, fields, ctx.memo ?? createSignatureMemo()), ctx.signal);
-  } catch (error) {
-    if (ctx.signal.aborted && !isTimeout(ctx.signal)) throw ctx.signal.reason;
-    const timedOut = isTimeout(ctx.signal);
-    return {
+  return guard(
+    ctx.signal,
+    () => validate(ctx, fields, ctx.memo ?? createSignatureMemo()),
+    (kind, error): ArcReport => ({
       result: 'not-evaluated',
-      reason: timedOut ? 'timeout' : 'internal-error',
+      reason: kind,
       sets: [],
       findings: [
-        timedOut
+        kind === 'timeout'
           ? finding(
               'analysis.timeout',
               'error',
@@ -125,8 +123,8 @@ export async function verifyArc(ctx: ArcContext): Promise<ArcReport> {
               fields,
             ),
       ],
-    };
-  }
+    }),
+  );
 }
 
 /** One signature's outcome, before it is combined (ARC-11). */
