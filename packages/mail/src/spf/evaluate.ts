@@ -173,7 +173,12 @@ export async function evaluateSpf(ctx: SpfContext): Promise<SpfResults> {
       sources(clientIp, helo),
     );
   };
-  const heloPending = guardIdentity(ctx, heloIdentity, sources(clientIp, helo));
+  // Kept on a timeout or internal error too, so DMARC still sees the identity (DMARC-12).
+  const heloKnown = helo ? { domain: helo.value, sender: `postmaster@${helo.value}` } : {};
+  const heloPending = guardIdentity(ctx, heloIdentity, sources(clientIp, helo), heloKnown);
+
+  // SPF-20: the MAIL FROM identity's domain and sender.
+  const mailFromKnown = mailFrom && mailFrom.value !== '' ? splitSender(mailFrom.value) : {};
 
   // SPF-1
   const mailFromIdentity = async (): Promise<SpfIdentityResult> => {
@@ -191,30 +196,36 @@ export async function evaluateSpf(ctx: SpfContext): Promise<SpfResults> {
       };
       return { ...r, sender: `postmaster@${helo.value}`, findings: [finding, ...r.findings] };
     }
-    // SPF-20
-    const at = mailFrom.value.lastIndexOf('@');
-    const local = at < 0 ? '' : mailFrom.value.slice(0, at);
-    const domain = mailFrom.value.slice(at + 1);
-    const sender = `${local || 'postmaster'}@${domain}`;
+    const { domain, sender } = mailFromKnown as { domain: string; sender: string };
     return identity(ctx, ip, sender, domain, helo?.value ?? '', sources(clientIp, mailFrom));
   };
 
   const [mailFromResult, heloResult] = await Promise.all([
-    guardIdentity(ctx, mailFromIdentity, sources(clientIp, mailFrom)),
+    guardIdentity(ctx, mailFromIdentity, sources(clientIp, mailFrom), mailFromKnown),
     heloPending,
   ]);
   return { mailFrom: mailFromResult, helo: heloResult };
 }
 
-/** REP-7, REP-8 per identity. */
+/** SPF-20: split at the last `@`; an empty local part becomes `postmaster`. */
+function splitSender(value: string): { domain: string; sender: string } {
+  const at = value.lastIndexOf('@');
+  const local = at < 0 ? '' : value.slice(0, at);
+  const domain = value.slice(at + 1);
+  return { domain, sender: `${local || 'postmaster'}@${domain}` };
+}
+
+/** REP-7, REP-8 per identity; `known` keeps the domain and sender on failure. */
 function guardIdentity(
   ctx: SpfContext,
   run: () => Promise<SpfIdentityResult>,
   evidence: readonly Evidence[],
+  known: { domain?: string; sender?: string },
 ): Promise<SpfIdentityResult> {
   return guard(ctx.signal, run, (kind, error) => ({
     result: 'not-evaluated',
     reason: kind,
+    ...known,
     counters: { dnsTerms: 0, voids: 0 },
     findings: [
       {
