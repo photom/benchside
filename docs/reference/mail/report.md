@@ -123,14 +123,41 @@ classDiagram
     child?: SpfNode
   }
   class DmarcReport {
-    rfc9989?: MethodReport
-    rfc7489?: MethodReport
+    rfc9989?: DmarcModeReport
+    rfc7489?: DmarcModeReport
+  }
+  class DmarcModeReport {
+    result: string | "not-evaluated"
+    reason?: string
+    authorDomain?: string
+    recordAt?: string
+    record?: string
+    orgDomain?: string
+    orgDomainRule?: string
+    declaredPolicy?: string
+    policy?: string
+    policySource?: "p" | "sp" | "np"
+    testing: boolean
+    disposition?: string
+    alignment: AlignmentRow[]
+    queryIds: string[]
+    findingIds: string[]
+  }
+  class AlignmentRow {
+    identifier: "spf" | "dkim"
+    domain: string
+    authResult: string
+    mode: "strict" | "relaxed"
+    orgDomain?: string
+    aligned: boolean
+    counts: boolean
   }
   class SummaryLine {
     method: Method
     result: string
     reason?: string
     counts?: Map~string, number~
+    disposition?: string
     findingIds: string[]
   }
   class ReceiverReport {
@@ -185,6 +212,8 @@ classDiagram
   SpfIdentityReport --> SpfNode
   SpfNode --> SpfTermTrace
   Report --> DmarcReport
+  DmarcReport --> DmarcModeReport
+  DmarcModeReport --> AlignmentRow
   Report --> SummaryLine
   Report --> Finding
   Report --> ReceiverReport
@@ -216,7 +245,7 @@ classDiagram
 | SUM-1 | SPF | The MAIL FROM identity's result and its `reason`. `counts` is empty. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 | SUM-2 | DKIM | Precedence over all signatures: `pass` > `fail` > `permerror` > `temperror` > `neutral` > `not-evaluated`; `none` if no signatures. `counts` per result, listed in that order. If DKIM could not run at all: `not-evaluated` with `reason` (`internal-error`, or `invalid-input` for input over 50 MiB) |
 | SUM-3 | DKIM2 | The DKIM2 result, plus stage |
-| SUM-4 | DMARC | The selected default mode's result and disposition |
+| SUM-4 | DMARC | The default mode's (`rfc9989`) result, its `reason`, and `disposition` when the result is `pass` or `fail`. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 | SUM-5 | ARC | The chain result ([ARC-11](arc.md#signatures)) and its `reason`; `counts` has `sets`, the number of instances, when there is at least one. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 
 ## Export
