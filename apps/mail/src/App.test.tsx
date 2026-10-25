@@ -27,6 +27,11 @@ const emptyReport: PartialReport = {
   summary: [],
   receiver: { results: [], comparisons: [] },
   dkim: [],
+  envelope: {},
+  spf: {
+    mailFrom: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
+    helo: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
+  },
   arc: { result: 'none', sets: [], findings: [] },
   dnsLog: [],
   findings: [],
@@ -535,6 +540,125 @@ describe('App', () => {
 
     it('ARC-1: given no ARC fields, when shown, then there is no ARC section', async () => {
       expect(await show(emptyReport)).toBeNull();
+    });
+  });
+
+  describe('Delivery details', () => {
+    async function show(envelope: PartialReport['envelope']) {
+      const container = mount({ analyze: async () => ({ ...emptyReport, envelope }) });
+      await choose(container, 'x');
+      return container.querySelector('[aria-label="Delivery details"]');
+    }
+
+    it('REQ-MAIL-009, ENV-15: given envelope values, when shown, then each has its value, header field link, and rule', async () => {
+      const section = await show({
+        clientIp: { value: '192.0.2.1', source: { field: 7, rule: 'ENV-11' } },
+        helo: { value: 'out.example.com', source: { field: 7, rule: 'ENV-12' } },
+        mailFrom: { value: 'bounce@example.com', source: { field: 1, rule: 'ENV-13' } },
+      });
+      const rows = [...(section?.querySelectorAll('tr') ?? [])].map((r) => r.textContent);
+      expect(rows).toEqual([
+        'Client IP192.0.2.1Header field 8 (ENV-11)',
+        'HELOout.example.comHeader field 8 (ENV-12)',
+        'MAIL FROMbounce@example.comHeader field 2 (ENV-13)',
+      ]);
+      expect(section?.querySelector('a')?.getAttribute('href')).toBe('#field-8');
+    });
+
+    it('ENV-13: given a null reverse-path and missing values, when shown, then they read <> and not found', async () => {
+      const section = await show({ mailFrom: { value: '', source: { field: 1, rule: 'ENV-13' } } });
+      expect(section?.textContent).toContain('<> (null reverse-path)');
+      expect(section?.textContent).toContain('Not found');
+    });
+  });
+
+  describe('SPF', () => {
+    const spfReport: PartialReport = {
+      ...emptyReport,
+      spf: {
+        mailFrom: {
+          result: 'fail',
+          domain: 'example.com',
+          sender: 'bounce@example.com',
+          counters: { dnsTerms: 2, voids: 0 },
+          explanation: 'Not allowed.',
+          findings: [
+            {
+              id: 'spf.wide-range',
+              severity: 'warning',
+              message: 'Wide-range text.',
+              evidence: [{ kind: 'dns', queryId: 'q1' }],
+            },
+          ],
+          trace: {
+            domain: 'example.com',
+            record: 'v=spf1 include:_spf.example.net -all',
+            queryId: 'q1',
+            result: 'fail',
+            terms: [
+              {
+                term: 'include:_spf.example.net',
+                outcome: 'no-match',
+                queryIds: [],
+                child: {
+                  domain: '_spf.example.net',
+                  record: 'v=spf1 ip4:198.51.100.0/24 ~all',
+                  queryId: 'q2',
+                  result: 'softfail',
+                  terms: [
+                    { term: 'ip4:198.51.100.0/24', outcome: 'no-match', queryIds: [] },
+                    { term: '~all', outcome: 'match', queryIds: [] },
+                  ],
+                },
+              },
+              { term: '-all', outcome: 'match', queryIds: [] },
+            ],
+          },
+        },
+        helo: {
+          result: 'not-evaluated',
+          reason: 'missing-delivery-detail',
+          counters: { dnsTerms: 0, voids: 0 },
+          findings: [],
+        },
+      },
+    };
+
+    async function show(report: PartialReport) {
+      const container = mount({ analyze: async () => report });
+      await choose(container, 'x');
+      return container.querySelector('[aria-label="SPF"]');
+    }
+
+    it('REQ-MAIL-003, SPF-19: given SPF results, when shown, then each identity has its domain, result, counters, and findings', async () => {
+      const section = await show(spfReport);
+      const [mailFrom, helo] = [...(section?.querySelectorAll('article') ?? [])];
+      expect(mailFrom?.querySelector('h3')?.textContent).toContain('MAIL FROM: example.com');
+      expect(mailFrom?.querySelector('h3')?.textContent).toContain('Fail');
+      expect(mailFrom?.textContent).toContain('2 / 10 DNS-querying terms, 0 / 2 void lookups');
+      expect(mailFrom?.textContent).toContain('Wide-range text.');
+      expect(mailFrom?.textContent).toContain('Explanation: Not allowed.');
+      expect(helo?.querySelector('h3')?.textContent).toContain(
+        'Not evaluated (missing-delivery-detail)',
+      );
+    });
+
+    it('SPF-18: given a trace, when shown, then records nest under includes and the matching term is marked', async () => {
+      const section = await show(spfReport);
+      const records = [...(section?.querySelectorAll('[data-part="spf-record"]') ?? [])];
+      expect(records.map((r) => r.querySelector('code')?.textContent)).toEqual([
+        'v=spf1 include:_spf.example.net -all',
+        'v=spf1 ip4:198.51.100.0/24 ~all',
+      ]);
+      const terms = [...(section?.querySelectorAll('[data-outcome]') ?? [])].map((t) => [
+        t.getAttribute('data-outcome'),
+        t.querySelector('code')?.textContent,
+      ]);
+      expect(terms).toContainEqual(['match', '-all']);
+      expect(section?.textContent).toContain('-all: match');
+      const links = [...(section?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'));
+      expect(links).toContain('#dns-q1');
+      expect(links).toContain('#dns-q2');
     });
   });
 });

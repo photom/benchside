@@ -26,6 +26,11 @@ const report: PartialReport = {
   summary: [],
   receiver: { results: [], comparisons: [] },
   dkim: [],
+  envelope: {},
+  spf: {
+    mailFrom: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
+    helo: { result: 'none', counters: { dnsTerms: 0, voids: 0 }, findings: [] },
+  },
   arc: { result: 'none', sets: [], findings: [] },
   dnsLog: [],
   findings: [],

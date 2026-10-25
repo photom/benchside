@@ -1,10 +1,12 @@
 import type { AuthResult, Finding, PartialReport } from '@benchside/mail';
 import { useState } from 'preact/hooks';
 import { ArcDetail } from './views/ArcDetail.tsx';
+import { DeliveryDetails } from './views/DeliveryDetails.tsx';
 import { DkimDetail } from './views/DkimDetail.tsx';
 import { DnsLog } from './views/DnsLog.tsx';
 import { FindingList } from './views/Findings.tsx';
 import { entryText } from './views/labels.ts';
+import { SpfDetail } from './views/SpfDetail.tsx';
 import { Summary } from './views/Summary.tsx';
 import type { WorkerHost } from './worker/host.ts';
 
@@ -75,10 +77,12 @@ function Result({ status }: { status: Status }) {
       return (
         <>
           <Summary lines={status.report.summary} />
+          <DeliveryDetails envelope={status.report.envelope} />
           <ReceiverResults
             results={status.report.receiver.results}
             findings={status.report.findings}
           />
+          <SpfDetail spf={status.report.spf} />
           <DkimDetail results={status.report.dkim} />
           <ArcDetail arc={status.report.arc} />
           <Notes report={status.report} />

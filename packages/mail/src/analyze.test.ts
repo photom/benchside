@@ -121,6 +121,7 @@ describe('analyze', () => {
     ]);
     expect(report.headers).toEqual([]);
     expect(report.summary).toEqual([
+      { method: 'spf', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
       { method: 'dkim', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
       { method: 'arc', result: 'not-evaluated', reason: 'invalid-input', counts: {} },
     ]);
@@ -179,10 +180,15 @@ describe('analyze', () => {
       expect(report.dkim).toEqual([
         expect.objectContaining({ field: 1, result: 'pass', d: 'example.com' }),
       ]);
-      expect(report.dnsLog).toEqual([
-        expect.objectContaining({ queryId: 'q1', name: 'sel._domainkey.example.com', type: 'TXT' }),
-      ]);
-      expect(report.summary).toEqual([
+      // SPF queries the HELO domain too; the DKIM key is one of the logged queries.
+      expect(report.dnsLog).toContainEqual(
+        expect.objectContaining({
+          queryId: report.dkim[0]?.keyQueryId,
+          name: 'sel._domainkey.example.com',
+          type: 'TXT',
+        }),
+      );
+      expect(report.summary.slice(1)).toEqual([
         { method: 'dkim', result: 'pass', counts: { pass: 1 } },
         { method: 'arc', result: 'none', counts: {} },
       ]);
@@ -301,7 +307,7 @@ describe('analyze', () => {
       const { text, record } = await sealed();
       const report = await analyze(enc(text), {}, deps({ records: [record] }));
       expect(report.arc).toMatchObject({ result: 'pass', oldestPass: 0 });
-      expect(report.summary).toEqual([
+      expect(report.summary.slice(1)).toEqual([
         { method: 'dkim', result: 'pass', counts: { pass: 1 } },
         { method: 'arc', result: 'pass', counts: { sets: 1 } },
       ]);
@@ -350,6 +356,66 @@ describe('analyze', () => {
       expect(report.findings.find((f) => f.id === 'dns.unauthenticated')?.evidence).toEqual([
         { kind: 'dns', queryId: 'q1' },
       ]);
+    });
+  });
+
+  describe('SPF', () => {
+    const DELIVERED = [
+      `Received: from out.example.com (out.example.com [192.0.2.1]) by mx.example.org with ESMTP id x${DATE}`,
+      'Return-Path: <bounce@example.com>',
+      'From: a@example.com',
+    ];
+    const spfRecord = (data: string): ManualRecord => ({ name: 'example.com', type: 'TXT', data });
+
+    it('REQ-MAIL-003, SUM-1: given a delivered message and an SPF record, when analyzed, then SPF is evaluated and summarized first', async () => {
+      const report = await analyze(
+        bytes(DELIVERED),
+        {},
+        deps({ records: [spfRecord('v=spf1 ip4:192.0.2.0/24 -all')] }),
+      );
+      expect(report.spf.mailFrom).toMatchObject({ result: 'pass', domain: 'example.com' });
+      expect(report.summary[0]).toEqual({ method: 'spf', result: 'pass', counts: {} });
+    });
+
+    it('ENV-11..13: given a delivered message, when analyzed, then the envelope values and their sources are in the report', async () => {
+      const report = await analyze(bytes(DELIVERED), {}, deps());
+      expect(report.envelope).toEqual({
+        clientIp: { value: '192.0.2.1', source: { field: 0, rule: 'ENV-11' } },
+        helo: { value: 'out.example.com', source: { field: 0, rule: 'ENV-12' } },
+        mailFrom: { value: 'bounce@example.com', source: { field: 1, rule: 'ENV-13' } },
+      });
+    });
+
+    it('SPF-3, SUM-1: given no Received field, when analyzed, then SPF is not-evaluated with missing-delivery-detail', async () => {
+      const report = await analyze(bytes(['Return-Path: <bounce@example.com>']), {}, deps());
+      expect(report.summary[0]).toEqual({
+        method: 'spf',
+        result: 'not-evaluated',
+        reason: 'missing-delivery-detail',
+        counts: {},
+      });
+    });
+
+    it('DNS: given an unauthenticated SPF answer, when analyzed, then dns.unauthenticated points at it', async () => {
+      const report = await analyze(
+        bytes(DELIVERED),
+        {},
+        deps({ records: [spfRecord('v=spf1 -all')], source: 'cloudflare' }),
+      );
+      const unauthenticated = report.findings.find((f) => f.id === 'dns.unauthenticated');
+      expect(unauthenticated?.evidence).toContainEqual({
+        kind: 'dns',
+        queryId: report.spf.mailFrom.trace?.queryId,
+      });
+    });
+
+    it('ENV-13: given two Return-Path fields, when analyzed, then envelope.multiple-return-path is reported', async () => {
+      const report = await analyze(
+        bytes([...DELIVERED, 'Return-Path: <other@example.net>']),
+        {},
+        deps(),
+      );
+      expect(report.findings.map((f) => f.id)).toContain('envelope.multiple-return-path');
     });
   });
 });
