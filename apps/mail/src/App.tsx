@@ -5,6 +5,7 @@ import { DeliveryDetails } from './views/DeliveryDetails.tsx';
 import { DkimDetail } from './views/DkimDetail.tsx';
 import { DmarcDetail } from './views/DmarcDetail.tsx';
 import { DnsLog } from './views/DnsLog.tsx';
+import { FieldValue } from './views/FieldValue.tsx';
 import { FindingList } from './views/Findings.tsx';
 import { HowChecked, References } from './views/HowChecked.tsx';
 import { entryText } from './views/labels.ts';
@@ -171,7 +172,7 @@ function HeaderFields({ report }: { report: PartialReport }) {
                 <span class="used-by">
                   Read by: {h.usedBy.map((u) => FIELD_USE_NAMES[u]).join(', ')}
                 </span>
-                <pre class="field-value">{h.value}</pre>
+                <FieldValue value={h.value ?? ''} />
               </>
             )}
           </li>

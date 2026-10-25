@@ -261,7 +261,7 @@ One `HeaderEntry` per header field, in message order.
 | ID | Rule |
 |---|---|
 | REP-9 | `usedBy` lists the checks that read the field, in the order of the table below, each once. Empty when no check reads it. |
-| REP-10 | `value` is present exactly when `usedBy` is not empty: the field's unfolded value ([IN-6](input.md)), decoded as UTF-8. RFC 2047 encoded words stay as written, since the checks read them that way. |
+| REP-10 | `value` is present exactly when `usedBy` is not empty: the field as written after the colon, folding kept (each fold is CRLF followed by its whitespace), without the final CRLF, decoded as UTF-8. Line endings are the normalized ones ([IN-7](input.md#line-endings)). RFC 2047 encoded words stay as written, since the checks read them that way. |
 
 | Field | `usedBy` | Why |
 |---|---|---|

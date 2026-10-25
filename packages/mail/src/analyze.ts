@@ -177,7 +177,7 @@ export async function analyze(
 
   const log = resolver.log;
   return {
-    headers: headerEntries(block.headers, time),
+    headers: headerEntries(block.headers, normalized.bytes, time),
     hasBody: block.body !== null,
     received: received.received,
     boundary: boundary.boundary?.field ?? null,
