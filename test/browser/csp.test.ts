@@ -49,7 +49,7 @@ describe('0004: a blob: worker inherits the page CSP', () => {
     expect(await runInBlobWorker(policy, probe(`${otherOrigin()}/`))).toBe('reached');
   });
 
-  it("REQ-MAIL-001: with connect-src 'none', the worker cannot reach the other origin", async () => {
+  it("REQ-MAIL-001, REQ-ZIP-001: with connect-src 'none', the worker cannot reach the other origin", async () => {
     expect(await runInBlobWorker(cspPolicy([]), probe(`${otherOrigin()}/`))).toBe('blocked');
   });
 

@@ -34,3 +34,15 @@ flowchart LR
 | [REQ-MAIL-012](REQ-MAIL-012-robust-responsive.md) | Robust and responsive analysis | Accepted |
 | [REQ-MAIL-013](REQ-MAIL-013-show-used-header-fields.md) | Show the header fields the checks read | Accepted |
 | [REQ-MAIL-014](REQ-MAIL-014-cite-standards.md) | Cite the standard behind each step | Accepted |
+
+## ZIP analyzer
+
+| ID | Title | Status |
+|---|---|---|
+| [REQ-ZIP-001](REQ-ZIP-001-local-only.md) | Analyze archives without sending them anywhere | Accepted |
+| [REQ-ZIP-002](REQ-ZIP-002-show-structure.md) | Show the archive's structure | Accepted |
+| [REQ-ZIP-003](REQ-ZIP-003-zip64.md) | Read ZIP64 archives | Accepted |
+| [REQ-ZIP-004](REQ-ZIP-004-nested-archives.md) | Open nested archives | Accepted |
+| [REQ-ZIP-005](REQ-ZIP-005-robust-responsive.md) | Robust and responsive analysis | Accepted |
+
+Not yet planned in detail: security checks (path traversal, decompression bombs, overlapping entries as an attack) and content checks (file types, CRC-32 of every entry).

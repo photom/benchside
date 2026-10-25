@@ -1,0 +1,8 @@
+{
+  "name": "@benchside/zip",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

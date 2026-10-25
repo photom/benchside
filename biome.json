@@ -31,6 +31,27 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/zip/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "window": "Packages must not touch the DOM",
+                  "document": "Packages must not touch the DOM",
+                  "fetch": "The ZIP analyzer makes no network requests (REQ-ZIP-001)",
+                  "XMLHttpRequest": "The ZIP analyzer makes no network requests (REQ-ZIP-001)",
+                  "WebSocket": "The ZIP analyzer makes no network requests (REQ-ZIP-001)"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

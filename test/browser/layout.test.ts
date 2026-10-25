@@ -3,6 +3,8 @@ import { h, render } from 'preact';
 import { describe, expect, it } from 'vitest';
 import { App } from '../../apps/mail/src/App.tsx';
 import '../../apps/mail/src/style.css';
+import { App as ZipApp } from '../../apps/zip/src/App.tsx';
+import '../../apps/zip/src/style.css';
 
 const box = (selector: string) => {
   const element = document.querySelector(selector);
@@ -20,6 +22,21 @@ describe('mail app layout', () => {
     const options = box('[aria-label="Options"]');
     expect(drop.top).toBeGreaterThanOrEqual(heading.bottom);
     expect(options.top).toBeGreaterThanOrEqual(drop.bottom);
+    render(null, root);
+    root.remove();
+  });
+});
+
+describe('ZIP app layout', () => {
+  it('REQ-ZIP-002: given the page, when laid out, then the heading and the drop zone do not overlap', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    const never = () => new Promise<never>(() => {});
+    render(h(ZipApp, { host: { analyze: never, open: never } }), root);
+    const heading = box('h1');
+    const drop = box('.drop');
+    expect(drop.top).toBeGreaterThanOrEqual(heading.bottom);
+    expect(drop.height).toBeGreaterThan(0);
     render(null, root);
     root.remove();
   });

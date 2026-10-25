@@ -1,0 +1,11 @@
+{
+  "name": "@benchside/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "preact": "11.0.2"
+  }
+}

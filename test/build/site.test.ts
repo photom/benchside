@@ -7,6 +7,7 @@ import { cspPolicy, DOH_ORIGINS } from '../../vite.shared.ts';
 const apps = [
   { name: 'home', dir: 'site', base: '/benchside/', connect: [] as string[] },
   { name: 'mail', dir: 'site/mail', base: '/benchside/mail/', connect: DOH_ORIGINS },
+  { name: 'zip', dir: 'site/zip', base: '/benchside/zip/', connect: [] as string[] },
 ];
 
 const decode = (s: string) =>
@@ -19,7 +20,7 @@ describe.each(apps)('$name app build', ({ dir, base, connect }) => {
     expect(existsSync(join(dir, 'index.html'))).toBe(true);
   });
 
-  it('REQ-MAIL-001: has the expected CSP as the first element in <head>', () => {
+  it('REQ-MAIL-001, REQ-ZIP-001: has the expected CSP as the first element in <head>', () => {
     const head = /<head>\s*(<meta[^>]*>)/.exec(html())?.[1] ?? '';
     expect(head).toContain('http-equiv="Content-Security-Policy"');
     expect(decode(/content="([^"]*)"/.exec(head)?.[1] ?? '')).toBe(cspPolicy(connect));
@@ -38,8 +39,8 @@ describe.each(apps)('$name app build', ({ dir, base, connect }) => {
   });
 });
 
-describe('mail app worker', () => {
-  const assets = () => readdirSync('site/mail/assets');
+describe.each(['mail', 'zip'])('%s app worker', (app) => {
+  const assets = () => readdirSync(`site/${app}/assets`);
 
   it('0004: the worker is inlined, not emitted as its own script', () => {
     expect(assets().filter((f) => /^worker.*\.js$/.test(f))).toEqual([]);
@@ -47,7 +48,7 @@ describe('mail app worker', () => {
 
   it('0004: the worker starts from a blob: URL', () => {
     const js = assets().filter((f) => f.endsWith('.js'));
-    const code = js.map((f) => readFileSync(join('site/mail/assets', f), 'utf8')).join('\n');
+    const code = js.map((f) => readFileSync(join(`site/${app}/assets`, f), 'utf8')).join('\n');
     expect(code).toContain('createObjectURL');
   });
 });

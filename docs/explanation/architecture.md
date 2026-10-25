@@ -3,6 +3,7 @@
 Repository-wide view. Per-tool details:
 
 - [Mail analyzer architecture](mail-architecture.md)
+- [ZIP analyzer architecture](zip-architecture.md)
 
 Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests).
 

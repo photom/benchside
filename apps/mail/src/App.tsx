@@ -1,4 +1,5 @@
 import type { AuthResult, DmarcMode, FieldUse, Finding, PartialReport } from '@benchside/mail';
+import { DropZone } from '@benchside/ui';
 import { useRef, useState } from 'preact/hooks';
 import { ArcDetail } from './views/ArcDetail.tsx';
 import { DeliveryDetails } from './views/DeliveryDetails.tsx';
@@ -21,7 +22,6 @@ type Status =
 
 export function App({ host }: { host: WorkerHost }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
-  const [active, setActive] = useState(false);
   const [modes, setModes] = useState<readonly DmarcMode[]>(['rfc9989', 'rfc7489']);
   // The latest modes, for a run that started before the user changed them.
   const currentModes = useRef(modes);
@@ -51,31 +51,11 @@ export function App({ host }: { host: WorkerHost }) {
   return (
     <main>
       <h1>Mail analyzer</h1>
-      <label
-        class="drop"
-        data-active={active}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setActive(true);
-        }}
-        onDragLeave={() => setActive(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setActive(false);
-          const file = e.dataTransfer?.files[0];
-          if (file) void analyze(file);
-        }}
-      >
-        Drop an .eml file here, or choose one:{' '}
-        <input
-          type="file"
-          accept=".eml,message/rfc822"
-          onChange={(e) => {
-            const file = e.currentTarget.files?.[0];
-            if (file) void analyze(file);
-          }}
-        />
-      </label>
+      <DropZone
+        label="Drop an .eml file here, or choose one:"
+        accept=".eml,message/rfc822"
+        onFile={(file) => void analyze(file)}
+      />
       <Options
         modes={modes}
         onChange={(next) => {
