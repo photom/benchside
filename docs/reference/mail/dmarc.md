@@ -1,6 +1,6 @@
 # DMARC
 
-Standards: RFC 7489 and RFC 9989. Mode `rfc9989` (default) or `rfc7489`. The modes to evaluate are an analysis option; the default is `rfc9989` only (DMARC-27).
+Standards: RFC 7489 and RFC 9989. Modes `rfc9989` and `rfc7489`. The modes to evaluate are an analysis option; by default both are evaluated (DMARC-27).
 
 ## Procedure
 
@@ -27,7 +27,7 @@ Results: `pass`, `fail`, `none`, `temperror`, `permerror`, `not-evaluated`.
 |---|---|
 | DMARC-1 | No `From` field, or more than one: `not-evaluated`, `dmarc.from-invalid`. |
 | DMARC-2 | `rfc9989`: the `From` field must yield exactly one domain. Several addresses with one domain: evaluate it, `dmarc.from-multiple-addresses` (warning). Several domains: `not-evaluated`, `dmarc.from-invalid` (RFC 9989 §5.3.1). |
-| DMARC-3 | `rfc7489`: several domains → evaluate each on its own (RFC 7489 §6.6.1). Mode result: the first of `fail`, `permerror`, `temperror`, `not-evaluated`, `pass`, `none` that any domain has; `not-evaluated` takes the first such domain's reason. The mode's details come from the deciding domain: for `fail`, the failing domain with the strictest policy (`reject` > `quarantine` > `none`; `pct` does not count); otherwise, and on ties, the first domain in `From` order with the mode result. Each domain's own result is in `perDomain`. Several addresses in one domain: that domain once, no finding. |
+| DMARC-3 | `rfc7489`: several domains → evaluate each on its own (RFC 7489 §6.6.1). Mode result: the first of `fail`, `permerror`, `temperror`, `not-evaluated`, `pass`, `none` that any domain has; `not-evaluated` takes the first such domain's reason. The mode's details come from the deciding domain: for `fail`, the failing domain with the strictest policy (`reject` > `quarantine` > `none`; `pct` does not count); otherwise, and on ties, the first domain in `From` order with the mode result. Each domain's own result is in `perDomain`; the mode's findings and query IDs cover every domain. Several addresses in one domain: that domain once, no finding. |
 | DMARC-21 | The `From` value is an RFC 5322 `address-list`: comments, quoted local parts, display names, and groups are allowed. Each address's domain is the text after its last `@`, lowercased. A domain literal, an address without `@`, or a domain that is not a domain name: `not-evaluated`, `dmarc.from-invalid`. |
 
 ## Policy discovery: `rfc9989` (RFC 9989 §4.10)
@@ -78,15 +78,15 @@ flowchart LR
 | DMARC-15 | Policy: record at the author domain → `p`. Record at the organizational domain → `sp` if the author domain exists, `np` (`rfc9989` only) if it does not; fallback `p`. `rfc7489` does not check existence: record at the organizational domain → `sp`, fallback `p`. |
 | DMARC-16 | Existence (`rfc9989`): query `A` for the author domain. `NXDOMAIN` → does not exist; `NOERROR` (with or without data) → exists (RFC 9989 Appendix A.4). |
 | DMARC-17 | `rfc9989` `t=y`: `reject` → `quarantine`, `quarantine` → `none`. The report keeps the declared policy next to the one in effect. |
-| DMARC-18 | `rfc7489` `pct` < 100 and result `fail`: `dispositions` lists two dispositions with weights: selected (`pct`%) → policy; unselected (100 − `pct`%) → `quarantine` if policy is `reject`, else `none` (RFC 7489 §6.6.4). `disposition` stays the policy. No random choice. |
+| DMARC-18 | `rfc7489` `pct` < 100, result `fail`, and a policy other than `none`: `dispositions` lists two dispositions with weights: selected (`pct`%) → policy; unselected (100 − `pct`%) → `quarantine` if policy is `reject`, else `none` (RFC 7489 §6.6.4). `disposition` stays the policy. No random choice. |
 | DMARC-19 | Result `pass` → disposition `none`. |
 
 ## Modes
 
 | ID | Rule |
 |---|---|
-| DMARC-27 | The modes to evaluate are an analysis option: a non-empty set of `rfc9989` and `rfc7489`. Default: `rfc9989` only. Each selected mode is evaluated on its own; they run concurrently and share the DNS cache. |
-| DMARC-28 | Both modes evaluated, and their results or dispositions differ: `dmarc.modes-differ` (info) in the report's findings, with the `From` field as evidence. |
+| DMARC-27 | The modes to evaluate are an analysis option: a non-empty set of `rfc9989` and `rfc7489`. Default: both, since many receivers still follow RFC 7489. Each selected mode is evaluated on its own; they run concurrently and share the DNS cache. |
+| DMARC-28 | Both modes evaluated, and their results, dispositions, or weighted `dispositions` differ: `dmarc.modes-differ` (info) in the report's findings, with the `From` field as evidence. |
 
 ## Findings
 
