@@ -1,8 +1,10 @@
 import type { AuthResult, Finding, PartialReport } from '@benchside/mail';
 import { useState } from 'preact/hooks';
+import { ArcDetail } from './views/ArcDetail.tsx';
 import { DkimDetail } from './views/DkimDetail.tsx';
 import { DnsLog } from './views/DnsLog.tsx';
 import { FindingList } from './views/Findings.tsx';
+import { entryText } from './views/labels.ts';
 import { Summary } from './views/Summary.tsx';
 import type { WorkerHost } from './worker/host.ts';
 
@@ -78,6 +80,7 @@ function Result({ status }: { status: Status }) {
             findings={status.report.findings}
           />
           <DkimDetail results={status.report.dkim} />
+          <ArcDetail arc={status.report.arc} />
           <Notes report={status.report} />
           <HeaderFields report={status.report} />
           <DnsLog entries={status.report.dnsLog} />
@@ -112,13 +115,7 @@ function ReceiverResults({
           <FindingList findings={about(r.field)} />
           <ul>
             {r.entries.map((e, i) => (
-              <li key={i}>
-                <strong>
-                  {e.method}={e.result}
-                </strong>
-                {e.reason !== undefined && ` reason: ${e.reason}`}
-                {Object.entries(e.props).map(([k, v]) => ` ${k}=${v}`)}
-              </li>
+              <li key={i}>{entryText(e)}</li>
             ))}
           </ul>
         </article>

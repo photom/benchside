@@ -387,4 +387,154 @@ describe('App', () => {
       ).toContain('ARC: not evaluated (offline; 1 set)');
     });
   });
+
+  describe('ARC', () => {
+    const arcReport: PartialReport = {
+      ...emptyReport,
+      headers: [
+        { index: 0, name: 'ARC-Seal' },
+        { index: 1, name: 'ARC-Message-Signature' },
+        { index: 2, name: 'ARC-Authentication-Results' },
+      ],
+      arc: {
+        result: 'fail',
+        oldestPass: 0,
+        sets: [
+          {
+            instance: 1,
+            aar: {
+              field: 2,
+              authservId: 'mx.list.example',
+              entries: [{ method: 'spf', result: 'pass', props: {} }],
+            },
+            ams: { field: 1, result: 'pass', d: 'list.example', s: 'k1', keyQueryId: 'q1' },
+            seal: {
+              field: 0,
+              result: 'fail',
+              d: 'list.example',
+              s: 'k1',
+              t: '1790000000',
+              cv: 'none',
+              keyQueryId: 'q1',
+            },
+          },
+        ],
+        findings: [
+          {
+            id: 'arc.seal-mismatch',
+            severity: 'error',
+            message: 'Seal-mismatch text.',
+            evidence: [{ kind: 'header', index: 0 }],
+          },
+        ],
+      },
+    };
+
+    async function show(report: PartialReport) {
+      const container = mount({ analyze: async () => report });
+      await choose(container, 'x');
+      return container.querySelector('[aria-label="ARC"]');
+    }
+
+    it('REQ-MAIL-007, ARC-10: given a chain, when shown, then each hop is a row with sealer, time, cv, both results, and its own results', async () => {
+      const section = await show(arcReport);
+      const row = section?.querySelector('tbody tr');
+      expect(row?.querySelector('td')?.textContent).toBe('1');
+      expect(row?.textContent).toContain('d=list.example s=k1');
+      expect(row?.textContent).toContain('2026-09-21 14:13:20 UTC');
+      expect(row?.textContent).toContain('none');
+      expect(row?.textContent).toContain('Pass');
+      expect(row?.textContent).toContain('Fail');
+      expect(row?.textContent).toContain('mx.list.example: spf=pass');
+    });
+
+    it('REQ-MAIL-002: given a failed chain, when shown, then the result and the finding that explains it are shown', async () => {
+      const section = await show(arcReport);
+      expect(section?.querySelector('h2')?.textContent).toContain('Fail');
+      expect(section?.textContent).toContain('Seal-mismatch text.');
+      const links = [...(section?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'));
+      expect(links).toContain('#field-1');
+      expect(links).toContain('#dns-q1');
+    });
+
+    it('ARC-6: given a second hop that changed the message, when shown, then hop 2 is named as the oldest that still verifies', async () => {
+      const [set] = arcReport.arc.sets;
+      if (!set) throw new Error('fixture');
+      const section = await show({
+        ...arcReport,
+        arc: { ...arcReport.arc, oldestPass: 2, sets: [set, { ...set, instance: 2 }] },
+      });
+      expect(section?.textContent).toContain('hop 2');
+    });
+
+    const withSet = (change: (set: PartialReport['arc']['sets'][number]) => object) => {
+      const [set] = arcReport.arc.sets;
+      if (!set) throw new Error('fixture');
+      return { ...arcReport, arc: { ...arcReport.arc, sets: [{ ...set, ...change(set) }] } };
+    };
+
+    it('ARC-10: given a t= that is not a decimal number, when shown, then it is shown as written', async () => {
+      for (const t of ['', '0x6A', '1e9']) {
+        const section = await show(withSet((set) => ({ seal: { ...set.seal, t } })));
+        expect(section?.querySelector('tbody tr')?.textContent).not.toContain('UTC');
+        root.remove();
+      }
+    });
+
+    it('ARC-10: given AAR entries with a reason and properties, when shown, then they are shown like receiver results', async () => {
+      const section = await show(
+        withSet((set) => ({
+          aar: {
+            ...set.aar,
+            entries: [
+              { method: 'dkim', result: 'pass', props: { 'header.d': 'example.com' } },
+              { method: 'spf', result: 'fail', reason: 'not permitted', props: {} },
+            ],
+          },
+        })),
+      );
+      const text = section?.querySelector('tbody tr')?.textContent;
+      expect(text).toContain('dkim=pass header.d=example.com');
+      expect(text).toContain('spf=fail reason: not permitted');
+    });
+
+    it('ARC-10: given an AAR without entries, when shown, then it says so', async () => {
+      const section = await show(withSet((set) => ({ aar: { ...set.aar, entries: [] } })));
+      expect(section?.querySelector('tbody tr')?.textContent).toContain('(no results)');
+    });
+
+    it('ARC-3: given a hop without its seal, when shown, then the sealer and time come from its message signature', async () => {
+      const section = await show(
+        withSet((set) => ({ seal: undefined, ams: { ...set.ams, t: '1790000000' } })),
+      );
+      const text = section?.querySelector('tbody tr')?.textContent;
+      expect(text).toContain('d=list.example s=k1');
+      expect(text).toContain('2026-09-21 14:13:20 UTC');
+    });
+
+    it('REQ-MAIL-002: given a not-evaluated chain, when shown, then its reason is shown', async () => {
+      const section = await show({
+        ...arcReport,
+        arc: { ...arcReport.arc, result: 'not-evaluated', reason: 'offline', findings: [] },
+      });
+      expect(section?.querySelector('h2')?.textContent).toContain('Not evaluated (offline)');
+    });
+
+    it('ARC-10: given a signature that was not checked, when shown, then it reads Not checked', async () => {
+      const [set] = arcReport.arc.sets;
+      if (!set?.seal) throw new Error('fixture');
+      const section = await show({
+        ...arcReport,
+        arc: {
+          ...arcReport.arc,
+          sets: [{ ...set, seal: { ...set.seal, result: 'not-checked' } }],
+        },
+      });
+      expect(section?.querySelector('tbody tr')?.textContent).toContain('Not checked');
+    });
+
+    it('ARC-1: given no ARC fields, when shown, then there is no ARC section', async () => {
+      expect(await show(emptyReport)).toBeNull();
+    });
+  });
 });
