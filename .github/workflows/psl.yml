@@ -68,13 +68,12 @@ jobs:
             echo "$VERSION was proposed already."
             exit 0
           fi
-          if ! git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git switch --create "$branch"
-            git commit --quiet --message "Update the Public Suffix List to $VERSION"
-            git push origin "$branch"
-          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch --create "$branch"
+          git commit --quiet --message "Update the Public Suffix List to $VERSION"
+          # A branch left by a run that could not open its pull request is rebuilt on the current main.
+          git push --force origin "$branch"
           # Pull requests opened with GITHUB_TOKEN start no workflows, so start CI on the branch.
           gh workflow run ci.yml --ref "$branch"
           gh pr create --base main --head "$branch" \

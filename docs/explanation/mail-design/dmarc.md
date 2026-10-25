@@ -100,6 +100,7 @@ flowchart LR
 - The workflow only proposes. A person reviews and merges, so an upstream mistake never ships unseen.
 - A closed pull request is not reopened for the same `VERSION`. Only the newest snapshot stays open, so an older one cannot be merged over it.
 - Pull requests opened with `GITHUB_TOKEN` start no workflows, so the workflow starts CI on the branch itself.
+- A branch left by a run that could not open its pull request is rebuilt on the current `main`, so its CI never runs on a stale base.
 - It needs the repository setting that lets GitHub Actions create pull requests ([how-to](../../how-to/update-public-suffix-list.md)).
 
 ## Multiple author domains (`rfc7489`)
