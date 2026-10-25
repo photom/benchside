@@ -1,0 +1,14 @@
+{
+  "name": "@benchside/zip-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@benchside/ui": "*",
+    "@benchside/zip": "*",
+    "preact": "11.0.2"
+  }
+}
