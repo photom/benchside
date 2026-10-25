@@ -112,6 +112,7 @@ flowchart TD
 | References | Last section on the page: each RFC with number, title, and link (CITE-3) | REQ-MAIL-014 |
 | DNS log | Query ID, name, type, result, DNSSEC flag (`n/a` when no answer was received), cache hit, purpose | DNS-15 |
 
+- The heading, the drop zone, the options, and the results stack top to bottom without overlapping, at any width. A browser test checks their boxes.
 - Result words are always text; color is only a second cue.
 - `not-evaluated` reads "Not evaluated (offline)", never like a failure.
 - Views live in `apps/mail/src/views/`; `summarizeDkim` (SUM-2) lives in the package.

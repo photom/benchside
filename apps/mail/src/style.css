@@ -4,9 +4,20 @@ body {
 }
 
 .drop {
+  /* A label is inline by default; its padding would spill over its neighbours. */
+  display: block;
+  margin-block: 1rem;
   border: 2px dashed #888;
   padding: 2rem;
   text-align: center;
+}
+
+[aria-label="Options"] fieldset {
+  margin: 0 0 1rem;
+}
+
+[aria-label="Options"] label {
+  margin-right: 1.5rem;
 }
 
 .drop[data-active="true"] {
