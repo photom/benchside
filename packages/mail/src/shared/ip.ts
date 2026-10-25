@@ -51,6 +51,17 @@ export function isPublic(ip: Ip): boolean {
   return true;
 }
 
+/** Whether `ip` is inside `net`/`prefix`; addresses of different families never match (SPF-22). */
+export function inCidr(ip: Ip, net: Ip, prefix: number): boolean {
+  if (ip.version !== net.version) return false;
+  const whole = Math.floor(prefix / 8);
+  for (let i = 0; i < whole; i++) if (ip.bytes[i] !== net.bytes[i]) return false;
+  const rest = prefix % 8;
+  if (rest === 0) return true;
+  const mask = (0xff << (8 - rest)) & 0xff;
+  return ((ip.bytes[whole] ?? 0) & mask) === ((net.bytes[whole] ?? 0) & mask);
+}
+
 function ipv4(bytes: Uint8Array): Ip {
   return { version: 4, text: Array.from(bytes).join('.'), bytes };
 }
