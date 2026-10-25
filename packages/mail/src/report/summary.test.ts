@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ArcReport, ArcSetTrace } from '../arc/verify.ts';
 import type { DkimSignatureResult } from '../dkim/verify.ts';
+import type { DmarcModeResult } from '../dmarc/evaluate.ts';
 import type { SpfIdentityResult } from '../spf/evaluate.ts';
-import { summarizeArc, summarizeDkim, summarizeSpf } from './summary.ts';
+import { summarizeArc, summarizeDkim, summarizeDmarc, summarizeSpf } from './summary.ts';
 
 const sig = (result: DkimSignatureResult['result']): DkimSignatureResult => ({
   field: 0,
@@ -103,5 +104,33 @@ describe('summary: SPF', () => {
         helo: identity({}),
       }),
     ).toEqual({ method: 'spf', result: 'not-evaluated', reason: 'offline', counts: {} });
+  });
+});
+
+describe('summary: DMARC', () => {
+  const mode = (o: Partial<DmarcModeResult>): DmarcModeResult => ({
+    result: 'fail',
+    testing: false,
+    alignment: [],
+    queryIds: [],
+    findings: [],
+    ...o,
+  });
+
+  it('SUM-4: given a fail with a disposition, when summarized, then the line has both', () => {
+    expect(summarizeDmarc({ rfc9989: mode({ disposition: 'reject' }) })).toEqual({
+      method: 'dmarc',
+      result: 'fail',
+      disposition: 'reject',
+      counts: {},
+    });
+  });
+
+  it('SUM-4: given none, when summarized, then the line has no disposition', () => {
+    expect(summarizeDmarc({ rfc9989: mode({ result: 'none' }) })).toEqual({
+      method: 'dmarc',
+      result: 'none',
+      counts: {},
+    });
   });
 });
