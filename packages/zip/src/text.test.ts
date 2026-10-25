@@ -21,7 +21,8 @@ describe('Code Page 437', () => {
 
   it('NAME-3: given high bytes, when decoded, then maps them by Code Page 437', () => {
     expect(decodeCp437(b(0x80, 0x81, 0x9b, 0xb0, 0xc9, 0xe1, 0xe3, 0xfe, 0xff))).toBe(
-      'Çü¢░╔ßπ■ ',
+      // 0xFF is a no-break space.
+      `Çü¢░╔ßπ■${String.fromCharCode(0xa0)}`,
     );
   });
 
