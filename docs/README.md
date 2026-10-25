@@ -9,6 +9,10 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 | [Reference](reference/) | look up exact facts: formats, checks, outputs |
 | [Explanation](explanation/) | understand the background and design decisions |
 
+## How-to guides
+
+- [Update the Public Suffix List snapshot](how-to/update-public-suffix-list.md) — run the update workflow and merge its pull request
+
 ## Reference
 
 - [Mail analyzer specification](reference/mail/) — exact behavior, rules, findings, and data model

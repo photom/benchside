@@ -1,0 +1,89 @@
+name: Update Public Suffix List
+
+# Proposes a new snapshot of the Public Suffix List as a pull request (decision 0003).
+# How to run it and the repository setting it needs: docs/how-to/update-public-suffix-list.md
+
+on:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: psl
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      SNAPSHOT: packages/mail/data/public_suffix_list.dat
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch the list
+        run: >-
+          curl --fail --silent --show-error --location --max-time 60
+          --output "$RUNNER_TEMP/psl.dat"
+          https://publicsuffix.org/list/public_suffix_list.dat
+
+      - name: Check that it looks like the list
+        id: check
+        run: |
+          list="$RUNNER_TEMP/psl.dat"
+          # Only these characters, so the version is safe in a branch name.
+          version=$(sed -n 's|^// VERSION: \([0-9A-Za-z_-]\{1,64\}\)$|\1|p' "$list" | head -n 1)
+          test -n "$version"
+          for marker in \
+            '// ===BEGIN ICANN DOMAINS===' '// ===END ICANN DOMAINS===' \
+            '// ===BEGIN PRIVATE DOMAINS===' '// ===END PRIVATE DOMAINS==='; do
+            grep -qxF "$marker" "$list"
+          done
+          rules=$(grep -cv '^\(//.*\)\?$' "$list")
+          test "$rules" -gt 5000
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "VERSION $version, $rules rules."
+
+      - name: Propose the new snapshot
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$(dirname "$SNAPSHOT")"
+          cp "$RUNNER_TEMP/psl.dat" "$SNAPSHOT"
+          git add "$SNAPSHOT"
+          if git diff --cached --quiet; then
+            echo "The snapshot is already $VERSION."
+            exit 0
+          fi
+          branch="psl/$VERSION"
+          # A pull request from this branch, open, closed, or merged: this VERSION was proposed already.
+          if [ -n "$(gh pr list --head "$branch" --state all --json number --jq '.[].number')" ]; then
+            echo "$VERSION was proposed already."
+            exit 0
+          fi
+          if ! git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git switch --create "$branch"
+            git commit --quiet --message "Update the Public Suffix List to $VERSION"
+            git push origin "$branch"
+          fi
+          # Pull requests opened with GITHUB_TOKEN start no workflows, so start CI on the branch.
+          gh workflow run ci.yml --ref "$branch"
+          gh pr create --base main --head "$branch" \
+            --title "Update the Public Suffix List to $VERSION" \
+            --body "Snapshot of https://publicsuffix.org/list/public_suffix_list.dat, VERSION $VERSION. Opened by the Update Public Suffix List workflow. Merge when CI is green." \
+            || { echo "::error::Could not open the pull request. See docs/how-to/update-public-suffix-list.md."; exit 1; }
+          # Only the newest snapshot stays open, so an older one is never merged over it.
+          gh pr list --state open --json number,headRefName \
+            --jq ".[] | select(.headRefName | startswith(\"psl/\")) | select(.headRefName != \"$branch\") | .number" |
+            while read -r number; do
+              gh pr close "$number" --delete-branch --comment "Replaced by the snapshot $VERSION."
+            done

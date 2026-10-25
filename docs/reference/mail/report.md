@@ -139,9 +139,16 @@ classDiagram
     policySource?: "p" | "sp" | "np"
     testing: boolean
     disposition?: string
+    dispositions?: WeightedDisposition[]
+    pslVersion?: string
+    perDomain?: DmarcModeReport[]
     alignment: AlignmentRow[]
     queryIds: string[]
     findingIds: string[]
+  }
+  class WeightedDisposition {
+    disposition: string
+    weight: number
   }
   class AlignmentRow {
     identifier: "spf" | "dkim"
@@ -214,6 +221,7 @@ classDiagram
   Report --> DmarcReport
   DmarcReport --> DmarcModeReport
   DmarcModeReport --> AlignmentRow
+  DmarcModeReport --> WeightedDisposition
   Report --> SummaryLine
   Report --> Finding
   Report --> ReceiverReport
@@ -245,7 +253,7 @@ classDiagram
 | SUM-1 | SPF | The MAIL FROM identity's result and its `reason`. `counts` is empty. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 | SUM-2 | DKIM | Precedence over all signatures: `pass` > `fail` > `permerror` > `temperror` > `neutral` > `not-evaluated`; `none` if no signatures. `counts` per result, listed in that order. If DKIM could not run at all: `not-evaluated` with `reason` (`internal-error`, or `invalid-input` for input over 50 MiB) |
 | SUM-3 | DKIM2 | The DKIM2 result, plus stage |
-| SUM-4 | DMARC | The default mode's (`rfc9989`) result, its `reason`, and `disposition` when the result is `pass` or `fail`. Input over 50 MiB: `not-evaluated` with `invalid-input` |
+| SUM-4 | DMARC | The first selected mode's result, in the order `rfc9989`, `rfc7489`; its `reason`; and `disposition` when the result is `pass` or `fail`. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 | SUM-5 | ARC | The chain result ([ARC-11](arc.md#signatures)) and its `reason`; `counts` has `sets`, the number of instances, when there is at least one. Input over 50 MiB: `not-evaluated` with `invalid-input` |
 
 ## Export
