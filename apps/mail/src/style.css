@@ -82,3 +82,9 @@ td {
   margin: 0.25em 0 0.5em;
   overflow-wrap: anywhere;
 }
+
+/* Whitespace markers in header values: visibly not header text. */
+.ws {
+  color: #777;
+  font-size: 0.75em;
+}

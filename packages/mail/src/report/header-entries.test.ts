@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { splitHeaders } from '../message/headers.ts';
 import { headerEntries } from './header-entries.ts';
 
-const fields = (lines: string[]) =>
-  splitHeaders(new TextEncoder().encode(`${lines.join('\r\n')}\r\n\r\nbody\r\n`)).headers;
-const entries = (lines: string[], time: 'received' | 'date' | 'now' = 'received') =>
-  headerEntries(fields(lines), time);
+const entries = (lines: string[], time: 'received' | 'date' | 'now' = 'received') => {
+  const bytes = new TextEncoder().encode(`${lines.join('\r\n')}\r\n\r\nbody\r\n`);
+  return headerEntries(splitHeaders(bytes).headers, bytes, time);
+};
 
 describe('header entries', () => {
   it('REP-9: given the fields each check reads, when listed, then each says which check reads it', () => {
@@ -62,13 +62,13 @@ describe('header entries', () => {
     expect(entries(['Received-SPF: pass'])[0]?.usedBy).toEqual([]);
   });
 
-  it('REP-10: given a folded field a check reads, when listed, then its unfolded value is present; a field no check reads has none', () => {
-    const [from, other] = entries(['From: Alice\r\n <a@example.com>', 'X-Other: hidden']);
+  it('REP-10: given a folded field a check reads, when listed, then its value keeps the folding as written; a field no check reads has none', () => {
+    const [from, other] = entries(['From: Alice\r\n\t <a@example.com>', 'X-Other: hidden']);
     expect(from).toEqual({
       index: 0,
       name: 'From',
       usedBy: ['dmarc'],
-      value: ' Alice <a@example.com>',
+      value: ' Alice\r\n\t <a@example.com>',
     });
     expect(other).toEqual({ index: 1, name: 'X-Other', usedBy: [] });
   });
