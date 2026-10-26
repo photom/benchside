@@ -62,3 +62,17 @@ tr[data-differs="true"] {
 [aria-label="Archive path"] {
   margin-block: 1rem;
 }
+
+/* REQ-ZIP-008: the Options panel. */
+.options fieldset {
+  margin: 0.5rem 0;
+}
+
+.options label {
+  display: inline-block;
+  margin: 0.25rem 1.5rem 0.25rem 0;
+}
+
+.options input[type="number"] {
+  width: 7rem;
+}

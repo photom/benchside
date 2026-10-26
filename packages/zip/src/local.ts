@@ -4,13 +4,15 @@ import { tooLarge } from './end-records.ts';
 import { splitExtra, toBlock } from './extra.ts';
 import { dosDateTime, flags, method, versionNeeded } from './fields.ts';
 import type { FindingList } from './findings.ts';
+import { LOCAL_SIGNATURE } from './signatures.ts';
 import { type Reader, u64, view } from './source.ts';
+import { decodeCp437, decodeUtf8 } from './text.ts';
 import type { Descriptor, LocalHeader, MismatchField, Range, Region } from './types.ts';
 
-const LOCAL_SIGNATURE = 0x04034b50; // 4.3.7
 const DESCRIPTOR_SIGNATURE = 0x08074b50; // 4.3.9.3
 const HEADER_SIZE = 30;
 const DESCRIPTOR_FLAG = 0x0008; // 4.4.4 bit 3
+const UTF8_FLAG = 0x0800; // 4.4.4 bit 11
 
 export interface LocalResult {
   readonly local: LocalHeader | null;
@@ -99,11 +101,14 @@ export async function readLocal(
   };
   const hasZip64Extra = raw.some((b) => b.id === 0x0001);
 
-  const mismatches = compare(local, entry);
-  if (mismatches.length > 0) {
+  const differences = compare(local, entry);
+  const mismatches = differences.map((d) => d.field);
+  if (differences.length > 0) {
+    // RD-2: both readings, so the user sees what each kind of reader gets.
+    const detail = differences.map((d) => `${d.field}: central ${d.central}, local ${d.local}`);
     findings.add(
       'zip.local.mismatch',
-      `The local header and the central directory differ in: ${mismatches.join(', ')}.`,
+      `The local header and the central directory differ. ${detail.join('; ')}.`,
       { offset, entry: index },
     );
   }
@@ -157,22 +162,45 @@ function outOfRange(findings: FindingList, offset: number, index: number): Local
   return NONE;
 }
 
-/** LH-2 */
-function compare(local: LocalHeader, entry: CentralEntry): MismatchField[] {
+interface Difference {
+  readonly field: MismatchField;
+  readonly central: string;
+  readonly local: string;
+}
+
+const hex = (n: number) => `0x${n.toString(16)}`;
+
+/** LH-2; RD-2: each differing field with both values. */
+function compare(local: LocalHeader, entry: CentralEntry): Difference[] {
   const c = entry.central;
-  const fields: MismatchField[] = [];
-  if (local.versionNeeded.raw !== c.versionNeeded.raw) fields.push('versionNeeded');
-  if (local.flags.raw !== c.flags.raw) fields.push('flags');
-  if (local.method.code !== c.method.code) fields.push('method');
-  if (local.modified.time !== c.modified.time) fields.push('time');
-  if (local.modified.date !== c.modified.date) fields.push('date');
-  if (!sameBytes(local.nameBytes, c.nameBytes)) fields.push('name');
-  if (!(local.flags.raw & DESCRIPTOR_FLAG)) {
-    if (local.crc32 !== c.crc32) fields.push('crc32');
-    if (local.effectiveCompressedSize !== entry.compressedSize) fields.push('compressedSize');
-    if (local.effectiveUncompressedSize !== entry.uncompressedSize) fields.push('uncompressedSize');
+  const out: Difference[] = [];
+  const check = (field: MismatchField, central: number | string, mine: number | string) => {
+    if (central !== mine) out.push({ field, central: String(central), local: String(mine) });
+  };
+  // Each header's name as a reader of that header would decode it.
+  const name = (bytes: Uint8Array, flags: number) =>
+    JSON.stringify(flags & UTF8_FLAG ? decodeUtf8(bytes).text : decodeCp437(bytes));
+  check('versionNeeded', c.versionNeeded.raw, local.versionNeeded.raw);
+  check('flags', hex(c.flags.raw), hex(local.flags.raw));
+  check('method', c.method.code, local.method.code);
+  check('time', hex(c.modified.time), hex(local.modified.time));
+  check('date', hex(c.modified.date), hex(local.modified.date));
+  // The bytes, and the name each header's own UTF-8 flag gives them (RD-2).
+  const centralName = name(c.nameBytes, c.flags.raw);
+  const localName = name(local.nameBytes, local.flags.raw);
+  if (!sameBytes(local.nameBytes, c.nameBytes) || centralName !== localName) {
+    out.push({
+      field: 'name',
+      central: centralName,
+      local: localName,
+    });
   }
-  return fields;
+  if (!(local.flags.raw & DESCRIPTOR_FLAG)) {
+    check('crc32', hex(c.crc32), hex(local.crc32));
+    check('compressedSize', entry.compressedSize, local.effectiveCompressedSize);
+    check('uncompressedSize', entry.uncompressedSize, local.effectiveUncompressedSize);
+  }
+  return out;
 }
 
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {

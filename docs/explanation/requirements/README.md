@@ -44,5 +44,10 @@ flowchart LR
 | [REQ-ZIP-003](REQ-ZIP-003-zip64.md) | Read ZIP64 archives | Accepted |
 | [REQ-ZIP-004](REQ-ZIP-004-nested-archives.md) | Open nested archives | Accepted |
 | [REQ-ZIP-005](REQ-ZIP-005-robust-responsive.md) | Robust and responsive analysis | Accepted |
+| [REQ-ZIP-006](REQ-ZIP-006-security-checks.md) | Warn about archives built to harm extraction | Accepted |
+| [REQ-ZIP-007](REQ-ZIP-007-reader-disagreement.md) | Show where ZIP readers would disagree | Accepted |
+| [REQ-ZIP-008](REQ-ZIP-008-parameters.md) | Adjustable analysis parameters | Accepted |
+| [REQ-ZIP-009](REQ-ZIP-009-hex-view.md) | Hex view of records and fields | Accepted |
+| [REQ-ZIP-010](REQ-ZIP-010-extra-fields.md) | Decode more extra fields | Accepted |
 
-Not yet planned in detail: security checks (path traversal, decompression bombs, overlapping entries as an attack) and content checks (file types, CRC-32 of every entry).
+Not yet planned in detail: content checks (file types, CRC-32 of every entry).

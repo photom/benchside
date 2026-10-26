@@ -15,7 +15,10 @@ flowchart LR
   end_ & cd & local --> map[Byte map]
   cd & local --> fields[Fields]
   cd & local --> nested[Nested archives]
-  map & fields & nested --> report[Report]
+  params[Parameters] -.-> nested & sec
+  cd & local & map --> sec[Security checks]
+  end_ & cd & local & map --> rd[Reader disagreement]
+  map & fields & nested & sec & rd --> report[Report]
 ```
 
 | Page | Covers |
@@ -23,6 +26,9 @@ flowchart LR
 | [Structure](structure.md) | End records, ZIP64, central directory, local headers, data descriptors, byte map |
 | [Fields](fields.md) | Decoding of header fields, names, comments, extra fields |
 | [Nested archives](nested.md) | Opening an entry as an archive, decompression, bounds |
+| [Security checks](security.md) | Names that escape the target folder, collisions, symlinks, zip bombs, overlapping entries |
+| [Reader disagreement](disagreement.md) | Places where two ZIP readers could list different files |
+| [Parameters](parameters.md) | Values the user can change: limits, thresholds, target file system, checks |
 | [Report](report.md) | Output data model and findings |
 
 ## Conventions
@@ -45,5 +51,6 @@ All multi-byte values are little-endian (4.3.3, 4.4.1.1).
 | Entries read | 100 000 | `zip.too-many-entries`; the rest are not read |
 | Findings | 1 000 | `zip.too-many-findings`; later findings are dropped |
 | Extra field preview | 64 bytes per block | The rest is counted, not kept |
-| Nested depth | 8 below the top-level archive | Opening refused: `too-deep` |
-| Nested decompressed size | 256 MiB | Opening refused: `too-large` |
+| Nested depth | `maxNestingDepth` ([PAR-1](parameters.md)), default 8 | Opening refused: `too-deep` |
+| Nested decompressed size | `maxNestedBytes` ([PAR-2](parameters.md)), default 256 MiB | Opening refused: `too-large` |
+| Scan for hidden headers | 16 MiB per archive | `rd.scan-limit`; the rest is not scanned ([RD-5](disagreement.md)) |

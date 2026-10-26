@@ -1,9 +1,12 @@
 /** Analyzes one archive (structure.md, fields.md). */
 import { byteMap } from './byte-map.ts';
 import { readCentral } from './central.ts';
+import { eocdCandidates, hiddenHeaders, nameEncodings } from './disagreement.ts';
 import { readEnd } from './end-records.ts';
 import { FindingList } from './findings.ts';
 import { readLocal } from './local.ts';
+import { type ParameterInput, resolveParameters } from './parameters.ts';
+import { securityFindings } from './security.ts';
 import { type ByteSource, Reader } from './source.ts';
 import type { Entry, Finding, Region, ZipReport } from './types.ts';
 
@@ -13,15 +16,23 @@ export interface AnalyzeOptions {
   /** Findings found before analysis (NEST-4). */
   readonly findings?: readonly Finding[];
   readonly limits?: Partial<Limits>;
+  /** REQ-ZIP-008 */
+  readonly parameters?: ParameterInput;
 }
 
 export interface Limits {
   readonly maxEntries: number;
   readonly maxFindings: number;
+  /** RD-5 */
+  readonly maxScanBytes: number;
 }
 
 /** README.md#limits */
-export const LIMITS: Limits = { maxEntries: 100_000, maxFindings: 1000 };
+export const LIMITS: Limits = {
+  maxEntries: 100_000,
+  maxFindings: 1000,
+  maxScanBytes: 16 * 1024 * 1024,
+};
 
 const LOCAL_WINDOW = 64 * 1024;
 
@@ -40,7 +51,8 @@ export async function analyzeZip(
   // Local headers sit far apart; a small window keeps each one a small read.
   const localReader = new Reader(source, LOCAL_WINDOW);
   const size = source.byteLength;
-  const base = { byteLength: size, path: options.path ?? [] };
+  const parameters = resolveParameters(options.parameters);
+  const base = { byteLength: size, path: options.path ?? [], parameters };
 
   const end = await readEnd(reader, findings);
   if (!end) {
@@ -76,19 +88,26 @@ export async function analyzeZip(
     });
   }
 
+  const endRecords = {
+    eocd: end.eocd,
+    zip64: end.zip64,
+    shift: central.shift,
+    entryCount: end.entryCount,
+    cdOffset: end.cdOffset,
+    cdByteLength: end.cdByteLength,
+    comment: end.comment,
+    eocdCandidates: end.eocdCandidates,
+  };
+  const map = byteMap(regions, size, findings);
+  eocdCandidates(endRecords, map, findings);
+  nameEncodings(entries, findings);
+  await hiddenHeaders(source, map, findings, limits.maxScanBytes);
+  securityFindings(entries, endRecords, parameters, findings);
   return {
     ...base,
-    end: {
-      eocd: end.eocd,
-      zip64: end.zip64,
-      shift: central.shift,
-      entryCount: end.entryCount,
-      cdOffset: end.cdOffset,
-      cdByteLength: end.cdByteLength,
-      comment: end.comment,
-    },
+    end: endRecords,
     entries,
-    regions: byteMap(regions, size, findings),
+    regions: map,
     findings: findings.list,
   };
 }

@@ -1,10 +1,11 @@
 import { DropZone } from '@benchside/ui';
-import type { ZipReport } from '@benchside/zip';
+import type { ParameterInput, ZipReport } from '@benchside/zip';
 import { useRef, useState } from 'preact/hooks';
 import { ByteMap } from './views/ByteMap.tsx';
 import { Entries } from './views/Entries.tsx';
-import { EntryDetail, type OpenState } from './views/EntryDetail.tsx';
+import { EntryDetail, type OpenState, REFUSALS } from './views/EntryDetail.tsx';
 import { Findings } from './views/Findings.tsx';
+import { Options } from './views/Options.tsx';
 import { References } from './views/References.tsx';
 import { Summary } from './views/Summary.tsx';
 import type { ZipHost } from './worker/host.ts';
@@ -27,25 +28,56 @@ export function App({ host }: { host: ZipHost }) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [selected, setSelected] = useState<number | null>(null);
   const [open, setOpen] = useState<OpenState>({ kind: 'idle' });
+  // REQ-ZIP-008: for this visit only; never stored.
+  const [parameters, setParameters] = useState<ParameterInput>({});
+  const [notice, setNotice] = useState<string | null>(null);
   // Bumped whenever the view changes, so a late open result cannot move it back.
   const view = useRef(0);
+  // The chosen file and the archives open on it, for analyzing again after an option change.
+  const file = useRef<File | null>(null);
+  const shownLevels = useRef<readonly Level[]>([]);
 
-  async function analyze(file: File) {
+  async function analyze(chosen: File, params = parameters, reopen: readonly Level[] = []) {
+    file.current = chosen;
+    // Until this file is shown, an option change reopens only what was open on it.
+    shownLevels.current = reopen;
     view.current++;
+    const mine = view.current;
     setStatus({ kind: 'running' });
     setSelected(null);
     setOpen({ kind: 'idle' });
+    setNotice(null);
     try {
       // The host rejects a superseded request with AbortError, so this is the latest file.
-      const report = await host.analyze(file);
-      setStatus({ kind: 'done', levels: [{ label: file.name, report }] });
+      const report = await host.analyze(chosen, params);
+      const levels: Level[] = [{ label: chosen.name, report }];
+      // Open again, under the new values, each archive the user had open below the top level.
+      for (const level of reopen.slice(1)) {
+        const result = await host.open(level.report.path);
+        if (mine !== view.current) return;
+        if (result.kind === 'refused') {
+          setNotice(`${level.label} could not be opened again: ${REFUSALS[result.reason]}`);
+          break;
+        }
+        levels.push({ label: level.label, report: result.report });
+      }
+      show(levels, false);
     } catch (error) {
       if (!isAbort(error)) setStatus({ kind: 'failed', message: String(error) });
     }
   }
 
-  function show(levels: readonly Level[]) {
-    view.current++;
+  function changeParameters(next: ParameterInput) {
+    setParameters(next);
+    if (file.current) void analyze(file.current, next, shownLevels.current);
+  }
+
+  function show(levels: readonly Level[], bump = true) {
+    if (bump) {
+      view.current++;
+      setNotice(null);
+    }
+    shownLevels.current = levels;
     setStatus({ kind: 'done', levels });
     setSelected(null);
     setOpen({ kind: 'idle' });
@@ -76,8 +108,10 @@ export function App({ host }: { host: ZipHost }) {
       <DropZone
         label="Drop a ZIP file here, or choose one:"
         accept=".zip,.jar,.war,.ear,.aar,.apk,.xpi,.epub,.docx,.xlsx,.pptx,.odt,.ods,.odp,.whl,.nupkg,.vsix,application/zip"
-        onFile={(file) => void analyze(file)}
+        onFile={(chosen) => void analyze(chosen)}
       />
+      <Options value={parameters} onChange={changeParameters} />
+      {notice && <p role="status">{notice}</p>}
       {status.kind === 'running' && <p role="status">Analyzing…</p>}
       {status.kind === 'failed' && <p role="alert">Analysis failed: {status.message}</p>}
       {status.kind === 'done' && (

@@ -6,14 +6,6 @@ import { inflateRaw } from './inflate.ts';
 import { type ByteSource, bytesSource } from './source.ts';
 import type { Entry, RefusalReason, ZipReport } from './types.ts';
 
-export interface NestedLimits {
-  readonly maxDepth: number;
-  readonly maxBytes: number;
-}
-
-/** README.md#limits */
-export const NESTED_LIMITS: NestedLimits = { maxDepth: 8, maxBytes: 256 * 1024 * 1024 };
-
 export type Opened =
   | { readonly kind: 'report'; readonly report: ZipReport; readonly source: ByteSource }
   | { readonly kind: 'refused'; readonly reason: RefusalReason };
@@ -24,9 +16,9 @@ export async function openNested(
   source: ByteSource,
   report: ZipReport,
   index: number,
-  limits: Partial<NestedLimits> = {},
 ): Promise<Opened> {
-  const { maxDepth, maxBytes } = { ...NESTED_LIMITS, ...limits };
+  // PAR-1, PAR-2, PAR-13: the limits come with the report.
+  const { maxNestingDepth: maxDepth, maxNestedBytes: maxBytes } = report.parameters;
   const entry = report.entries[index];
   if (!entry) return refused('unreadable');
   const reason = refusal(entry, report.path.length + 1, maxDepth, maxBytes);
@@ -63,6 +55,7 @@ export async function openNested(
   const nestedReport = await analyzeZip(nested, {
     path: [...report.path, index],
     findings: findings.list,
+    parameters: report.parameters,
   });
   return { kind: 'report', report: nestedReport, source: nested };
 }

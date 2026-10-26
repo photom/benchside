@@ -1,10 +1,15 @@
 /** The report data model (report.md). Plain data, safe for postMessage. */
+import type { Parameters } from './parameters.ts';
 
 export type Severity = 'error' | 'warning' | 'info';
+
+/** REP-10 */
+export type Category = 'structure' | 'security' | 'disagreement';
 
 export interface Finding {
   readonly id: FindingId;
   readonly severity: Severity;
+  readonly category: Category;
   readonly message: string;
   /** REP-7: the APPNOTE section behind the finding. */
   readonly section?: string;
@@ -43,7 +48,26 @@ export type FindingId =
   | 'zip.extra.malformed'
   | 'zip.too-many-findings'
   | 'nested.size-mismatch'
-  | 'nested.crc-mismatch';
+  | 'nested.crc-mismatch'
+  | 'sec.path-traversal'
+  | 'sec.absolute-path'
+  | 'sec.backslash'
+  | 'sec.duplicate-name'
+  | 'sec.name-collision'
+  | 'sec.reserved-name'
+  | 'sec.symlink'
+  | 'sec.control-character'
+  | 'sec.bidi-character'
+  | 'sec.long-path'
+  | 'sec.compression-ratio'
+  | 'sec.archive-ratio'
+  | 'sec.total-size'
+  | 'sec.file-count'
+  | 'sec.overlapping-entries'
+  | 'rd.eocd-candidates'
+  | 'rd.name-encoding'
+  | 'rd.hidden-header'
+  | 'rd.scan-limit';
 
 export interface Range {
   readonly offset: number;
@@ -246,6 +270,8 @@ export interface EndRecords {
   readonly cdOffset: number;
   readonly cdByteLength: number;
   readonly comment: Text;
+  /** REP-11 */
+  readonly eocdCandidates: readonly number[];
 }
 
 export interface ZipReport {
@@ -255,6 +281,8 @@ export interface ZipReport {
   readonly entries: readonly Entry[];
   readonly regions: readonly Region[];
   readonly findings: readonly Finding[];
+  /** REP-9 */
+  readonly parameters: Parameters;
 }
 
 export type RefusalReason =

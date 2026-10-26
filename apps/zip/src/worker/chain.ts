@@ -4,6 +4,7 @@ import {
   blobSource,
   type NestedResult,
   openNested,
+  type ParameterInput,
   type ZipReport,
 } from '@benchside/zip';
 
@@ -23,11 +24,12 @@ export class ArchiveChain {
   // Bumped by every open; only the latest open fills the cache.
   private opens = 0;
 
-  async analyze(file: Blob): Promise<ZipReport> {
+  async analyze(file: Blob, parameters: ParameterInput = {}): Promise<ZipReport> {
     const mine = ++this.generation;
     this.cache.clear();
     const source = blobSource(file);
-    const report = await analyzeZip(source);
+    // PAR-13: nested archives reuse the report's parameters.
+    const report = await analyzeZip(source, { parameters });
     if (mine === this.generation) this.cache.set('', { source, report });
     return report;
   }

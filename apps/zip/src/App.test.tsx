@@ -23,7 +23,25 @@ function mount(host: ZipHost = chainHost()) {
 
 function chainHost(): ZipHost {
   const chain = new ArchiveChain();
-  return { analyze: (f) => chain.analyze(f), open: (p) => chain.open(p) };
+  return { analyze: (f, p) => chain.analyze(f, p), open: (p) => chain.open(p) };
+}
+
+const MiB = 1024 * 1024;
+const bomb = (): FixtureEntry[] => [
+  { name: 'bomb', content: 'x', central: { uncompressedSize: 1024 * MiB, compressedSize: MiB } },
+];
+const option = (label: string) =>
+  [...section('Options').querySelectorAll('label')]
+    .find((l) => l.textContent?.startsWith(label))
+    ?.querySelector('input, select') as HTMLInputElement | HTMLSelectElement;
+async function change(input: HTMLInputElement | HTMLSelectElement, value: string | boolean) {
+  await act(async () => {
+    if (typeof value === 'boolean') (input as HTMLInputElement).checked = value;
+    else input.value = value;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await settle();
+  await settle();
 }
 
 async function choose(bytes: Uint8Array, name = 'outer.zip') {
@@ -198,5 +216,156 @@ describe('ZIP app', () => {
     expect(section('Entry detail').querySelector('[role=status]')?.textContent).toContain(
       'worker crashed',
     );
+  });
+
+  describe('options', () => {
+    it('REQ-ZIP-008: given the page, when shown, then the options hold the defaults', () => {
+      mount();
+      expect((option('Compression ratio threshold') as HTMLInputElement).value).toBe('100');
+      expect((option('Max nesting depth') as HTMLInputElement).value).toBe('8');
+      expect((option('Max nested size') as HTMLInputElement).value).toBe('256');
+      expect(option('Target file system').value).toBe('all');
+      expect((option('Symbolic links') as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('REQ-ZIP-008: given a ratio warning, when the threshold is raised, then the warning goes without choosing the file again', async () => {
+      mount();
+      await choose(buildZip(bomb()).bytes);
+      expect(section('Findings').textContent).toContain('sec.compression-ratio');
+      await change(option('Compression ratio threshold'), '2000');
+      expect(section('Findings').textContent).not.toContain('sec.compression-ratio');
+    });
+
+    it('REQ-ZIP-008: given max nesting depth 1, when an archive inside a nested archive is opened, then it is refused', async () => {
+      mount();
+      await change(option('Max nesting depth'), '1');
+      const inner = buildZip([{ name: 'inner.txt' }]).bytes;
+      const middle = buildZip([{ name: 'in.zip', content: inner }]).bytes;
+      await choose(buildZip([{ name: 'mid.zip', content: middle }]).bytes);
+      await click(button(section('Entries'), 'mid.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      await click(button(section('Entries'), 'in.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      expect(section('Entry detail').querySelector('[role=status]')?.textContent).toContain(
+        'Nesting is limited',
+      );
+    });
+
+    it('REQ-ZIP-008: given a nested archive open, when an option changes, then the same nested archive is shown again', async () => {
+      mount();
+      const inner = buildZip([{ name: 'inner.txt' }]).bytes;
+      await choose(buildZip([{ name: 'in.zip', content: inner }]).bytes);
+      await click(button(section('Entries'), 'in.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      await change(option('Max number of files'), '5');
+      expect(section('Archive path').textContent).toBe('outer.zip › in.zip');
+      expect(rows('Entries').map((r) => r[1])).toEqual(['inner.txt']);
+    });
+
+    it('REQ-ZIP-008: given two nested levels open, when max nesting depth drops to 1, then the first level shows and a notice says why', async () => {
+      mount();
+      const inner = buildZip([{ name: 'inner.txt' }]).bytes;
+      const middle = buildZip([{ name: 'in.zip', content: inner }]).bytes;
+      await choose(buildZip([{ name: 'mid.zip', content: middle }]).bytes);
+      await click(button(section('Entries'), 'mid.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      await click(button(section('Entries'), 'in.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      expect(rows('Entries').map((r) => r[1])).toEqual(['inner.txt']);
+      await change(option('Max nesting depth'), '1');
+      expect(rows('Entries').map((r) => r[1])).toEqual(['in.zip']);
+      expect(root.querySelector('main > [role=status]')?.textContent).toContain(
+        'in.zip could not be opened again',
+      );
+    });
+
+    it('PAR-10: given a check turned off, when the file is analyzed again, then that warning goes', async () => {
+      mount();
+      await choose(
+        buildZip([{ name: 'a', content: 'x', versionMadeBy: 0x031e, external: 0o120777 * 0x10000 }])
+          .bytes,
+      );
+      expect(section('Findings').textContent).toContain('sec.symlink');
+      await change(option('Symbolic links'), false);
+      expect(section('Findings').textContent).not.toContain('sec.symlink');
+    });
+
+    it('REQ-ZIP-008: given a changed option, when changed, then nothing is stored in the browser', async () => {
+      mount();
+      await change(option('Max number of files'), '5');
+      expect(localStorage.length).toBe(0);
+    });
+
+    it('PAR-12: given an analysis, when shown, then the summary lists the parameters used', async () => {
+      mount();
+      await change(option('Max number of files'), '5');
+      await choose(buildZip(simple()).bytes);
+      expect(section('Summary').textContent).toContain('Max number of files5');
+    });
+  });
+
+  it('REP-10: given findings of several categories, when shown, then they are grouped with counts', async () => {
+    mount();
+    const z = buildZip([{ name: '../a.txt', localName: 'b.txt', content: 'x' }]);
+    await choose(z.bytes);
+    const headings = [...section('Findings').querySelectorAll('h3')].map((h) => h.textContent);
+    expect(headings).toEqual(['Security (1)', 'Reader disagreement (1)']);
+  });
+
+  describe('review fixes', () => {
+    it('REQ-ZIP-008: given a cleared number field, when changed, then the default applies', async () => {
+      mount();
+      await change(option('Max number of files'), '');
+      await choose(buildZip(simple()).bytes);
+      expect(section('Summary').textContent).toContain('Max number of files10000');
+    });
+
+    it('REQ-ZIP-008: given a new file still analyzing, when an option changes, then the old nested paths are not reopened on it', async () => {
+      const chain = new ArchiveChain();
+      let hold = false;
+      let release = () => {};
+      const opened: (readonly number[])[] = [];
+      const host: ZipHost = {
+        analyze: (f, p) =>
+          hold
+            ? new Promise((resolve, reject) => {
+                release = () => void chain.analyze(f, p).then(resolve, reject);
+              })
+            : chain.analyze(f, p),
+        open: (p) => {
+          opened.push(p);
+          return chain.open(p);
+        },
+      };
+      mount(host);
+      const inner = buildZip([{ name: 'inner.txt' }]).bytes;
+      await choose(buildZip([{ name: 'in.zip', content: inner }]).bytes);
+      await click(button(section('Entries'), 'in.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      hold = true;
+      await choose(buildZip([{ name: 'b.txt' }]).bytes, 'b.zip');
+      hold = false;
+      opened.length = 0;
+      await change(option('Max number of files'), '5');
+      release();
+      await settle();
+      expect(opened).toEqual([]);
+      expect(rows('Entries').map((r) => r[1])).toEqual(['b.txt']);
+    });
+
+    it('REQ-ZIP-008: given a reopen notice, when the user goes back, then the notice goes', async () => {
+      mount();
+      const inner = buildZip([{ name: 'inner.txt' }]).bytes;
+      const middle = buildZip([{ name: 'in.zip', content: inner }]).bytes;
+      await choose(buildZip([{ name: 'mid.zip', content: middle }]).bytes);
+      await click(button(section('Entries'), 'mid.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      await click(button(section('Entries'), 'in.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      await change(option('Max nesting depth'), '1');
+      expect(root.querySelector('main > [role=status]')).not.toBeNull();
+      await click(button(section('Archive path'), 'outer.zip'));
+      expect(root.querySelector('main > [role=status]')).toBeNull();
+    });
   });
 });

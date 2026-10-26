@@ -11,7 +11,11 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
   const post = (reply: FromWorker) => self.postMessage(reply);
   try {
     if (message.type === 'analyze') {
-      post({ type: 'report', id: message.id, report: await chain.analyze(message.file) });
+      post({
+        type: 'report',
+        id: message.id,
+        report: await chain.analyze(message.file, message.parameters),
+      });
       return;
     }
     const result = await chain.open(message.path);
