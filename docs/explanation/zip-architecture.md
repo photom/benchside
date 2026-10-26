@@ -1,6 +1,6 @@
 # ZIP analyzer architecture
 
-Spec: [ZIP analyzer specification](../reference/zip/README.md). Decision: [0007](decisions/0007-zip-read-from-the-end.md).
+Spec: [ZIP analyzer specification](../reference/zip/README.md). Decisions: [0007](decisions/0007-zip-read-from-the-end.md), [0008](decisions/0008-zip-hex-view-reads-through-the-worker.md).
 
 ## Modules
 
@@ -29,9 +29,11 @@ flowchart TD
     analyze --> sec[security.ts]
     analyze --> rd[disagreement.ts]
     analyze & open --> params[parameters.ts]
+    layout[layout.ts]
   end
   chain --> analyze
   chain --> open
+  views --> layout
 ```
 
 | Module | Does | Rules |
@@ -52,6 +54,7 @@ flowchart TD
 | `parameters.ts` | Defaults, ranges, clamping | PAR-* |
 | `security.ts` | Name, size, count, and overlap checks over the finished entries and byte map | SEC-* |
 | `disagreement.ts` | EOCD candidates, name encodings, bounded scan of gaps for hidden headers | RD-1, RD-3..5 |
+| `layout.ts` | Field names, offsets, and lengths of a region, from the report alone | HEX-6, HEX-10, HEX-11 |
 
 ## Analysis flow
 
@@ -79,12 +82,15 @@ sequenceDiagram
 |---|---|
 | UI → worker | `{ type: 'analyze', id, file: Blob, parameters }` |
 | UI → worker | `{ type: 'open', id, path: number[] }` |
+| UI → worker | `{ type: 'read', id, path: number[], offset, byteLength }` |
 | worker → UI | `{ type: 'report', id, report }` |
 | worker → UI | `{ type: 'refused', id, reason }` |
+| worker → UI | `{ type: 'bytes', id, bytes: Uint8Array }` |
 | worker → UI | `{ type: 'failed', id, message }` |
 
 - A `File` is passed by reference; it is not copied into memory.
-- The host keeps only the latest request's answer, like the mail app's host. A worker error rejects the waiting request.
+- The host keeps only the latest request's answer on each lane: analysis (`analyze`, `open`) and reads (`read`), like the mail app's host. A worker error rejects the waiting requests ([0008](decisions/0008-zip-hex-view-reads-through-the-worker.md)).
+- `read` returns bytes of the archive cached for `path`, at most 512 bytes (HEX-3).
 - `parameters` is the user's partial set; the package fills in defaults and clamps (PAR-11). Nested archives reuse the top-level report's values (PAR-13), so `open` carries none.
 - `ArchiveChain` (`worker/chain.ts`) caches `{ source, report }` per path. Opening a path drops cached entries that are not on it, and only the latest open fills the cache. A new file drops them all.
 
@@ -99,7 +105,8 @@ flowchart TD
   summary --> findings[Findings]
   findings --> entries["Entries table<br/>select one"]
   entries --> detail["Entry detail<br/>central vs local, extra fields,<br/>data, descriptor, Open as archive"]
-  detail --> map["Byte map table"]
+  detail --> hexv["Hex view<br/>fields, 512-byte pages"]
+  hexv --> map["Byte map table"]
   map --> refs[References]
 ```
 
@@ -115,6 +122,8 @@ flowchart TD
 | Findings are grouped under Security, Reader disagreement, and Structure, each with a count | The category answers "should I worry?" before the details |
 | Options live in component state only | REQ-ZIP-008: values last for the visit; nothing is stored |
 | A number input applies on change (blur or Enter), not on every keystroke | Typing "1000" must not analyze with 1, 10, and 100 first |
+| The hex view shows one 512-byte page and reads only that page | Works on archives of any size (REQ-ZIP-009) |
+| Bytes of a selected field or finding are wrapped in `mark` | The marking does not rely on color alone |
 
 ## Shared UI
 
