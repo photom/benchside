@@ -20,6 +20,7 @@ flowchart TD
     analyze --> map[byte-map.ts]
     central & local --> fields[fields.ts]
     central & local --> extra[extra.ts]
+    extra --> decode[extra-decode.ts]
     fields --> text[text.ts<br/>UTF-8, CP437]
     open[nested.ts] --> inflate[inflate.ts]
     open --> crc[crc32.ts]
@@ -41,7 +42,8 @@ flowchart TD
 | `local.ts` | Local headers, comparison, file data, descriptors | LH-*, Z64-6 |
 | `byte-map.ts` | Regions, gaps, overlaps | MAP-* |
 | `fields.ts` | Versions, flags, methods, DOS time, attributes | FLD-* |
-| `extra.ts` | Extra field blocks, names, ZIP64 and Unicode Path decoding | EXT-*, NAME-2 |
+| `extra.ts` | Extra field blocks, names, ZIP64 and Unicode Path decoding | EXT-1..4, EXT-10, NAME-2 |
+| `extra-decode.ts` | Timestamps, UNIX owner, NTFS times, AES, Android alignment | EXT-5..9, EXT-11 |
 | `text.ts` | UTF-8 and Code Page 437 decoding | NAME-1, NAME-3, NAME-4 |
 | `crc32.ts` | CRC-32 | EXT-4 |
 | `inflate.ts` | Bounded raw-deflate decompression | NEST-3 |

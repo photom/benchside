@@ -120,7 +120,7 @@ export function method(code: number): Method {
   return { code, name: METHODS[code] ?? 'Unknown' };
 }
 
-const pad = (n: number) => String(n).padStart(2, '0');
+export const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /** FLD-5: MS-DOS date and time (4.4.6), no time zone. */
 export function dosDateTime(time: number, date: number): DosDateTime {
@@ -169,7 +169,7 @@ const UNIX_TYPES: Record<number, string> = {
   1: 'p',
 };
 
-/** FLD-7: MS-DOS low byte; UNIX mode in the upper 16 bits (an Info-ZIP convention). */
+/** FLD-7: UNIX mode in the upper 16 bits (an Info-ZIP convention). */
 export function externalAttributes(raw: number, host: number) {
   const dos = DOS_ATTRIBUTES.filter(([bit]) => raw & bit).map(([, name]) => name);
   return { raw, dos, unixMode: host === 3 ? unixMode(raw >>> 16) : null };
