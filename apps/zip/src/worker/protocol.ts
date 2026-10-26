@@ -1,9 +1,14 @@
 /** Messages between the UI and the analysis worker (zip-architecture.md). */
 
-import type { NestedResult, RefusalReason, ZipReport } from '@benchside/zip';
+import type { NestedResult, ParameterInput, RefusalReason, ZipReport } from '@benchside/zip';
 
 export type ToWorker =
-  | { readonly type: 'analyze'; readonly id: number; readonly file: Blob }
+  | {
+      readonly type: 'analyze';
+      readonly id: number;
+      readonly file: Blob;
+      readonly parameters: ParameterInput;
+    }
   | { readonly type: 'open'; readonly id: number; readonly path: readonly number[] };
 
 export type FromWorker =
