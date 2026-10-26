@@ -1,6 +1,7 @@
-/** Names shown for parameters and security checks (parameters.md, security.md). */
+/** Names shown for parameters, security checks, and regions (parameters.md, security.md). */
 import {
   type NumberParameter,
+  type RegionKind,
   type SecurityCheck,
   TARGET_FILE_SYSTEMS,
   type TargetFileSystem,
@@ -59,3 +60,19 @@ export const CHECK_LABELS: Record<SecurityCheck, string> = {
 /** A parameter value as shown: sizes in MiB. */
 export const shown = (key: NumberParameter, value: number) =>
   NUMBER_PARAMETERS.find((p) => p.key === key)?.unit === 'MiB' ? value / MiB : value;
+
+/** REP-6 */
+export const REGION_NAMES: Record<RegionKind, string> = {
+  'local-header': 'Local header',
+  'file-data': 'File data',
+  'data-descriptor': 'Data descriptor',
+  'central-header': 'Central header',
+  'digital-signature': 'Digital signature',
+  'zip64-eocd': 'ZIP64 end of central directory',
+  'zip64-locator': 'ZIP64 locator',
+  eocd: 'End of central directory',
+  prepended: 'Prepended data',
+  gap: 'Gap',
+  trailing: 'Trailing data',
+  unknown: 'Unknown',
+};

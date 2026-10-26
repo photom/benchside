@@ -1,5 +1,6 @@
 export { type AnalyzeOptions, analyzeZip, LIMITS, type Limits } from './analyze.ts';
 export { crc32 } from './crc32.ts';
+export { type FieldSpan, regionFields } from './layout.ts';
 export { type Opened, openNested } from './nested.ts';
 export {
   DEFAULT_PARAMETERS,
