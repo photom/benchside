@@ -8,6 +8,15 @@ import { buildZip, deflateRaw, type FixtureEntry, patch } from './test/build-zip
 import { PYTHON_ZIPFILE } from './test/python-zipfile.ts';
 
 const inner = () => buildZip([{ name: 'inner.txt', content: 'inside' }]).bytes;
+const MiB = 1024 * 1024;
+// Bytes that deflate barely compresses.
+const noise = (n: number) => {
+  let x = 1;
+  return Uint8Array.from({ length: n }, () => {
+    x = (Math.imul(x, 1103515245) + 12345) & 0x7fffffff;
+    return x >>> 16;
+  });
+};
 
 async function outer(entries: FixtureEntry[], path: number[] = []) {
   const z = buildZip(entries);
@@ -139,29 +148,34 @@ describe('opening nested archives', () => {
     });
   });
 
-  it('NEST-2: given an uncompressed size above the limit, when opened, then refused: too-large', async () => {
-    const { source, report } = await outer([await deflated('in.zip', inner())]);
-    expect(await openNested(source, report, 0, { maxBytes: 10 })).toEqual({
-      kind: 'refused',
-      reason: 'too-large',
-    });
-  });
-
-  it('NEST-2: given a stored entry larger than the limit, when opened, then refused: too-large', async () => {
-    const z = buildZip([{ name: 'in.zip', content: inner() }]);
-    patch(z.bytes, (z.central[0] as number) + 24, 1, 4);
-    const source = bytesSource(z.bytes);
-    expect(await openNested(source, await analyzeZip(source), 0, { maxBytes: 10 })).toEqual({
-      kind: 'refused',
-      reason: 'too-large',
-    });
-  });
-
-  it('NEST-2: given a deflated entry whose compressed size is above the limit, when opened, then refused: too-large', async () => {
+  it('NEST-2, PAR-2: given an uncompressed size above maxNestedBytes, when opened, then refused: too-large', async () => {
     const z = buildZip([await deflated('in.zip', inner())]);
+    patch(z.bytes, (z.central[0] as number) + 24, 2 * MiB, 4);
+    const source = bytesSource(z.bytes);
+    const report = await analyzeZip(source, { parameters: { maxNestedBytes: MiB } });
+    expect(await openNested(source, report, 0)).toEqual({
+      kind: 'refused',
+      reason: 'too-large',
+    });
+  });
+
+  it('NEST-2, PAR-2: given a stored entry larger than maxNestedBytes, when opened, then refused: too-large', async () => {
+    const z = buildZip([{ name: 'in.zip', content: noise(2 * MiB) }]);
     patch(z.bytes, (z.central[0] as number) + 24, 1, 4);
     const source = bytesSource(z.bytes);
-    expect(await openNested(source, await analyzeZip(source), 0, { maxBytes: 10 })).toEqual({
+    const report = await analyzeZip(source, { parameters: { maxNestedBytes: MiB } });
+    expect(await openNested(source, report, 0)).toEqual({
+      kind: 'refused',
+      reason: 'too-large',
+    });
+  });
+
+  it('NEST-2, PAR-2: given a deflated entry whose compressed size is above maxNestedBytes, when opened, then refused: too-large', async () => {
+    const z = buildZip([await deflated('in.zip', noise(2 * MiB))]);
+    patch(z.bytes, (z.central[0] as number) + 24, 1, 4);
+    const source = bytesSource(z.bytes);
+    const report = await analyzeZip(source, { parameters: { maxNestedBytes: MiB } });
+    expect(await openNested(source, report, 0)).toEqual({
       kind: 'refused',
       reason: 'too-large',
     });
@@ -207,5 +221,26 @@ describe('opening nested archives', () => {
     expect(opened.kind === 'report' && opened.report.findings.map((f) => f.id)).toEqual([
       'nested.size-mismatch',
     ]);
+  });
+
+  it('PAR-1: given maxNestingDepth 1, when an archive inside a nested archive is opened, then refused: too-deep', async () => {
+    const middle = buildZip([{ name: 'in.zip', content: inner() }]).bytes;
+    const z = buildZip([{ name: 'mid.zip', content: middle }]);
+    const source = bytesSource(z.bytes);
+    const report = await analyzeZip(source, { parameters: { maxNestingDepth: 1 } });
+    const first = await openNested(source, report, 0);
+    if (first.kind !== 'report') throw new Error('not opened');
+    expect(await openNested(first.source, first.report, 0)).toEqual({
+      kind: 'refused',
+      reason: 'too-deep',
+    });
+  });
+
+  it('PAR-13: given parameters, when a nested archive is opened, then it uses the same values', async () => {
+    const z = buildZip([{ name: 'in.zip', content: inner() }]);
+    const source = bytesSource(z.bytes);
+    const report = await analyzeZip(source, { parameters: { ratioThreshold: 500 } });
+    const opened = await openNested(source, report, 0);
+    expect(opened.kind === 'report' && opened.report.parameters).toEqual(report.parameters);
   });
 });
