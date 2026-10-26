@@ -19,6 +19,7 @@ Status: Accepted
 | 0xd935 | Android ZIP alignment | Alignment and padding |
 
 - A malformed block keeps its hex preview and gives a finding.
+- Zero bytes that older `zipalign` adds to a local extra field are shown as padding, not as a malformed block.
 
 ## Rationale
 
@@ -35,7 +36,9 @@ Status: Accepted
 
 - An archive made by Info-ZIP `zip` shows the 0x5455 time in UTC.
 - A WinZip AES archive shows the AES strength and the real method.
+- An APK aligned by `apksigner` shows the alignment and whether the file data is aligned.
+- An APK padded by older `zipalign` gives no `zip.extra.malformed` finding.
 
 ## Specified in
 
-- Fields (to be extended in `docs/reference/zip/fields.md`)
+- [Fields: extra fields](../../reference/zip/fields.md#extra-fields) (EXT-1, EXT-3, EXT-5..10)

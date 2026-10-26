@@ -120,7 +120,7 @@ export function method(code: number): Method {
   return { code, name: METHODS[code] ?? 'Unknown' };
 }
 
-const pad = (n: number) => String(n).padStart(2, '0');
+export const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /** FLD-5: MS-DOS date and time (4.4.6), no time zone. */
 export function dosDateTime(time: number, date: number): DosDateTime {

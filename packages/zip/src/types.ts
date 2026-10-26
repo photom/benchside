@@ -159,7 +159,64 @@ export interface ExtraBlock {
   readonly preview: Uint8Array;
   readonly zip64?: Zip64Values;
   readonly unicodePath?: UnicodePath;
+  /** EXT-5..9 */
+  readonly decoded?: DecodedExtra;
+  /** EXT-10: zero padding; `id` is null as for a malformed rest. */
+  readonly padding?: true;
 }
+
+/** EXT-5, EXT-11 */
+export interface UnixTime {
+  readonly seconds: number;
+  /** `YYYY-MM-DD hh:mm:ss UTC` */
+  readonly text: string;
+}
+
+/** EXT-7, EXT-11 */
+export interface NtfsTime {
+  /** The 64-bit FILETIME, in decimal. */
+  readonly ticks: string;
+  /** null when the FILETIME is 0 (not set). */
+  readonly text: string | null;
+}
+
+export type DecodedExtra =
+  | {
+      readonly kind: 'timestamp';
+      readonly flags: number;
+      readonly modified?: UnixTime;
+      readonly accessed?: UnixTime;
+      readonly created?: UnixTime;
+    }
+  | {
+      readonly kind: 'unix-owner';
+      readonly version: number;
+      readonly uid?: number;
+      readonly gid?: number;
+    }
+  | {
+      readonly kind: 'ntfs';
+      readonly attributes: readonly { readonly tag: number; readonly byteLength: number }[];
+      readonly modified?: NtfsTime;
+      readonly accessed?: NtfsTime;
+      readonly created?: NtfsTime;
+    }
+  | {
+      readonly kind: 'aes';
+      readonly vendorVersion: number;
+      readonly version: 'AE-1' | 'AE-2' | 'unknown';
+      readonly vendorId: string;
+      readonly strength: number;
+      readonly keyBits: number | null;
+      readonly method: Method;
+    }
+  | {
+      readonly kind: 'alignment';
+      readonly alignment: number;
+      readonly paddingBytes: number;
+      /** Local header only; null when not checked. */
+      readonly aligned: boolean | null;
+    };
 
 interface CommonHeader {
   readonly offset: number;

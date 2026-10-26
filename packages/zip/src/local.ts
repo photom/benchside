@@ -2,6 +2,7 @@
 import { type CentralEntry, readZip64Extra } from './central.ts';
 import { tooLarge } from './end-records.ts';
 import { splitExtra, toBlock } from './extra.ts';
+import { decodedValues } from './extra-decode.ts';
 import { dosDateTime, flags, method, versionNeeded } from './fields.ts';
 import type { FindingList } from './findings.ts';
 import { LOCAL_SIGNATURE } from './signatures.ts';
@@ -67,6 +68,7 @@ export async function readLocal(
     offset + HEADER_SIZE + nameLength,
     findings,
     index,
+    true,
   );
   // Z64-6: the local ZIP64 extra field holds both sizes.
   const sentinel = compressedSize === 0xffffffff || uncompressedSize === 0xffffffff;
@@ -83,6 +85,9 @@ export async function readLocal(
     findings,
     'local file header',
   );
+  // LH-3: the file data follows the local header; EXT-9 checks its alignment.
+  const dataOffset = offset + headerLength;
+  const where = { header: 'local', dataOffset } as const;
   const local: LocalHeader = {
     offset,
     versionNeeded: versionNeeded(v.getUint16(4, true)),
@@ -95,7 +100,12 @@ export async function readLocal(
     nameLength,
     extraLength,
     nameBytes,
-    extra: raw.map((block) => toBlock(block, block === zip64.block ? { zip64: zip64.values } : {})),
+    extra: raw.map((block) =>
+      toBlock(block, {
+        ...(block === zip64.block ? { zip64: zip64.values } : {}),
+        ...decodedValues(block, where, findings, index),
+      }),
+    ),
     effectiveCompressedSize: zip64.values.compressedSize ?? compressedSize,
     effectiveUncompressedSize: zip64.values.uncompressedSize ?? uncompressedSize,
   };
@@ -117,7 +127,6 @@ export async function readLocal(
   const regions: Region[] = [
     { kind: 'local-header', offset, byteLength: headerLength, entry: index },
   ];
-  const dataOffset = offset + headerLength;
   let dataLength = entry.compressedSize;
   if (dataOffset + dataLength > size) {
     findings.add(

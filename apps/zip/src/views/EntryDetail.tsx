@@ -1,4 +1,5 @@
 import {
+  type DecodedExtra,
   decodeCp437,
   decodeUtf8,
   type Entry,
@@ -205,8 +206,8 @@ function ExtraList({ title, blocks }: { title: string; blocks: readonly ExtraBlo
         <ul>
           {blocks.map((b) => (
             <li key={b.offset}>
-              {b.id === null ? 'Malformed' : `0x${hex(b.id, 4)}`} {b.name}, {b.byteLength} bytes at{' '}
-              {offset(b.offset)}: {decoded(b)}
+              {b.id !== null && `0x${hex(b.id, 4)} `}
+              {b.name}, {b.byteLength} bytes at {offset(b.offset)}: {decoded(b)}
             </li>
           ))}
         </ul>
@@ -231,5 +232,54 @@ function decoded(b: ExtraBlock): string {
     const u = b.unicodePath;
     return `version ${u.version}, name "${u.name}", CRC-32 ${u.matches ? 'matches' : 'does not match'}`;
   }
-  return bytesHex(b.preview) + (b.byteLength > b.preview.length ? ' …' : '');
+  const preview = bytesHex(b.preview) + (b.byteLength > b.preview.length ? ' …' : '');
+  // The bytes stay visible next to decoded values, so a malformed block can be checked.
+  if (b.decoded) return `${decodedText(b.decoded)}; bytes ${preview}`;
+  return preview;
+}
+
+const times = (t: Partial<Record<'modified' | 'accessed' | 'created', { text: string | null }>>) =>
+  (['modified', 'accessed', 'created'] as const)
+    .filter((k) => t[k])
+    .map((k) => `${k} ${t[k]?.text ?? 'not set'}`);
+
+/** EXT-5..9 */
+function decodedText(d: DecodedExtra): string {
+  switch (d.kind) {
+    case 'timestamp':
+      return [`flags 0x${hex(d.flags, 2)}`, ...times(d)].join(', ');
+    case 'unix-owner':
+      if (d.version !== 1) return `version ${d.version}, not decoded`;
+      return (
+        [d.uid !== undefined && `UID ${d.uid}`, d.gid !== undefined && `GID ${d.gid}`]
+          .filter(Boolean)
+          .join(', ') || 'no UID or GID'
+      );
+    case 'ntfs':
+      return [
+        ...times(d),
+        ...d.attributes
+          .filter((a) => a.tag !== 1)
+          .map((a) => `attribute 0x${hex(a.tag, 4)}, ${a.byteLength} bytes`),
+      ].join(', ');
+    case 'aes':
+      return [
+        d.version === 'unknown' ? `vendor version ${d.vendorVersion} (unknown)` : d.version,
+        `vendor ID ${JSON.stringify(d.vendorId)}`,
+        d.keyBits === null ? `strength ${d.strength} (unknown)` : `${d.keyBits}-bit key`,
+        `real method ${d.method.name} (${d.method.code})`,
+      ].join(', ');
+    case 'alignment':
+      return [
+        `alignment ${d.alignment} bytes`,
+        `${d.paddingBytes} padding bytes`,
+        d.aligned !== null && `file data ${d.aligned ? '' : 'not '}aligned`,
+      ]
+        .filter(Boolean)
+        .join(', ');
+    default: {
+      const never: never = d;
+      return never;
+    }
+  }
 }
