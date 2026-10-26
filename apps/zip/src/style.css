@@ -76,3 +76,17 @@ tr[data-differs="true"] {
 .options input[type="number"] {
   width: 7rem;
 }
+
+/* HEX-2: hex and ASCII columns line up; bytes never wrap mid-row. */
+table.hex td:nth-child(2),
+table.hex td:nth-child(3) {
+  font-family: ui-monospace, monospace;
+  overflow-wrap: normal;
+  white-space: pre;
+}
+
+/* HEX-8: the mark element carries the meaning; the colour only helps. */
+table.hex mark {
+  background: #ffe08a;
+  outline: 1px solid #c80;
+}

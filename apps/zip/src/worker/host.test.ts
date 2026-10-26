@@ -78,4 +78,46 @@ describe('worker host', () => {
     crash();
     await expect(result).rejects.toThrow('worker');
   });
+
+  describe('reads', () => {
+    it('HEX-3: given a range, when read, then the worker gets the path and range and the bytes come back', async () => {
+      const { worker, sent, reply } = fakeWorker();
+      const result = createWorkerHost(worker).read([1], 30, 16);
+      expect(sent).toEqual([{ type: 'read', id: 1, path: [1], offset: 30, byteLength: 16 }]);
+      reply({ type: 'bytes', id: 1, bytes: Uint8Array.of(1, 2) });
+      await expect(result).resolves.toEqual(Uint8Array.of(1, 2));
+    });
+
+    it('0008: given an analysis running, when a read is sent, then both answers arrive', async () => {
+      const { worker, reply } = fakeWorker();
+      const host = createWorkerHost(worker);
+      const analysis = host.analyze(file);
+      const read = host.read([], 0, 4);
+      reply({ type: 'report', id: 1, report });
+      reply({ type: 'bytes', id: 2, bytes: Uint8Array.of(9) });
+      await expect(analysis).resolves.toEqual(report);
+      await expect(read).resolves.toEqual(Uint8Array.of(9));
+    });
+
+    it('0008: given a newer read, when the older answer arrives, then the older read rejects with AbortError', async () => {
+      const { worker, reply } = fakeWorker();
+      const host = createWorkerHost(worker);
+      const first = host.read([], 0, 4);
+      const second = host.read([], 4, 4);
+      reply({ type: 'bytes', id: 1, bytes: Uint8Array.of(1) });
+      reply({ type: 'bytes', id: 2, bytes: Uint8Array.of(2) });
+      await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+      await expect(second).resolves.toEqual(Uint8Array.of(2));
+    });
+
+    it('0008: given a worker that crashes, when an analysis and a read are pending, then both reject', async () => {
+      const { worker, crash } = fakeWorker();
+      const host = createWorkerHost(worker);
+      const analysis = host.open([0]);
+      const read = host.read([], 0, 4);
+      crash();
+      await expect(analysis).rejects.toThrow('worker');
+      await expect(read).rejects.toThrow('worker');
+    });
+  });
 });
