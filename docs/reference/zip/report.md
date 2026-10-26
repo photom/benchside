@@ -71,6 +71,7 @@ classDiagram
 | REP-9 | `parameters` holds the values used ([PAR-12](parameters.md)). |
 | REP-10 | Each finding has a category, fixed by its ID in the table below: `structure`, `security` ([Security checks](security.md)), or `disagreement` ([Reader disagreement](disagreement.md)). |
 | REP-11 | `eocdCandidates` lists every offset in the EOCD search window that holds the EOCD signature with at least 22 bytes after it, highest first ([RD-1](disagreement.md)). |
+| REP-12 | Each extra block has `id` (`null` for `Malformed` and `Zero padding`), `name`, `offset`, `byteLength`, and `preview` (EXT-1, EXT-3). Zero padding also has `padding: true` (EXT-10). Decoded values sit next to them: `zip64`, `unicodePath`, or `decoded`, whose `kind` is `timestamp` (EXT-5), `unix-owner` (EXT-6), `ntfs` (EXT-7), `aes` (EXT-8), or `alignment` (EXT-9). |
 
 A nested opening returns either a report or a refusal:
 

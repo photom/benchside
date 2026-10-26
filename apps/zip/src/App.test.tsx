@@ -368,4 +368,101 @@ describe('ZIP app', () => {
       expect(root.querySelector('main > [role=status]')).toBeNull();
     });
   });
+
+  describe('extra fields', () => {
+    const T = 1735787045; // 2025-01-02 03:04:05 UTC
+    const le = (...values: [number, 1 | 2 | 4][]) => {
+      const out: number[] = [];
+      for (const [v, size] of values)
+        for (let i = 0; i < size; i++) out.push((v >>> (8 * i)) & 0xff);
+      return Uint8Array.of(...out);
+    };
+    const block = (id: number, data: Uint8Array) =>
+      Uint8Array.of(id & 0xff, id >>> 8, data.length & 0xff, data.length >>> 8, ...data);
+    const detail = async (entry: FixtureEntry) => {
+      mount();
+      await choose(buildZip([entry]).bytes);
+      await click(button(section('Entries'), entry.name as string));
+      return section('Entry detail').textContent ?? '';
+    };
+
+    it('REQ-ZIP-010: given Info-ZIP time and owner blocks, when the entry is shown, then the UTC time and the UID and GID', async () => {
+      const text = await detail({
+        name: 'a.txt',
+        centralExtra: Uint8Array.of(
+          ...block(0x5455, le([1, 1], [T, 4])),
+          ...block(0x7875, le([1, 1], [4, 1], [501, 4], [4, 1], [20, 4])),
+        ),
+      });
+      expect(text).toContain('modified 2025-01-02 03:04:05 UTC');
+      expect(text).toContain('UID 501, GID 20');
+    });
+
+    it('REQ-ZIP-010: given a WinZip AES block, when the entry is shown, then the strength and the real method', async () => {
+      const text = await detail({
+        name: 'secret.txt',
+        method: 99,
+        flags: 1,
+        centralExtra: block(0x9901, le([2, 2], [0x4541, 2], [3, 1], [8, 2])),
+      });
+      expect(text).toContain('AE-2, vendor ID "AE", 256-bit key, real method Deflated (8)');
+    });
+
+    it('REQ-ZIP-010: given an NTFS block with no creation time, when the entry is shown, then it says not set', async () => {
+      const filetime = (ticks: bigint) =>
+        [0, 1, 2, 3, 4, 5, 6, 7].map((i) => Number((ticks >> BigInt(8 * i)) & 0xffn));
+      const ticks = (BigInt(T) + 11644473600n) * 10000000n;
+      const text = await detail({
+        name: 'n.txt',
+        centralExtra: block(
+          0x000a,
+          Uint8Array.of(
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            24,
+            0,
+            ...filetime(ticks),
+            ...filetime(ticks),
+            ...filetime(0n),
+          ),
+        ),
+      });
+      expect(text).toContain('modified 2025-01-02 03:04:05.0000000 UTC');
+      expect(text).toContain('created not set');
+    });
+
+    it('REQ-ZIP-010: given an apksigner alignment block, when the entry is shown, then the alignment and that the data is aligned', async () => {
+      const text = await detail({
+        name: 'classes.dex',
+        content: 'dex',
+        localExtra: block(0xd935, Uint8Array.of(4, 0, 0)),
+      });
+      expect(text).toContain('alignment 4 bytes, 1 padding bytes, file data aligned');
+    });
+
+    it('EXT-10: given zipalign zero padding, when the entry is shown, then it is Zero padding, not Malformed', async () => {
+      const text = await detail({ name: 'res.png', content: 'png', localExtra: new Uint8Array(3) });
+      expect(text).toContain('Zero padding, 3 bytes');
+      expect(text).not.toContain('Malformed');
+    });
+
+    it('REQ-ZIP-010: given a malformed timestamp block, when the entry is shown, then its hex preview is shown too', async () => {
+      const text = await detail({ name: 't.txt', centralExtra: block(0x5455, Uint8Array.of(3)) });
+      expect(text).toContain('flags 0x03');
+      expect(text).toContain('03');
+      expect(text).toMatch(/flags 0x03.*bytes 03/);
+    });
+
+    it('EXT-6: given a UNIX owner block with no IDs, when the entry is shown, then it says so', async () => {
+      const text = await detail({
+        name: 'u.txt',
+        centralExtra: block(0x7875, Uint8Array.of(1, 0, 0)),
+      });
+      expect(text).toContain('no UID or GID');
+    });
+  });
 });
