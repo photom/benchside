@@ -2,6 +2,7 @@
 import type { EndDraft } from './end-records.ts';
 import { offsetsShifted, tooLarge } from './end-records.ts';
 import { type RawBlock, splitExtra, toBlock, unicodePath, zip64Fields } from './extra.ts';
+import { decodedValues } from './extra-decode.ts';
 import {
   dosDateTime,
   externalAttributes,
@@ -216,6 +217,7 @@ function parseHeader(
     toBlock(block, {
       ...(block === zip64.block ? { zip64: zip64.values } : {}),
       ...(block === unicode?.block ? { unicodePath: unicode.path } : {}),
+      ...decodedValues(block, { header: 'central' }, findings, index),
     }),
   );
 

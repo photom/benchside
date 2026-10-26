@@ -1,29 +1,39 @@
-/** Extra field blocks (fields.md: EXT-1..3; structure.md: Z64-5..7; NAME-2). */
+/** Extra field blocks (fields.md: EXT-1..3, EXT-10; structure.md: Z64-5..7; NAME-2). */
 import { crc32 } from './crc32.ts';
 import type { FindingList } from './findings.ts';
 import { u64, view } from './source.ts';
 import { decodeUtf8 } from './text.ts';
-import type { ExtraBlock, UnicodePath, Zip64Values } from './types.ts';
+import type { DecodedExtra, ExtraBlock, UnicodePath, Zip64Values } from './types.ts';
 
 export interface RawBlock {
-  /** null for the malformed rest (EXT-1). */
+  /** null for the malformed rest (EXT-1) and zero padding (EXT-10). */
   readonly id: number | null;
   /** Offset of the block header in the archive. */
   readonly offset: number;
   readonly data: Uint8Array;
+  /** EXT-10 */
+  readonly padding?: true;
 }
 
-/** EXT-1: Header ID (2), Data Size (2), data (4.5.1). */
+/** EXT-1: Header ID (2), Data Size (2), data (4.5.1). EXT-10: zero padding in local headers. */
 export function splitExtra(
   bytes: Uint8Array,
   offset: number,
   findings: FindingList,
   entry: number,
+  local = false,
 ): RawBlock[] {
   const v = view(bytes);
   const blocks: RawBlock[] = [];
+  // EXT-10: from here on every byte is 0x00; found once, so the loop stays linear.
+  let zeroFrom = bytes.length;
+  while (local && zeroFrom > 0 && bytes[zeroFrom - 1] === 0) zeroFrom--;
   let at = 0;
   while (at < bytes.length) {
+    if (local && at >= zeroFrom) {
+      blocks.push({ id: null, offset: offset + at, data: bytes.subarray(at), padding: true });
+      break;
+    }
     const size = at + 4 <= bytes.length ? v.getUint16(at + 2, true) : -1;
     if (size < 0 || at + 4 + size > bytes.length) {
       findings.add(
@@ -112,6 +122,8 @@ export function extraName(id: number | null): string {
   return id === null ? 'Malformed' : (NAMES[id] ?? 'Unknown');
 }
 
+const nameOf = (raw: RawBlock) => (raw.padding ? 'Zero padding' : extraName(raw.id));
+
 export interface Zip64Need {
   readonly uncompressedSize: boolean;
   readonly compressedSize: boolean;
@@ -165,11 +177,12 @@ const PREVIEW = 64;
 /** EXT-3: keep the size and the first 64 bytes. */
 export function toBlock(
   raw: RawBlock,
-  decoded: { zip64?: Zip64Values; unicodePath?: UnicodePath } = {},
+  decoded: { zip64?: Zip64Values; unicodePath?: UnicodePath; decoded?: DecodedExtra } = {},
 ): ExtraBlock {
   return {
     id: raw.id,
-    name: extraName(raw.id),
+    name: nameOf(raw),
+    ...(raw.padding ? { padding: true } : {}),
     offset: raw.offset,
     byteLength: raw.data.length,
     preview: raw.data.slice(0, PREVIEW),
