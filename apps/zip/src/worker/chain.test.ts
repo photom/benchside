@@ -53,4 +53,17 @@ describe('archive chain', () => {
     await chain.analyze(file(buildZip([{ name: 'b.txt' }]).bytes));
     expect(chain.cachedPaths()).toEqual(['']);
   });
+
+  it('PAR-12, PAR-13: given parameters, when analyzed and opened, then both reports carry them', async () => {
+    const chain = new ArchiveChain();
+    const top = await chain.analyze(
+      file(buildZip([{ name: 'a.zip', content: inner('x') }]).bytes),
+      {
+        ratioThreshold: 300,
+      },
+    );
+    const nested = await chain.open([0]);
+    expect(top.parameters.ratioThreshold).toBe(300);
+    expect(nested.kind === 'report' && nested.report.parameters.ratioThreshold).toBe(300);
+  });
 });

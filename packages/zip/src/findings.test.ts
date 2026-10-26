@@ -9,17 +9,17 @@ function documented() {
   return rows
     .filter((l) => l.startsWith('| `'))
     .map((l) => {
-      const [id, severity, , section] = l
+      const [id, severity, category, , section] = l
         .slice(2, -2)
         .split(' | ')
         .map((c) => c.trim());
-      return [id?.replaceAll('`', ''), severity, section === '—' ? undefined : section];
+      return [id?.replaceAll('`', ''), severity, category, section === '—' ? undefined : section];
     });
 }
 
 describe('findings', () => {
   it('REP-7: the findings table in report.md matches the code', () => {
-    const code = Object.entries(FINDINGS).map(([id, f]) => [id, f.severity, f.section]);
+    const code = Object.entries(FINDINGS).map(([id, f]) => [id, f.severity, f.category, f.section]);
     expect(code).toEqual(documented());
   });
 
@@ -30,6 +30,7 @@ describe('findings', () => {
       {
         id: 'zip.local.mismatch',
         severity: 'warning',
+        category: 'disagreement',
         message: 'Differs.',
         section: '4.3.2',
         offset: 30,

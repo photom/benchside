@@ -1,10 +1,10 @@
-import type { NestedResult, ZipReport } from '@benchside/zip';
+import type { NestedResult, ParameterInput, ZipReport } from '@benchside/zip';
 import type { FromWorker, ToWorker } from './protocol.ts';
 // ?worker&inline starts the worker from a blob: URL, so it inherits the page's CSP (0004).
 import AnalysisWorker from './worker.ts?worker&inline';
 
 export interface ZipHost {
-  analyze(file: Blob): Promise<ZipReport>;
+  analyze(file: Blob, parameters?: ParameterInput): Promise<ZipReport>;
   open(path: readonly number[]): Promise<NestedResult>;
 }
 
@@ -44,8 +44,8 @@ export function createWorkerHost(worker: Worker = new AnalysisWorker()): ZipHost
   }
 
   return {
-    async analyze(file) {
-      const reply = await send((id) => ({ type: 'analyze', id, file }));
+    async analyze(file, parameters = {}) {
+      const reply = await send((id) => ({ type: 'analyze', id, file, parameters }));
       if (reply.type !== 'report') throw new Error(`Unexpected reply: ${reply.type}`);
       return reply.report;
     },

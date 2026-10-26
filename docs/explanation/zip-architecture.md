@@ -25,6 +25,9 @@ flowchart TD
     open --> crc[crc32.ts]
     analyze & open --> source[source.ts<br/>ByteSource]
     analyze --> findings[findings.ts]
+    analyze --> sec[security.ts]
+    analyze --> rd[disagreement.ts]
+    analyze & open --> params[parameters.ts]
   end
   chain --> analyze
   chain --> open
@@ -43,7 +46,10 @@ flowchart TD
 | `crc32.ts` | CRC-32 | EXT-4 |
 | `inflate.ts` | Bounded raw-deflate decompression | NEST-3 |
 | `nested.ts` | Refusal reasons, content, verification | NEST-* |
-| `findings.ts` | Finding collector with the 1 000 limit | REP-8 |
+| `findings.ts` | Finding collector with the 1 000 limit; severity, category, and section per ID | REP-7, REP-8, REP-10 |
+| `parameters.ts` | Defaults, ranges, clamping | PAR-* |
+| `security.ts` | Name, size, count, and overlap checks over the finished entries and byte map | SEC-* |
+| `disagreement.ts` | EOCD candidates, name encodings, bounded scan of gaps for hidden headers | RD-1, RD-3..5 |
 
 ## Analysis flow
 
@@ -69,7 +75,7 @@ sequenceDiagram
 
 | Direction | Message |
 |---|---|
-| UI → worker | `{ type: 'analyze', id, file: Blob }` |
+| UI → worker | `{ type: 'analyze', id, file: Blob, parameters }` |
 | UI → worker | `{ type: 'open', id, path: number[] }` |
 | worker → UI | `{ type: 'report', id, report }` |
 | worker → UI | `{ type: 'refused', id, reason }` |
@@ -77,6 +83,7 @@ sequenceDiagram
 
 - A `File` is passed by reference; it is not copied into memory.
 - The host keeps only the latest request's answer, like the mail app's host. A worker error rejects the waiting request.
+- `parameters` is the user's partial set; the package fills in defaults and clamps (PAR-11). Nested archives reuse the top-level report's values (PAR-13), so `open` carries none.
 - `ArchiveChain` (`worker/chain.ts`) caches `{ source, report }` per path. Opening a path drops cached entries that are not on it, and only the latest open fills the cache. A new file drops them all.
 
 ## UI
@@ -84,7 +91,8 @@ sequenceDiagram
 ```mermaid
 flowchart TD
   h[Heading] --> drop[DropZone]
-  drop --> crumbs["Path: outer.zip › inner.zip"]
+  drop --> options["Options<br/>limits, thresholds,<br/>target file system, checks"]
+  options --> crumbs["Path: outer.zip › inner.zip"]
   crumbs --> summary["Summary<br/>size, entries, ZIP64, shift, comment"]
   summary --> findings[Findings]
   findings --> entries["Entries table<br/>select one"]
@@ -102,7 +110,29 @@ flowchart TD
 | Names and comments render as text | They come from the file |
 | "Open as archive" shows the refusal reason inline | The user sees why nothing opened |
 | The archive hint reads "archive?" next to the name | Marks likely archives without color |
+| Findings are grouped under Security, Reader disagreement, and Structure, each with a count | The category answers "should I worry?" before the details |
+| Options live in component state only | REQ-ZIP-008: values last for the visit; nothing is stored |
+| A number input applies on change (blur or Enter), not on every keystroke | Typing "1000" must not analyze with 1, 10, and 100 first |
 
 ## Shared UI
 
 The drop zone moves from the mail app into `@benchside/ui` (the second app needs it). It keeps the class `drop` and its layout rule ([mail UI](mail-design/ui.md)).
+
+## Changing an option
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant A as App
+  participant W as Worker
+  U->>A: change a parameter
+  A->>W: analyze(file, parameters)
+  W-->>A: report (parameters recorded)
+  loop each nested archive that was open, outermost first
+    A->>W: open(its path)
+    W-->>A: report, or refused
+    Note over A: refused: stop, show the levels opened so far, and say why
+  end
+```
+
+A change re-reads the headers and decompresses the open nested archives again, even when only a security check was toggled. That keeps one code path and always matches the spec. If it proves slow on very large archives, the security checks can run again on the cached report instead.

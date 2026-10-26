@@ -1,4 +1,4 @@
-import type { ZipReport } from '@benchside/zip';
+import { DEFAULT_PARAMETERS, type ZipReport } from '@benchside/zip';
 import { describe, expect, it } from 'vitest';
 import { createWorkerHost } from './host.ts';
 import type { FromWorker, ToWorker } from './protocol.ts';
@@ -26,14 +26,15 @@ const report: ZipReport = {
   entries: [],
   regions: [],
   findings: [],
+  parameters: DEFAULT_PARAMETERS,
 };
 const file = new Blob(['x']);
 
 describe('worker host', () => {
   it('REQ-ZIP-005: given a file, when analyzed, then the File itself goes to the worker and the report comes back', async () => {
     const { worker, sent, reply } = fakeWorker();
-    const result = createWorkerHost(worker).analyze(file);
-    expect(sent).toEqual([{ type: 'analyze', id: 1, file }]);
+    const result = createWorkerHost(worker).analyze(file, { maxFiles: 5 });
+    expect(sent).toEqual([{ type: 'analyze', id: 1, file, parameters: { maxFiles: 5 } }]);
     reply({ type: 'report', id: 1, report });
     await expect(result).resolves.toEqual(report);
   });

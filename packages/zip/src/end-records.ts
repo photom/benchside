@@ -25,6 +25,8 @@ export interface EndDraft {
   readonly cdOffset: number;
   readonly cdByteLength: number;
   readonly regions: readonly Region[];
+  /** REP-11 */
+  readonly eocdCandidates: readonly number[];
 }
 
 export async function readEnd(reader: Reader, findings: FindingList): Promise<EndDraft | null> {
@@ -34,7 +36,7 @@ export async function readEnd(reader: Reader, findings: FindingList): Promise<En
     findings.add('zip.eocd.missing', 'No end of central directory record was found.');
     return null;
   }
-  const { eocd, comment } = found;
+  const { eocd, comment, candidates } = found;
   const regions: Region[] = [
     { kind: 'eocd', offset: eocd.offset, byteLength: EOCD_SIZE + eocd.commentLength },
   ];
@@ -77,11 +79,14 @@ export async function readEnd(reader: Reader, findings: FindingList): Promise<En
     cdOffset: values.cdOffset,
     cdByteLength: values.cdByteLength,
     regions,
+    eocdCandidates: candidates,
   };
 }
 
 /** EOCD-1, EOCD-2 */
-async function findEocd(reader: Reader): Promise<{ eocd: Eocd; comment: Text } | null> {
+async function findEocd(
+  reader: Reader,
+): Promise<{ eocd: Eocd; comment: Text; candidates: number[] } | null> {
   const size = reader.byteLength;
   const tailLength = Math.min(size, EOCD_SIZE + MAX_COMMENT);
   const base = size - tailLength;
@@ -90,13 +95,13 @@ async function findEocd(reader: Reader): Promise<{ eocd: Eocd; comment: Text } |
   const v = view(tail);
   let fitting: number | null = null;
   let exact: number | null = null;
+  // REP-11: every signature with a whole record after it, highest first.
+  const candidates: number[] = [];
   for (let p = tailLength - EOCD_SIZE; p >= 0; p--) {
     if (v.getUint32(p, true) !== EOCD_SIGNATURE) continue;
+    candidates.push(base + p);
     const end = base + p + EOCD_SIZE + v.getUint16(p + 20, true);
-    if (end === size) {
-      exact = p;
-      break;
-    }
+    if (end === size && exact === null) exact = p;
     if (end < size && fitting === null) fitting = p;
   }
   const p = exact ?? fitting;
@@ -113,7 +118,7 @@ async function findEocd(reader: Reader): Promise<{ eocd: Eocd; comment: Text } |
     commentLength,
   };
   const comment = decodeArchiveComment(tail.subarray(p + EOCD_SIZE, p + EOCD_SIZE + commentLength));
-  return { eocd, comment };
+  return { eocd, comment, candidates };
 }
 
 /** Z64-1..3 */

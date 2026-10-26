@@ -12,11 +12,11 @@ import {
   versionNeeded,
 } from './fields.ts';
 import type { FindingList } from './findings.ts';
+import { CENTRAL_SIGNATURE } from './signatures.ts';
 import { type Reader, view } from './source.ts';
 import { decodeCp437, decodeUtf8 } from './text.ts';
 import type { CentralHeader, ExtraBlock, Name, Region, Text, Zip64Values } from './types.ts';
 
-const CENTRAL_SIGNATURE = 0x02014b50; // 4.3.12
 const SIGNATURE_RECORD = 0x05054b50; // 4.3.13
 const HEADER_SIZE = 46;
 const UTF8_FLAG = 0x0800; // 4.4.4 bit 11
