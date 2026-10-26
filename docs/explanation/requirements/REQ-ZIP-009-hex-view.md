@@ -8,7 +8,7 @@ Status: Accepted
 
 ## Requirement
 
-- Selecting a byte-map region, a header field, or a finding with an offset shows those bytes in hex and ASCII.
+- Selecting a byte-map region, an entry's header or data, a header field, or a finding with an offset shows those bytes in hex and ASCII.
 - Bytes of a header are labelled with their field names (APPNOTE layout tables).
 - The view reads only the bytes shown, so it works on archives of any size.
 - Long regions are paged or scrolled without rendering every byte at once.
@@ -32,4 +32,5 @@ Status: Accepted
 
 ## Specified in
 
-- Hex view (to be written in `docs/reference/zip/`)
+- [Hex view](../../reference/zip/hex-view.md) (HEX-1..11)
+- Design: [0008](../decisions/0008-zip-hex-view-reads-through-the-worker.md)

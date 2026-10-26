@@ -1,5 +1,6 @@
 import type { Category, Finding } from '@benchside/zip';
 import { offset } from './format.ts';
+import type { HexTarget } from './HexView.tsx';
 
 const SEVERITY = { error: 'Error', warning: 'Warning', info: 'Info' } as const;
 
@@ -13,10 +14,27 @@ const GROUPS: readonly { category: Category; title: string }[] = [
 export function Findings({
   findings,
   onEntry,
+  targetOf,
+  onBytes,
 }: {
   findings: readonly Finding[];
   onEntry: (index: number) => void;
+  /** HEX-1: the region to show for a finding, or null when no region holds its offset. */
+  targetOf: (finding: Finding) => HexTarget | null;
+  onBytes: (target: HexTarget) => void;
 }) {
+  const Offset = ({ finding, at }: { finding: Finding; at: number }) => {
+    const target = targetOf(finding);
+    if (!target) return <> · offset {offset(at)}</>;
+    return (
+      <>
+        {' · '}
+        <button type="button" onClick={() => onBytes(target)}>
+          Bytes at {offset(at)}
+        </button>
+      </>
+    );
+  };
   return (
     <section aria-label="Findings">
       <h2>Findings</h2>
@@ -32,7 +50,7 @@ export function Findings({
                 <li key={i} class="finding" data-severity={f.severity}>
                   <strong>{SEVERITY[f.severity]}</strong> {f.message} <code>{f.id}</code>
                   {f.section && <> · APPNOTE {f.section}</>}
-                  {f.offset !== undefined && <> · offset {offset(f.offset)}</>}
+                  {f.offset !== undefined && <Offset finding={f} at={f.offset} />}
                   {f.entry !== undefined && (
                     <>
                       {' · '}

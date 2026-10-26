@@ -66,4 +66,45 @@ describe('archive chain', () => {
     expect(top.parameters.ratioThreshold).toBe(300);
     expect(nested.kind === 'report' && nested.report.parameters.ratioThreshold).toBe(300);
   });
+
+  describe('reading bytes', () => {
+    it('HEX-3: given the top level, when a range is read, then those bytes of the file', async () => {
+      const bytes = buildZip([{ name: 'a.txt', content: 'hello' }]).bytes;
+      const chain = new ArchiveChain();
+      await chain.analyze(file(bytes));
+      expect(await chain.read([], 30, 5)).toEqual(bytes.slice(30, 35));
+    });
+
+    it('HEX-9: given a nested archive open, when its path is read, then bytes of its own content', async () => {
+      const nested = inner('deep.txt');
+      const chain = new ArchiveChain();
+      await chain.analyze(file(buildZip([{ name: 'in.zip', content: nested }]).bytes));
+      await chain.open([0]);
+      expect(await chain.read([0], 0, 8)).toEqual(nested.slice(0, 8));
+    });
+
+    it('HEX-3: given a range past the end or over 512 bytes, when read, then it is cut', async () => {
+      const bytes = buildZip([{ name: 'a', content: new Uint8Array(2000) }]).bytes;
+      const chain = new ArchiveChain();
+      await chain.analyze(file(bytes));
+      expect((await chain.read([], 0, 4096)).length).toBe(512);
+      expect((await chain.read([], bytes.length - 3, 512)).length).toBe(3);
+      expect((await chain.read([], bytes.length + 10, 16)).length).toBe(0);
+    });
+
+    it('HEX-3: given a nested archive, when a page is read, then the bytes carry no more than the page', async () => {
+      const nested = buildZip([{ name: 'big', content: new Uint8Array(100_000) }]).bytes;
+      const chain = new ArchiveChain();
+      await chain.analyze(file(buildZip([{ name: 'in.zip', content: nested }]).bytes));
+      await chain.open([0]);
+      const page = await chain.read([0], 100, 16);
+      expect(page.buffer.byteLength).toBe(16);
+    });
+
+    it('0008: given a path that is not open, when read, then it fails', async () => {
+      const chain = new ArchiveChain();
+      await chain.analyze(file(buildZip([{ name: 'a' }]).bytes));
+      await expect(chain.read([0], 0, 4)).rejects.toThrow('not open');
+    });
+  });
 });

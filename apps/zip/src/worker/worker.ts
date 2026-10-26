@@ -18,6 +18,11 @@ self.onmessage = async (event: MessageEvent<ToWorker>) => {
       });
       return;
     }
+    if (message.type === 'read') {
+      const bytes = await chain.read(message.path, message.offset, message.byteLength);
+      post({ type: 'bytes', id: message.id, bytes });
+      return;
+    }
     const result = await chain.open(message.path);
     post(
       result.kind === 'report'

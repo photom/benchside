@@ -1,8 +1,10 @@
+import { analyzeZip, bytesSource } from '@benchside/zip';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildZip, type FixtureEntry, patch } from '../../../packages/zip/src/test/build-zip.ts';
 import { App } from './App.tsx';
+import { EntryDetail } from './views/EntryDetail.tsx';
 import { ArchiveChain } from './worker/chain.ts';
 import type { ZipHost } from './worker/host.ts';
 
@@ -23,7 +25,11 @@ function mount(host: ZipHost = chainHost()) {
 
 function chainHost(): ZipHost {
   const chain = new ArchiveChain();
-  return { analyze: (f, p) => chain.analyze(f, p), open: (p) => chain.open(p) };
+  return {
+    analyze: (f, p) => chain.analyze(f, p),
+    open: (p) => chain.open(p),
+    read: (p, o, n) => chain.read(p, o, n),
+  };
 }
 
 const MiB = 1024 * 1024;
@@ -176,7 +182,11 @@ describe('ZIP app', () => {
   });
 
   it('REQ-ZIP-005: given a failing analysis, when chosen, then an alert explains it', async () => {
-    mount({ analyze: () => Promise.reject(new Error('boom')), open: () => Promise.reject() });
+    mount({
+      analyze: () => Promise.reject(new Error('boom')),
+      open: () => Promise.reject(),
+      read: () => Promise.reject(),
+    });
     await choose(new Uint8Array(1));
     expect(root.querySelector('[role=alert]')?.textContent).toContain('boom');
   });
@@ -190,6 +200,7 @@ describe('ZIP app', () => {
         new Promise((resolve) => {
           release = () => void chain.open(p).then(resolve);
         }),
+      read: (p, o, n) => chain.read(p, o, n),
     };
     mount(host);
     const inner = buildZip([{ name: 'inner.txt' }]).bytes;
@@ -208,6 +219,7 @@ describe('ZIP app', () => {
     mount({
       analyze: (f) => chain.analyze(f),
       open: () => Promise.reject(new Error('worker crashed')),
+      read: (p, o, n) => chain.read(p, o, n),
     });
     await choose(buildZip([{ name: 'in.zip', content: 'x' }]).bytes);
     await click(button(section('Entries'), 'in.zip'));
@@ -336,6 +348,7 @@ describe('ZIP app', () => {
           opened.push(p);
           return chain.open(p);
         },
+        read: (p, o, n) => chain.read(p, o, n),
       };
       mount(host);
       const inner = buildZip([{ name: 'inner.txt' }]).bytes;
@@ -463,6 +476,216 @@ describe('ZIP app', () => {
         centralExtra: block(0x7875, Uint8Array.of(1, 0, 0)),
       });
       expect(text).toContain('no UID or GID');
+    });
+  });
+
+  describe('hex view', () => {
+    const hexRows = () =>
+      [...section('Hex view').querySelectorAll('table[aria-label="Bytes"] tbody tr')].map((tr) =>
+        [...tr.querySelectorAll('td')].map((td) => td.textContent),
+      );
+    const marked = () =>
+      [...section('Hex view').querySelectorAll('table[aria-label="Bytes"] td:nth-child(2) mark')]
+        .map((m) => m.textContent)
+        .join(' ');
+    const fieldNames = () =>
+      [...section('Hex view').querySelectorAll('table[aria-label="Fields"] tbody th')].map(
+        (th) => th.textContent,
+      );
+    /** A host over the chain that records every read. */
+    function recordingHost() {
+      const chain = new ArchiveChain();
+      const reads: [readonly number[], number, number][] = [];
+      const host: ZipHost = {
+        analyze: (f, p) => chain.analyze(f, p),
+        open: (p) => chain.open(p),
+        read: (p, o, n) => {
+          reads.push([p, o, n]);
+          return chain.read(p, o, n);
+        },
+      };
+      return { host, reads };
+    }
+
+    it('REQ-ZIP-009, HEX-6: given an entry, when its central header bytes are shown, then the 46 fixed bytes are labelled, then name, extra field, and comment', async () => {
+      mount();
+      await choose(
+        buildZip([
+          { name: 'a.txt', comment: 'c', centralExtra: Uint8Array.of(0x55, 0x54, 1, 0, 0) },
+        ]).bytes,
+      );
+      await click(button(section('Entries'), 'a.txt'));
+      await click(button(section('Entry detail'), 'Central header bytes'));
+      const names = fieldNames();
+      expect(names[0]).toBe('central file header signature');
+      expect(names[16]).toBe('relative offset of local header');
+      expect(names.slice(17)).toEqual([
+        'file name',
+        'extra 0x5455 Extended timestamp: header ID',
+        'extra 0x5455 Extended timestamp: data size',
+        'extra 0x5455 Extended timestamp: data',
+        'file comment',
+      ]);
+      expect(hexRows()[0]?.[1]).toMatch(/^50 4b 01 02 /);
+      expect(hexRows()[0]?.[3]).toContain('central file header signature');
+    });
+
+    it('REQ-ZIP-009, HEX-3: given a 2 MiB entry, when its file data is shown, then only its first 512 bytes are read', async () => {
+      const { host, reads } = recordingHost();
+      mount(host);
+      await choose(buildZip([{ name: 'big', content: new Uint8Array(2 * MiB).fill(0x41) }]).bytes);
+      await click(button(section('Entries'), 'big'));
+      await click(button(section('Entry detail'), 'File data bytes'));
+      expect(reads).toEqual([[[], 33, 512]]);
+      expect(hexRows()).toHaveLength(32);
+      expect(hexRows()[0]?.[2]).toBe('AAAAAAAAAAAAAAAA');
+      expect(section('Hex view').textContent).toContain('Page 1 of 4096');
+    });
+
+    it('HEX-4: given several pages, when Next and Previous are used, then the page moves and is read', async () => {
+      const { host, reads } = recordingHost();
+      mount(host);
+      await choose(buildZip([{ name: 'f', content: new Uint8Array(1000) }]).bytes);
+      await click(button(section('Entries'), 'f'));
+      await click(button(section('Entry detail'), 'File data bytes'));
+      await click(button(section('Hex view'), 'Next'));
+      expect(section('Hex view').textContent).toContain('Page 2 of 2');
+      expect(hexRows()).toHaveLength(31);
+      expect(hexRows()[0]?.[0]).toBe('543 (0x21f)');
+      expect(reads.at(-1)).toEqual([[], 543, 488]);
+      expect(button(section('Hex view'), 'Next').disabled).toBe(true);
+      await click(button(section('Hex view'), 'Previous'));
+      expect(section('Hex view').textContent).toContain('Page 1 of 2');
+    });
+
+    it('HEX-1, HEX-5: given a byte map row, when its bytes are shown, then hex and ASCII with dots for other bytes', async () => {
+      mount();
+      await choose(buildZip([{ name: 'a' }], { comment: 'hi' }).bytes);
+      const row = [...section('Byte map').querySelectorAll('tbody tr')].at(-1) as HTMLElement;
+      await click(button(row, 'Show bytes'));
+      expect(section('Hex view').textContent).toContain('End of central directory');
+      expect(hexRows()[0]?.[2]).toBe('PK........../...');
+      expect(hexRows()[1]?.[2]).toBe('......hi');
+    });
+
+    it('HEX-1, HEX-8: given a finding with an offset, when its bytes are shown, then the field at that offset is marked', async () => {
+      mount();
+      await choose(buildZip([{ name: 'a.txt', localName: 'b.txt', content: 'x' }]).bytes);
+      await click(button(section('Findings'), 'Bytes at 0 (0x0)'));
+      expect(section('Hex view').textContent).toContain('Local header');
+      expect(marked()).toBe('50 4b 03 04');
+    });
+
+    it('HEX-7: given a field, when selected, then its bytes are marked and its value shown', async () => {
+      mount();
+      await choose(buildZip([{ name: 'a.txt', content: 'hello' }]).bytes);
+      await click(button(section('Entries'), 'a.txt'));
+      await click(button(section('Entry detail'), 'Local header bytes'));
+      const fields = section('Hex view').querySelector('table[aria-label="Fields"]') as HTMLElement;
+      await click(button(fields, 'uncompressed size'));
+      expect(marked()).toBe('05 00 00 00');
+      const row = [...fields.querySelectorAll('tbody tr')].find(
+        (tr) => tr.querySelector('th')?.textContent === 'uncompressed size',
+      );
+      expect(row?.textContent).toContain('5 (0x5)');
+    });
+
+    it('HEX-9: given a nested archive, when its header bytes are shown, then they are read from its own content', async () => {
+      const { host, reads } = recordingHost();
+      mount(host);
+      const inner = buildZip([{ name: 'inner.txt' }]).bytes;
+      await choose(buildZip([{ name: 'in.zip', content: inner }]).bytes);
+      await click(button(section('Entries'), 'in.zip'));
+      await click(button(section('Entry detail'), 'Open as archive'));
+      await click(button(section('Entries'), 'inner.txt'));
+      await click(button(section('Entry detail'), 'Local header bytes'));
+      expect(reads.at(-1)).toEqual([[0], 0, 39]);
+      expect(hexRows()[0]?.[1]).toMatch(/^50 4b 03 04/);
+    });
+
+    it('HEX-9: given a read that fails, when shown, then the view says why and the report stays', async () => {
+      const chain = new ArchiveChain();
+      mount({
+        analyze: (f) => chain.analyze(f),
+        open: (p) => chain.open(p),
+        read: () => Promise.reject(new Error('disk gone')),
+      });
+      await choose(buildZip([{ name: 'a.txt', content: 'x' }]).bytes);
+      await click(button(section('Entries'), 'a.txt'));
+      await click(button(section('Entry detail'), 'File data bytes'));
+      expect(section('Hex view').querySelector('[role=alert]')?.textContent).toContain('disk gone');
+      expect(rows('Entries').map((r) => r[1])).toEqual(['a.txt']);
+    });
+
+    it('HEX-1: given a new file, when chosen, then the hex view closes', async () => {
+      mount();
+      await choose(buildZip([{ name: 'a.txt', content: 'x' }]).bytes);
+      await click(button(section('Entries'), 'a.txt'));
+      await click(button(section('Entry detail'), 'File data bytes'));
+      expect(section('Hex view')).not.toBeNull();
+      await choose(buildZip([{ name: 'b.txt' }]).bytes);
+      expect(section('Hex view')).toBeNull();
+    });
+
+    describe('review fixes', () => {
+      it('HEX-1: given a finding whose offset no region holds, when shown, then the offset is text, not a button', async () => {
+        mount();
+        const z = buildZip([{ name: 'a' }, { name: 'b' }]);
+        patch(z.bytes, (z.central[1] as number) + 42, 0x00ffffff, 4);
+        await choose(z.bytes);
+        const text = section('Findings').textContent ?? '';
+        expect(text).toContain('offset 16777215 (0xffffff)');
+        expect(text).not.toContain('Bytes at 16777215');
+      });
+
+      it('HEX-1: given an overlap finding, when its bytes are shown, then the region of its entry opens', async () => {
+        mount();
+        const z = buildZip([
+          { name: 'a', content: 'aaaa' },
+          { name: 'b', content: 'bbbb' },
+        ]);
+        patch(z.bytes, (z.central[1] as number) + 42, 0, 4);
+        await choose(z.bytes);
+        const item = [...section('Findings').querySelectorAll('li')].find((li) =>
+          li.textContent?.includes('zip.overlap'),
+        ) as HTMLElement;
+        await click(button(item, 'Bytes at 0 (0x0)'));
+        expect(section('Hex view').textContent).toContain('Local header, entry 1');
+      });
+
+      it('HEX-1: given parts without a region, when the entry detail is shown, then they have no button', async () => {
+        const z = buildZip([{ name: 'a', content: 'abc' }]);
+        const report = await analyzeZip(bytesSource(z.bytes));
+        root = document.createElement('div');
+        document.body.append(root);
+        act(() =>
+          render(
+            <EntryDetail
+              entry={report.entries[0] as (typeof report.entries)[number]}
+              open={{ kind: 'idle' }}
+              onOpen={() => {}}
+              parts={['central-header']}
+              onBytes={() => {}}
+            />,
+            root,
+          ),
+        );
+        const names = [...root.querySelectorAll('button')].map((b) => b.textContent);
+        expect(names).toContain('Central header bytes');
+        expect(names).not.toContain('Local header bytes');
+        expect(names).not.toContain('File data bytes');
+      });
+
+      it('HEX-7: given a file name field, when shown, then it has no number value', async () => {
+        mount();
+        await choose(buildZip([{ name: 'a.txt' }]).bytes);
+        await click(button(section('Entries'), 'a.txt'));
+        await click(button(section('Entry detail'), 'Central header bytes'));
+        const row = [
+          ...section('Hex view').querySelectorAll('table[aria-label="Fields"] tbody tr'),
+        ].find((tr) => tr.querySelector('th')?.textContent === 'file name');
+        expect(row?.querySelectorAll('td')[2]?.textContent).toBe('');
+      });
     });
   });
 });

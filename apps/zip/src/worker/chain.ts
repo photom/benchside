@@ -7,6 +7,7 @@ import {
   type ParameterInput,
   type ZipReport,
 } from '@benchside/zip';
+import { MAX_READ } from './protocol.ts';
 
 interface Opened {
   readonly source: ByteSource;
@@ -53,6 +54,17 @@ export class ArchiveChain {
       if (mine === this.generation && myOpen === this.opens) this.cache.set(key, current);
     }
     return { kind: 'report', report: current.report };
+  }
+
+  /** HEX-3, HEX-9: at most MAX_READ bytes of the archive cached for `path`. */
+  async read(path: readonly number[], offset: number, byteLength: number): Promise<Uint8Array> {
+    const opened = this.cache.get(keyOf(path));
+    if (!opened) throw new Error('That archive is not open.');
+    const size = opened.source.byteLength;
+    const start = Math.min(Math.max(0, offset), size);
+    const length = Math.max(0, Math.min(byteLength, MAX_READ, size - start));
+    // A copy: a view into a nested archive would post its whole buffer (HEX-3).
+    return (await opened.source.read(start, length)).slice();
   }
 
   /** For tests. */

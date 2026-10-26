@@ -1,10 +1,17 @@
 import { DropZone } from '@benchside/ui';
-import type { ParameterInput, ZipReport } from '@benchside/zip';
+import type { Finding, ParameterInput, Region, ZipReport } from '@benchside/zip';
 import { useRef, useState } from 'preact/hooks';
 import { ByteMap } from './views/ByteMap.tsx';
 import { Entries } from './views/Entries.tsx';
-import { EntryDetail, type OpenState, REFUSALS } from './views/EntryDetail.tsx';
+import {
+  ENTRY_PARTS,
+  EntryDetail,
+  type EntryPart,
+  type OpenState,
+  REFUSALS,
+} from './views/EntryDetail.tsx';
 import { Findings } from './views/Findings.tsx';
+import { type HexTarget, HexView } from './views/HexView.tsx';
 import { Options } from './views/Options.tsx';
 import { References } from './views/References.tsx';
 import { Summary } from './views/Summary.tsx';
@@ -31,6 +38,9 @@ export function App({ host }: { host: ZipHost }) {
   // REQ-ZIP-008: for this visit only; never stored.
   const [parameters, setParameters] = useState<ParameterInput>({});
   const [notice, setNotice] = useState<string | null>(null);
+  // HEX-1: what the hex view shows; a new number per choice resets its page and marks.
+  const [hex, setHex] = useState<{ target: HexTarget; seq: number } | null>(null);
+  const hexSeq = useRef(0);
   // Bumped whenever the view changes, so a late open result cannot move it back.
   const view = useRef(0);
   // The chosen file and the archives open on it, for analyzing again after an option change.
@@ -47,6 +57,7 @@ export function App({ host }: { host: ZipHost }) {
     setSelected(null);
     setOpen({ kind: 'idle' });
     setNotice(null);
+    setHex(null);
     try {
       // The host rejects a superseded request with AbortError, so this is the latest file.
       const report = await host.analyze(chosen, params);
@@ -78,6 +89,7 @@ export function App({ host }: { host: ZipHost }) {
       setNotice(null);
     }
     shownLevels.current = levels;
+    setHex(null);
     setStatus({ kind: 'done', levels });
     setSelected(null);
     setOpen({ kind: 'idle' });
@@ -126,6 +138,9 @@ export function App({ host }: { host: ZipHost }) {
           }}
           onBack={(depth) => show(status.levels.slice(0, depth + 1))}
           onOpen={(index) => void openEntry(status.levels, index)}
+          hex={hex}
+          host={host}
+          onBytes={(target) => setHex({ target, seq: ++hexSeq.current })}
         />
       )}
       <References />
@@ -140,6 +155,9 @@ function Result({
   onSelect,
   onBack,
   onOpen,
+  hex,
+  host,
+  onBytes,
 }: {
   levels: readonly Level[];
   selected: number | null;
@@ -147,11 +165,25 @@ function Result({
   onSelect: (index: number) => void;
   onBack: (depth: number) => void;
   onOpen: (index: number) => void;
+  hex: { target: HexTarget; seq: number } | null;
+  host: ZipHost;
+  onBytes: (target: HexTarget) => void;
 }) {
   const { report } = levels.at(-1) as Level;
   const entry = selected === null ? undefined : report.entries[selected];
   // A new key per archive resets paging and scroll state in the tables.
   const key = report.path.join('/');
+  const partRegion = (index: number, part: EntryPart) =>
+    report.regions.find((r) => r.kind === part && r.entry === index);
+  // HEX-1: the region that starts at the offset for the finding's entry, else the first that holds it.
+  const targetOf = (f: Finding): HexTarget | null => {
+    const at = f.offset;
+    if (at === undefined) return null;
+    const region =
+      report.regions.find((r) => r.offset === at && f.entry !== undefined && r.entry === f.entry) ??
+      report.regions.find((r) => at >= r.offset && at < r.offset + r.byteLength);
+    return region ? { region, mark: at } : null;
+  };
   return (
     <>
       <nav aria-label="Archive path">
@@ -169,10 +201,31 @@ function Result({
         ))}
       </nav>
       <Summary report={report} />
-      <Findings findings={report.findings} onEntry={onSelect} />
+      <Findings
+        findings={report.findings}
+        onEntry={onSelect}
+        targetOf={targetOf}
+        onBytes={onBytes}
+      />
       <Entries key={key} entries={report.entries} selected={selected} onSelect={onSelect} />
-      {entry && <EntryDetail entry={entry} open={open} onOpen={() => onOpen(entry.index)} />}
-      <ByteMap key={key} regions={report.regions} />
+      {entry && (
+        <EntryDetail
+          entry={entry}
+          open={open}
+          onOpen={() => onOpen(entry.index)}
+          parts={ENTRY_PARTS.filter((part) => partRegion(entry.index, part))}
+          onBytes={(part) => {
+            const region = partRegion(entry.index, part);
+            if (region) onBytes({ region });
+          }}
+        />
+      )}
+      {hex && <HexView key={hex.seq} report={report} target={hex.target} host={host} />}
+      <ByteMap
+        key={key}
+        regions={report.regions}
+        onBytes={(region: Region) => onBytes({ region })}
+      />
     </>
   );
 }

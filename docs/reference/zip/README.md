@@ -19,6 +19,7 @@ flowchart LR
   cd & local & map --> sec[Security checks]
   end_ & cd & local & map --> rd[Reader disagreement]
   map & fields & nested & sec & rd --> report[Report]
+  report --> hex[Hex view]
 ```
 
 | Page | Covers |
@@ -29,6 +30,7 @@ flowchart LR
 | [Security checks](security.md) | Names that escape the target folder, collisions, symlinks, zip bombs, overlapping entries |
 | [Reader disagreement](disagreement.md) | Places where two ZIP readers could list different files |
 | [Parameters](parameters.md) | Values the user can change: limits, thresholds, target file system, checks |
+| [Hex view](hex-view.md) | Raw bytes of a region, one page at a time, with APPNOTE field names |
 | [Report](report.md) | Output data model and findings |
 
 ## Conventions
@@ -54,3 +56,4 @@ All multi-byte values are little-endian (4.3.3, 4.4.1.1).
 | Nested depth | `maxNestingDepth` ([PAR-1](parameters.md)), default 8 | Opening refused: `too-deep` |
 | Nested decompressed size | `maxNestedBytes` ([PAR-2](parameters.md)), default 256 MiB | Opening refused: `too-large` |
 | Scan for hidden headers | 16 MiB per archive | `rd.scan-limit`; the rest is not scanned ([RD-5](disagreement.md)) |
+| Hex view read | 512 bytes per page | Later bytes are read on the next page ([HEX-3](hex-view.md)) |

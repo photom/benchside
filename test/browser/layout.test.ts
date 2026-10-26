@@ -32,7 +32,7 @@ describe('ZIP app layout', () => {
     const root = document.createElement('div');
     document.body.append(root);
     const never = () => new Promise<never>(() => {});
-    render(h(ZipApp, { host: { analyze: never, open: never } }), root);
+    render(h(ZipApp, { host: { analyze: never, open: never, read: never } }), root);
     const heading = box('h1');
     const drop = box('.drop');
     expect(drop.top).toBeGreaterThanOrEqual(heading.bottom);

@@ -27,6 +27,17 @@ export type OpenState =
   | { kind: 'refused'; reason: RefusalReason }
   | { kind: 'failed'; message: string };
 
+/** HEX-1: the parts of an entry the hex view can show. */
+export type EntryPart = 'central-header' | 'local-header' | 'file-data';
+
+export const ENTRY_PARTS: readonly EntryPart[] = ['central-header', 'local-header', 'file-data'];
+
+const PART_NAMES: Record<EntryPart, string> = {
+  'central-header': 'Central header bytes',
+  'local-header': 'Local header bytes',
+  'file-data': 'File data bytes',
+};
+
 const NAME_SOURCES = {
   'utf-8-flag': 'UTF-8 (flag bit 11)',
   'unicode-path': 'UTF-8 (Unicode Path extra field)',
@@ -37,10 +48,15 @@ export function EntryDetail({
   entry,
   open,
   onOpen,
+  parts,
+  onBytes,
 }: {
   entry: Entry;
   open: OpenState;
   onOpen: () => void;
+  /** HEX-1: the parts that have a region in the byte map. */
+  parts: readonly EntryPart[];
+  onBytes: (part: EntryPart) => void;
 }) {
   const c = entry.central;
   const l = entry.local;
@@ -150,6 +166,18 @@ export function EntryDetail({
         {entry.descriptor &&
           `. Data descriptor at ${offset(entry.descriptor.offset)}, ${entry.descriptor.byteLength} bytes${entry.descriptor.signature ? ' with signature' : ''}: CRC-32 ${crc(entry.descriptor.crc32)}, sizes ${entry.descriptor.compressedSize} / ${entry.descriptor.uncompressedSize}`}
       </p>
+      {parts.length > 0 && (
+        <p>
+          {parts.map((part, i) => (
+            <span key={part}>
+              {i > 0 && ' '}
+              <button type="button" onClick={() => onBytes(part)}>
+                {PART_NAMES[part]}
+              </button>
+            </span>
+          ))}
+        </p>
+      )}
       <h4>Extra fields</h4>
       <ExtraList title="Central directory" blocks={c.extra} />
       {l && <ExtraList title="Local header" blocks={l.extra} />}
