@@ -294,8 +294,14 @@ describe('central directory', () => {
     patch(z.bytes, z.eocdOffset + 8, 1, 2);
     patch(z.bytes, z.eocdOffset + 10, 1, 2);
     const r = await analyze(z.bytes);
-    // The unread entry's local header and central header are gaps.
-    expect(ids(r)).toEqual(['zip.cd.size-mismatch', 'zip.gap', 'zip.gap']);
+    // The unread entry's local header and central header are gaps, holding hidden headers (RD-4).
+    expect(ids(r)).toEqual([
+      'zip.cd.size-mismatch',
+      'zip.gap',
+      'zip.gap',
+      'rd.hidden-header',
+      'rd.hidden-header',
+    ]);
     expect(r.entries).toHaveLength(1);
   });
 
@@ -616,7 +622,7 @@ describe('robustness', () => {
     );
     let seed = 1;
     const random = () => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff;
       return seed;
     };
     for (let i = 0; i < 300; i++) {
