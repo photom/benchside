@@ -1,0 +1,15 @@
+{
+  "name": "@benchside/pdf-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@benchside/core": "*",
+    "@benchside/pdf": "*",
+    "@benchside/ui": "*",
+    "preact": "11.0.2"
+  }
+}

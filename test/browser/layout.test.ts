@@ -3,6 +3,8 @@ import { h, render } from 'preact';
 import { describe, expect, it } from 'vitest';
 import { App } from '../../apps/mail/src/App.tsx';
 import '../../apps/mail/src/style.css';
+import { App as PdfApp } from '../../apps/pdf/src/App.tsx';
+import '../../apps/pdf/src/style.css';
 import { App as ZipApp } from '../../apps/zip/src/App.tsx';
 import '../../apps/zip/src/style.css';
 
@@ -33,6 +35,20 @@ describe('ZIP app layout', () => {
     document.body.append(root);
     const never = () => new Promise<never>(() => {});
     render(h(ZipApp, { host: { analyze: never, open: never, read: never } }), root);
+    const heading = box('h1');
+    const drop = box('.drop');
+    expect(drop.top).toBeGreaterThanOrEqual(heading.bottom);
+    expect(drop.height).toBeGreaterThan(0);
+    render(null, root);
+    root.remove();
+  });
+});
+
+describe('PDF app layout', () => {
+  it('REQ-PDF-002: given the page, when laid out, then the heading and the drop zone do not overlap', () => {
+    const root = document.createElement('div');
+    document.body.append(root);
+    render(h(PdfApp, { host: { analyze: () => new Promise<never>(() => {}) } }), root);
     const heading = box('h1');
     const drop = box('.drop');
     expect(drop.top).toBeGreaterThanOrEqual(heading.bottom);
