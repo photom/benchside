@@ -4,8 +4,9 @@ Repository-wide view. Per-tool details:
 
 - [Mail analyzer architecture](mail-architecture.md)
 - [ZIP analyzer architecture](zip-architecture.md)
+- [PDF analyzer architecture](pdf-architecture.md)
 
-Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests).
+Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0010](decisions/0010-shared-core-package.md) (shared core package), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests).
 
 ## Repository
 
@@ -22,7 +23,7 @@ flowchart TD
     pmail[mail<br/>no DOM]
     pzip[zip<br/>no DOM]
     ppdf[pdf<br/>no DOM]
-    core[core<br/>no DOM<br/><i>when 2+ parsers share</i>]
+    core[core<br/>no DOM<br/>byte reading, inflate]
     ui[ui<br/>Preact<br/><i>when 2+ apps share</i>]
   end
 
@@ -31,7 +32,7 @@ flowchart TD
   mail --> pmail
   zip --> pzip
   pdf --> ppdf
-  pmail & pzip & ppdf -.-> core
+  pzip & ppdf --> core
   mail & zip & pdf & home -.-> ui
   mail & zip & pdf & home --> shared
 ```
