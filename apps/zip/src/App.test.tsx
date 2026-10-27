@@ -627,6 +627,53 @@ describe('ZIP app', () => {
       expect(section('Hex view')).toBeNull();
     });
 
+    it('HEX-4: given a page shown, when Next is clicked and the read is slow, then the current page stays until the next arrives', async () => {
+      const chain = new ArchiveChain();
+      let hold = false;
+      let release = () => {};
+      mount({
+        analyze: (f, p) => chain.analyze(f, p),
+        open: (p) => chain.open(p),
+        read: (p, o, n) =>
+          hold
+            ? new Promise((resolve, reject) => {
+                release = () => void chain.read(p, o, n).then(resolve, reject);
+              })
+            : chain.read(p, o, n),
+      });
+      await choose(buildZip([{ name: 'f', content: new Uint8Array(1000) }]).bytes);
+      await click(button(section('Entries'), 'f'));
+      await click(button(section('Entry detail'), 'File data bytes'));
+      hold = true;
+      await click(button(section('Hex view'), 'Next'));
+      expect(section('Hex view').textContent).toContain('Page 1 of 2');
+      expect(section('Hex view').textContent).toContain('Reading page 2');
+      expect(hexRows()).toHaveLength(32);
+      expect(hexRows()[0]?.[0]).toBe('31 (0x1f)');
+      release();
+      await settle();
+      expect(hexRows()).toHaveLength(31);
+      expect(hexRows()[0]?.[0]).toBe('543 (0x21f)');
+      expect(section('Hex view').textContent).not.toContain('Reading');
+    });
+
+    it('HEX-4, HEX-9: given a page shown, when the next read fails, then the error shows and the old bytes go', async () => {
+      const chain = new ArchiveChain();
+      let fail = false;
+      mount({
+        analyze: (f, p) => chain.analyze(f, p),
+        open: (p) => chain.open(p),
+        read: (p, o, n) => (fail ? Promise.reject(new Error('disk gone')) : chain.read(p, o, n)),
+      });
+      await choose(buildZip([{ name: 'f', content: new Uint8Array(1000) }]).bytes);
+      await click(button(section('Entries'), 'f'));
+      await click(button(section('Entry detail'), 'File data bytes'));
+      fail = true;
+      await click(button(section('Hex view'), 'Next'));
+      expect(section('Hex view').querySelector('[role=alert]')?.textContent).toContain('disk gone');
+      expect(hexRows()).toEqual([]);
+    });
+
     describe('review fixes', () => {
       it('HEX-1: given a finding whose offset no region holds, when shown, then the offset is text, not a button', async () => {
         mount();
