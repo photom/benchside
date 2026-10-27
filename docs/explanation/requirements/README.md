@@ -51,3 +51,13 @@ flowchart LR
 | [REQ-ZIP-010](REQ-ZIP-010-extra-fields.md) | Decode more extra fields | Accepted |
 
 Not yet planned in detail: content checks (file types, CRC-32 of every entry).
+
+## PDF analyzer
+
+| ID | Title | Status |
+|---|---|---|
+| [REQ-PDF-001](REQ-PDF-001-local-only.md) | Analyze PDFs without sending them anywhere | Accepted |
+| [REQ-PDF-002](REQ-PDF-002-show-structure.md) | Show the file structure | Accepted |
+| [REQ-PDF-003](REQ-PDF-003-robust-responsive.md) | Robust and responsive analysis | Accepted |
+
+Planned next: rebuilding broken files, objects and streams, risk checks (JavaScript, actions, embedded files), hex view.

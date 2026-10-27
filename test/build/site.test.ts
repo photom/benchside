@@ -8,6 +8,7 @@ const apps = [
   { name: 'home', dir: 'site', base: '/benchside/', connect: [] as string[] },
   { name: 'mail', dir: 'site/mail', base: '/benchside/mail/', connect: DOH_ORIGINS },
   { name: 'zip', dir: 'site/zip', base: '/benchside/zip/', connect: [] as string[] },
+  { name: 'pdf', dir: 'site/pdf', base: '/benchside/pdf/', connect: [] as string[] },
 ];
 
 const decode = (s: string) =>
@@ -20,7 +21,7 @@ describe.each(apps)('$name app build', ({ dir, base, connect }) => {
     expect(existsSync(join(dir, 'index.html'))).toBe(true);
   });
 
-  it('REQ-MAIL-001, REQ-ZIP-001: has the expected CSP as the first element in <head>', () => {
+  it('REQ-MAIL-001, REQ-ZIP-001, REQ-PDF-001: has the expected CSP as the first element in <head>', () => {
     const head = /<head>\s*(<meta[^>]*>)/.exec(html())?.[1] ?? '';
     expect(head).toContain('http-equiv="Content-Security-Policy"');
     expect(decode(/content="([^"]*)"/.exec(head)?.[1] ?? '')).toBe(cspPolicy(connect));
@@ -39,7 +40,7 @@ describe.each(apps)('$name app build', ({ dir, base, connect }) => {
   });
 });
 
-describe.each(['mail', 'zip'])('%s app worker', (app) => {
+describe.each(['mail', 'zip', 'pdf'])('%s app worker', (app) => {
   const assets = () => readdirSync(`site/${app}/assets`);
 
   it('0004: the worker is inlined, not emitted as its own script', () => {

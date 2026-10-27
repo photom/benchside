@@ -17,6 +17,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 
 - [Mail analyzer specification](reference/mail/) — exact behavior, rules, findings, and data model
 - [ZIP analyzer specification](reference/zip/) — structure, ZIP64, fields, nested archives, findings, hex view
+- [PDF analyzer specification](reference/pdf/) — syntax, file structure, revisions, findings
 
 ## Explanation
 
@@ -28,4 +29,5 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Mail analyzer detailed design](explanation/mail-detailed-design.md) — files, interfaces, worker protocol, DNS composition
 - [Mail analyzer module design](explanation/mail-design/) — internals of each module
 - [ZIP analyzer architecture](explanation/zip-architecture.md) — modules, worker protocol, UI
+- [PDF analyzer architecture](explanation/pdf-architecture.md) — modules, worker protocol, UI
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made

@@ -1,0 +1,34 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid #ccc;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+td {
+  overflow-wrap: anywhere;
+}
+
+.finding {
+  border-left: 4px solid #888;
+  margin-bottom: 0.25rem;
+  padding-left: 0.5rem;
+}
+
+.finding[data-severity="error"] {
+  border-left-color: #c33;
+}
+
+.finding[data-severity="warning"] {
+  border-left-color: #c80;
+}
