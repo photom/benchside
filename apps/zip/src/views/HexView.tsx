@@ -17,10 +17,14 @@ const PAGE = MAX_READ;
 const ROW = 16;
 
 type Span = { readonly offset: number; readonly byteLength: number };
-type Page =
+type Status =
   | { readonly kind: 'reading' }
-  | { readonly kind: 'read'; readonly bytes: Uint8Array }
+  | { readonly kind: 'read' }
   | { readonly kind: 'failed'; readonly message: string };
+/** The page on screen: its first offset and its bytes. */
+type Shown = { readonly start: number; readonly bytes: Uint8Array };
+/** One state, so the bytes on screen and the read status change together. */
+type Screen = { readonly shown: Shown | null; readonly status: Status };
 
 const holds = (span: Span, at: number) => at >= span.offset && at < span.offset + span.byteLength;
 const isAbort = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
@@ -49,7 +53,8 @@ export function HexView({
       ? null
       : (fields.find((f) => holds(f, mark)) ?? { offset: mark, byteLength: 1 }),
   );
-  const [state, setState] = useState<Page>({ kind: 'reading' });
+  // HEX-4: the last page read stays on screen while the next is read, so the view never blanks.
+  const [screen, setScreen] = useState<Screen>({ shown: null, status: { kind: 'reading' } });
   const start = region.offset + page * PAGE;
   const length = Math.min(PAGE, region.offset + region.byteLength - start);
   const pathKey = report.path.join('/');
@@ -57,11 +62,16 @@ export function HexView({
   // HEX-3: read only this page.
   useEffect(() => {
     let live = true;
-    setState({ kind: 'reading' });
+    setScreen((s) => ({ ...s, status: { kind: 'reading' } }));
     host.read(report.path, start, length).then(
-      (bytes) => live && setState({ kind: 'read', bytes }),
+      (bytes) => {
+        if (live) setScreen({ shown: { start, bytes }, status: { kind: 'read' } });
+      },
       (error: unknown) => {
-        if (live && !isAbort(error)) setState({ kind: 'failed', message: String(error) });
+        // HEX-9: a failed read leaves no old bytes that could pass for this page.
+        if (live && !isAbort(error)) {
+          setScreen({ shown: null, status: { kind: 'failed', message: String(error) } });
+        }
       },
     );
     return () => {
@@ -73,7 +83,11 @@ export function HexView({
   const section = useRef<HTMLElement>(null);
   useEffect(() => section.current?.scrollIntoView?.({ block: 'nearest' }), []);
 
-  const bytes = state.kind === 'read' ? state.bytes : null;
+  const { shown, status } = screen;
+  const bytes = shown?.bytes ?? null;
+  const shownStart = shown?.start ?? start;
+  // HEX-4: the number of the page on screen, not of the one being read.
+  const shownPage = Math.floor((shownStart - region.offset) / PAGE) + 1;
   const isMarked = (at: number) => selected !== null && holds(selected, at);
 
   return (
@@ -88,13 +102,15 @@ export function HexView({
         <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>
           Previous
         </button>{' '}
-        Page {page + 1} of {pages}{' '}
+        Page {shownPage} of {pages}{' '}
         <button type="button" disabled={page === pages - 1} onClick={() => setPage(page + 1)}>
           Next
-        </button>
+        </button>{' '}
+        <span role="status">{status.kind === 'reading' && `Reading page ${page + 1}…`}</span>
       </p>
-      {state.kind === 'reading' && <p role="status">Reading…</p>}
-      {state.kind === 'failed' && <p role="alert">The bytes could not be read: {state.message}</p>}
+      {status.kind === 'failed' && (
+        <p role="alert">The bytes could not be read: {status.message}</p>
+      )}
       {bytes && (
         <table aria-label="Bytes" class="hex">
           <thead>
@@ -108,9 +124,9 @@ export function HexView({
           <tbody>
             {rowStarts(bytes.length).map((from) => {
               const row = bytes.subarray(from, from + ROW);
-              const at = start + from;
+              const at = shownStart + from;
               return (
-                <tr key={at}>
+                <tr key={from}>
                   <td>{offset(at)}</td>
                   <td>{cells(row, at, (b) => hex(b, 2), isMarked, ' ')}</td>
                   <td>{cells(row, at, ascii, isMarked, '')}</td>
@@ -154,7 +170,7 @@ export function HexView({
                 </th>
                 <td>{offset(f.offset)}</td>
                 <td>{f.byteLength}</td>
-                <td>{bytes ? value(f, bytes, start) : ''}</td>
+                <td>{bytes ? value(f, bytes, shownStart) : ''}</td>
               </tr>
             ))}
           </tbody>
