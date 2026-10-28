@@ -68,7 +68,7 @@ The trailer dictionary follows `trailer` after a table (7.5.5, Table 15). For a 
 | ID | Rule |
 |---|---|
 | XST-1 | The stream dictionary shall have `Type /XRef`, `Size`, and `W` with three non-negative integers; `Index` defaults to `[0 Size]` (7.5.8.2, Table 17). A missing or unusable entry gives `pdf.xref-stream.dict` (error) and that section has no entries. |
-| XST-2 | The data is decoded with the stream's filters. Supported: none, and `FlateDecode` with `Predictor` 1, or 10 to 15 (7.4.4.3, Table 10). Anything else gives `pdf.xref-stream.filter` (error). Decoding that fails, or passes 32 MiB, gives `pdf.xref-stream.decode` (error). |
+| XST-2 | The data is decoded with the stream's filters (FLT, [Streams](streams.md)); `DecodeParms` gives the predictor (7.4.4.3, Table 8); with no `Filter`, a PNG predictor in `DecodeParms` is still applied, as some writers expect. A filter that is not supported gives `pdf.xref-stream.filter` (error). Decoding that fails, or passes 32 MiB, gives `pdf.xref-stream.decode` (error). Either way the section has no entries. |
 | XST-3 | PNG predictors (Predictor 10 to 15): each row starts with a tag byte, 0 to 4, naming None, Sub, Up, Average, or Paeth (7.4.4.4; RFC 2083 §6.2–6.6). A row is `ceil(Columns × Colors × BitsPerComponent / 8)` bytes; bpp is `ceil(Colors × BitsPerComponent / 8)`. Defaults: Columns 1, Colors 1, BitsPerComponent 8 (Table 8). Any other tag gives `pdf.xref-stream.decode`. |
 | XST-4 | Each entry is `W[0] + W[1] + W[2]` bytes; fields are big-endian (7.5.8.3). `W[0] = 0` means type 1. Type 0 is free, type 1 is in use at an offset, type 2 is compressed: object stream number and index (Table 18). Other types are references to null (7.5.8.3); they are skipped. A missing type-1 generation field means 0. |
 | XST-5 | Decoded data shorter than the entries `Index` declares gives `pdf.xref-stream.short` (warning); the whole entries are used. |
@@ -88,8 +88,8 @@ The trailer dictionary follows `trailer` after a table (7.5.5, Table 15). For a 
 | ID | Rule |
 |---|---|
 | OBX-1 | For each object in use (`n`, type 1), the bytes at its offset shall start `n g obj` with its own number and generation (7.3.10). An offset outside the file gives `pdf.object.out-of-range` (error). Anything else gives `pdf.object.header-mismatch` (error); that object's value is not read. |
-| OBX-2 | The value is parsed (Syntax). A dictionary's `Type` and `Subtype`, when names, are reported. A stream reports its data offset, length, and filter names (IND-2..4). Stream data is not decoded in this slice, except cross-reference streams. |
-| OBX-3 | A compressed object (type 2) is reported with its object stream and index. It is not opened in this slice. |
+| OBX-2 | The value is parsed (Syntax). A dictionary's `Type` and `Subtype`, when names, are reported. A stream reports its data offset, length, and filter names (IND-2..4). Stream data is decoded only when needed (FLT-8). |
+| OBX-3 | A compressed object (type 2) is reported with its object stream and index. It is read from the object stream (OST), and its `Type` and `Subtype` are reported as in OBX-2. |
 | OBX-4 | When the trailer has `Encrypt`, `pdf.encrypted` (info) is reported. Strings and stream data are encrypted (7.6.1) and are shown as stored. Cross-reference streams are never encrypted (7.5.8.2), so the structure stays readable. |
 
 ## Byte map
