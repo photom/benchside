@@ -18,6 +18,10 @@ export function Summary({ report }: { report: PdfReport }) {
         </dd>
         <dt>Revisions</dt>
         <dd>{report.revisions.length}</dd>
+        <dt>Pages</dt>
+        <dd>{report.document ? report.document.pages.length : 'unknown'}</dd>
+        <dt>Actions</dt>
+        <dd>{report.actions.length}</dd>
         <dt>Objects</dt>
         <dd>{report.objects.length}</dd>
         {t && (

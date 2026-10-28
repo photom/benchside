@@ -9,7 +9,8 @@ const analyze = (bytes: Uint8Array, limits = {}) => analyzePdf(bytesSource(bytes
 const ids = (r: PdfReport) => r.findings.map((f) => f.id);
 const obj = (r: PdfReport, n: number) => r.objects.find((o) => o.number === n);
 const kinds = (r: PdfReport) => r.regions.map((g) => [g.kind, g.offset, g.byteLength]);
-const catalog = '<< /Type /Catalog /Pages 2 0 R >>';
+// A catalog with an empty page tree, so the document walk adds no findings.
+const catalog = '<< /Type /Catalog /Pages << /Type /Pages /Kids [] /Count 0 >> >>';
 
 describe('a well-formed file', () => {
   it('REQ-PDF-002: given a one-revision PDF, when analyzed, then the header, one revision, and every object, with no findings', async () => {
@@ -221,11 +222,54 @@ describe('cross-reference streams', () => {
       .xrefStream(6, { trailer: '/Root 1 0 R' });
     const r = await analyze(b.bytes());
     expect(r.findings).toEqual([]);
-    expect([obj(r, 1), obj(r, 2)].map((o) => [o?.status, o?.container, o?.index])).toEqual([
-      ['compressed', 5, 0],
-      ['compressed', 5, 1],
-    ]);
+    expect([obj(r, 1), obj(r, 2)].map((o) => [o?.status, o?.container, o?.index, o?.type])).toEqual(
+      [
+        ['compressed', 5, 0, 'Catalog'],
+        ['compressed', 5, 1, 'Pages'],
+      ],
+    );
     expect(obj(r, 5)?.type).toBe('ObjStm');
+  });
+
+  it('XST-2: given an ASCIIHex-encoded cross-reference stream, when analyzed, then its entries (7.5.7 EXAMPLE 4)', async () => {
+    const b = new PdfBuilder({ version: '1.5' })
+      .object(1, catalog)
+      .xrefStream(2, { trailer: '/Root 1 0 R', compress: false, hex: true });
+    const r = await analyze(b.bytes());
+    expect(r.findings).toEqual([]);
+    expect(obj(r, 1)?.offset).toBe(b.offsets.get(1));
+  });
+
+  it('OBX-3, OST-3: given a compressed object missing from its object stream, when analyzed, then objstm.missing once', async () => {
+    const b = new PdfBuilder({ version: '1.5' }).objectStream(5, [{ num: 1, body: catalog }]);
+    const at = b.offset;
+    // Object 2 claims index 3 of object stream 5, which has one object.
+    const rows = String.fromCharCode(1, 0, b.offsets.get(5) as number, 0, 2, 0, 5, 0, 2, 0, 5, 3);
+    b.raw(
+      `6 0 obj${LF}<< /Type /XRef /Size 7 /W [1 2 1] /Index [5 1 1 2] /Length ${rows.length} /Root 1 0 R >>${LF}stream${EOL.CRLF}`,
+    );
+    b.raw(rows).raw(`${LF}endstream${LF}endobj${LF}startxref${LF}${at}${LF}%%EOF${LF}`);
+    const r = await analyze(b.bytes());
+    expect(obj(r, 1)?.type).toBe('Catalog');
+    expect(ids(r).filter((id) => id === 'pdf.objstm.missing')).toHaveLength(1);
+  });
+
+  it('XST-2: given a PNG predictor with no Filter, when analyzed, then the predictor is still applied', async () => {
+    const b = new PdfBuilder({ version: '1.5' })
+      .object(1, catalog)
+      .xrefStream(2, { trailer: '/Root 1 0 R', compress: false, predictor: true });
+    const r = await analyze(b.bytes());
+    expect(r.findings).toEqual([]);
+    expect(obj(r, 1)?.offset).toBe(b.offsets.get(1));
+  });
+
+  it('XST-2: given ASCIIHex and Flate with a predictor, when analyzed, then DecodeParms belongs to Flate', async () => {
+    const b = new PdfBuilder({ version: '1.5' })
+      .object(1, catalog)
+      .xrefStream(2, { trailer: '/Root 1 0 R', hex: true, predictor: true });
+    const r = await analyze(b.bytes());
+    expect(r.findings).toEqual([]);
+    expect(obj(r, 1)?.offset).toBe(b.offsets.get(1));
   });
 
   it('XST-1: given no W, when analyzed, then xref-stream.dict', async () => {
@@ -242,7 +286,7 @@ describe('cross-reference streams', () => {
     const b = new PdfBuilder().object(1, catalog);
     const at = b.offset;
     b.raw(
-      `2 0 obj${LF}<< /Type /XRef /Size 3 /W [1 2 1] /Length 1 /Filter /LZWDecode /Root 1 0 R >>${LF}stream${EOL.CRLF}x${LF}endstream${LF}endobj${LF}`,
+      `2 0 obj${LF}<< /Type /XRef /Size 3 /W [1 2 1] /Length 1 /Filter /DCTDecode /Root 1 0 R >>${LF}stream${EOL.CRLF}x${LF}endstream${LF}endobj${LF}`,
     );
     b.raw(`startxref${LF}${at}${LF}%%EOF${LF}`);
     expect(ids(await analyze(b.bytes()))).toContain('pdf.xref-stream.filter');
@@ -277,7 +321,10 @@ describe('cross-reference streams', () => {
 describe('revisions', () => {
   it('REV-1, REV-4: given one incremental update, when analyzed, then two revisions, newest first, and the replaced object', async () => {
     const b = simplePdf();
-    b.object(3, '<< /Type /Page /Parent 2 0 R /Rotate 90 >>').object(4, '<< /Type /Annot >>');
+    b.object(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1 1] /Rotate 90 >>').object(
+      4,
+      '<< /Type /Annot >>',
+    );
     b.xrefTable({ trailer: '/Root 1 0 R' });
     const r = await analyze(b.bytes());
     expect(r.findings).toEqual([]);
@@ -345,8 +392,10 @@ describe('objects', () => {
     const entry = `${String(b.offsets.get(2)).padStart(10, '0')} 00000 n`;
     const wrong = `${String((b.offsets.get(2) as number) + 1).padStart(10, '0')} 00000 n`;
     const r = await analyze(latin1(text.replace(entry, wrong)));
+    // The page tree root is object 2, so the document walk finds no pages (PG-1).
     expect(r.findings).toMatchObject([
       { id: 'pdf.object.header-mismatch', object: 2 },
+      { id: 'pdf.pages.missing' },
       { id: 'pdf.gap' },
     ]);
   });
@@ -356,7 +405,13 @@ describe('objects', () => {
     const text = String.fromCharCode(...b.bytes());
     const entry = `${String(b.offsets.get(3)).padStart(10, '0')} 00000 n`;
     const r = await analyze(latin1(text.replace(entry, '0009999999 00000 n')));
-    expect(ids(r)).toEqual(['pdf.object.out-of-range', 'pdf.gap']);
+    // The page is object 3, so the page tree loses its only kid (PG-3, PG-7).
+    expect(ids(r)).toEqual([
+      'pdf.object.out-of-range',
+      'pdf.pages.kid',
+      'pdf.pages.count',
+      'pdf.gap',
+    ]);
   });
 
   it('OBX-2, IND-3: given a Flate stream, when analyzed, then its data offset, length, and filters', async () => {
@@ -573,6 +628,32 @@ describe('robustness', () => {
       },
     });
     expect(r.findings).toEqual([]);
+    expect(read).toBeLessThan(bytes.length * 3);
+  });
+
+  it('REQ-PDF-003: given pages and annotations far apart, when the document is walked, then reads stay near the file size', async () => {
+    const b = new PdfBuilder()
+      .object(1, '<< /Type /Catalog /Pages 2 0 R >>')
+      .object(
+        2,
+        `<< /Type /Pages /Kids [${Array.from({ length: 300 }, (_, i) => `${10 + i} 0 R`).join(' ')}] /Count 300 /MediaBox [0 0 1 1] >>`,
+      );
+    for (let i = 0; i < 300; i++)
+      b.object(10 + i, `<< /Type /Page /Parent 2 0 R /Annots [${400 + i} 0 R] >>`);
+    b.stream(3, '', new Uint8Array(3_000_000).fill(0x41));
+    for (let i = 0; i < 300; i++) b.object(400 + i, '<< /Type /Annot /Subtype /Text >>');
+    b.xrefTable({ trailer: '/Root 1 0 R' });
+    const bytes = b.bytes();
+    let read = 0;
+    const inner = bytesSource(bytes);
+    const r = await analyzePdf({
+      byteLength: inner.byteLength,
+      read: (o, n) => {
+        read += n;
+        return inner.read(o, n);
+      },
+    });
+    expect(r.document?.pages).toHaveLength(300);
     expect(read).toBeLessThan(bytes.length * 3);
   });
 

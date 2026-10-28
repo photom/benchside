@@ -1,9 +1,12 @@
 import type { PdfReport } from '@benchside/pdf';
 import { DropZone } from '@benchside/ui';
 import { useState } from 'preact/hooks';
+import { Actions } from './views/Actions.tsx';
 import { ByteMap } from './views/ByteMap.tsx';
+import { Document } from './views/Document.tsx';
 import { Findings } from './views/Findings.tsx';
 import { Objects } from './views/Objects.tsx';
+import { Pages } from './views/Pages.tsx';
 import { References } from './views/References.tsx';
 import { Revisions } from './views/Revisions.tsx';
 import { Summary } from './views/Summary.tsx';
@@ -47,6 +50,17 @@ export function App({ host }: { host: PdfHost }) {
         <>
           <Summary report={status.report} />
           <Findings findings={status.report.findings} />
+          <Actions key={`a${run}`} actions={status.report.actions} />
+          {status.report.document && (
+            <>
+              <Document document={status.report.document} />
+              <Pages
+                key={`p${run}`}
+                pages={status.report.document.pages}
+                count={status.report.document.pageCount}
+              />
+            </>
+          )}
           <Revisions revisions={status.report.revisions} />
           <Objects key={`o${run}`} objects={status.report.objects} />
           <ByteMap key={`m${run}`} regions={status.report.regions} />

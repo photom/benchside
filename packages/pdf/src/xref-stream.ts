@@ -1,9 +1,9 @@
 /** Cross-reference streams (structure.md: XST-1, XST-2, XST-4, XST-5). */
-import { inflate, type Reader } from '@benchside/core';
+import type { Reader } from '@benchside/core';
+import { decodeStream, predict } from './filters.ts';
 import type { FindingList } from './findings.ts';
 import { readObject, standalone } from './objects.ts';
 import { asInteger, asName, dictGet, type PdfValue } from './parser.ts';
-import { pngDecode } from './predictor.ts';
 import { EMPTY_TRAILER, type Entry, type Section, tailAfter, trailerFrom } from './section.ts';
 import type { Region } from './types.ts';
 
@@ -105,7 +105,7 @@ export async function readStreamSection(
   return { offset, kind: 'stream', entries, trailer: trailerFrom(dict), regions };
 }
 
-/** XST-2, XST-3 */
+/** XST-2, XST-3: the shared filters (FLT), reported as cross-reference stream findings. */
 async function decode(
   reader: Reader,
   dict: PdfValue | null,
@@ -116,58 +116,52 @@ async function decode(
 ): Promise<Uint8Array | null> {
   const raw = await reader.bytes(dataOffset, Math.min(byteLength, MAX_XREF_STREAM));
   if (!raw) return null;
-  const filter = dictGet(dict, 'Filter');
-  const filters =
-    filter === undefined
-      ? []
-      : filter.kind === 'array'
-        ? filter.items.map((x) => asName(x))
-        : [asName(filter)];
-  if (filters.length > 1 || (filters.length === 1 && filters[0] !== 'FlateDecode')) {
-    findings.add(
-      'pdf.xref-stream.filter',
-      `The cross-reference stream uses ${filters.join(', ') || 'an unknown filter'}; only FlateDecode is supported.`,
-      at,
-    );
-    return null;
-  }
-  let data = raw;
-  if (filters.length === 1) {
-    const out = await inflate(raw, MAX_XREF_STREAM, 'deflate');
-    if (out.kind !== 'ok') {
+  // Cross-reference streams have their own limit, outside the analysis budget (FLT-9).
+  const out = await decodeStream(raw, dict, { left: MAX_XREF_STREAM }, MAX_XREF_STREAM);
+  switch (out.kind) {
+    case 'ok': {
+      // XST-2: with no Filter, a predictor in DecodeParms is still applied.
+      if (dictGet(dict, 'Filter') !== undefined) return out.bytes;
+      const parms = dictGet(dict, 'DecodeParms');
+      const predicted = predict(out.bytes, parms?.kind === 'array' ? parms.items[0] : parms);
+      if (predicted.kind === 'ok') return predicted.bytes;
+      if (predicted.kind === 'unsupported') {
+        findings.add(
+          'pdf.xref-stream.filter',
+          `The cross-reference stream uses ${predicted.filter}, which is not supported.`,
+          at,
+        );
+      } else {
+        findings.add(
+          'pdf.xref-stream.decode',
+          `The PNG predictor failed: ${predicted.message}`,
+          at,
+        );
+      }
+      return null;
+    }
+    case 'unsupported':
       findings.add(
-        'pdf.xref-stream.decode',
-        out.kind === 'exceeded'
-          ? 'The decoded cross-reference stream passes 32 MiB.'
-          : 'The cross-reference stream data does not decode with FlateDecode.',
+        'pdf.xref-stream.filter',
+        `The cross-reference stream uses ${out.filter || 'an unnamed filter'}, which is not supported.`,
         at,
       );
       return null;
-    }
-    data = out.bytes;
+    case 'limit':
+      findings.add(
+        'pdf.xref-stream.decode',
+        'The decoded cross-reference stream passes 32 MiB.',
+        at,
+      );
+      return null;
+    case 'error':
+      findings.add(
+        'pdf.xref-stream.decode',
+        `The cross-reference stream does not decode with ${out.filter}: ${out.message}.`,
+        at,
+      );
+      return null;
   }
-  const parmsValue = dictGet(dict, 'DecodeParms');
-  const parms = parmsValue?.kind === 'array' ? parmsValue.items[0] : parmsValue;
-  const predictor = asInteger(dictGet(parms, 'Predictor')) ?? 1;
-  if (predictor === 1) return data;
-  if (predictor < 10 || predictor > 15) {
-    findings.add(
-      'pdf.xref-stream.filter',
-      `Predictor ${predictor} is not supported for cross-reference streams.`,
-      at,
-    );
-    return null;
-  }
-  const result = pngDecode(data, {
-    columns: asInteger(dictGet(parms, 'Columns')) ?? 1,
-    colors: asInteger(dictGet(parms, 'Colors')) ?? 1,
-    bitsPerComponent: asInteger(dictGet(parms, 'BitsPerComponent')) ?? 8,
-  });
-  if (result.kind === 'error') {
-    findings.add('pdf.xref-stream.decode', `The PNG predictor failed: ${result.message}`, at);
-    return null;
-  }
-  return result.bytes;
 }
 
 function numbers(v: PdfValue | undefined): number[] | null {

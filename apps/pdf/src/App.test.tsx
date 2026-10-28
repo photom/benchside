@@ -141,6 +141,67 @@ describe('PDF app', () => {
     expect(section('Objects').textContent).toContain('<b>x</b>');
   });
 
+  it('REQ-PDF-005: given an OpenAction with JavaScript, when shown, then the action says it runs on open, with its script as text', async () => {
+    mount();
+    const b = new PdfBuilder()
+      .object(1, '<< /Type /Catalog /Pages 2 0 R /OpenAction 3 0 R >>')
+      .object(2, '<< /Type /Pages /Kids [] /Count 0 >>')
+      .object(3, '<< /S /JavaScript /JS (alert("<b>x</b>")) >>')
+      .xrefTable({ trailer: '/Root 1 0 R' });
+    await choose(b.bytes());
+    const actions = section('Actions');
+    expect(rows('Actions')[0]?.slice(0, 3)).toEqual([
+      'JavaScript · object 3',
+      'Catalog, object 1',
+      'When the document is opened (runs without a click)',
+    ]);
+    expect(actions.querySelector('b')).toBeNull();
+    expect(actions.querySelector('pre')?.textContent).toBe('alert("<b>x</b>")');
+    expect(section('Findings').textContent).toContain('pdf.action.javascript');
+  });
+
+  it('REQ-PDF-005: given a link, when shown, then its page, target, and event', async () => {
+    mount();
+    const b = new PdfBuilder()
+      .object(1, '<< /Type /Catalog /Pages 2 0 R >>')
+      .object(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>')
+      .object(3, '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>')
+      .object(4, '<< /Subtype /Link /A << /S /URI /URI (https://example.com/) >> >>')
+      .xrefTable({ trailer: '/Root 1 0 R' });
+    await choose(b.bytes());
+    expect(rows('Actions')[0]).toEqual([
+      'URI',
+      'Annotation, object 4, page 1',
+      'When the annotation is activated',
+      'https://example.com/',
+    ]);
+  });
+
+  it('REQ-PDF-004: given pages and document information, when shown, then the pages table and the Info entries', async () => {
+    mount();
+    const b = simplePdf();
+    b.object(4, '<< /Title (Report) /Producer (Tool) >>').xrefTable({
+      trailer: '/Root 1 0 R /Info 4 0 R',
+    });
+    await choose(b.bytes());
+    expect(rows('Pages')).toEqual([['1', '3', '612 × 792', '612 × 792', '0', '0']]);
+    expect(rows('Document information')).toEqual([
+      ['Title', 'Report'],
+      ['Producer', 'Tool'],
+    ]);
+    expect(section('Document').textContent).toContain('Type, Pages');
+    expect(section('Summary').textContent).toContain('Pages1');
+  });
+
+  it('REQ-PDF-004: given an encrypted file, when shown, then text values say they are encrypted', async () => {
+    mount();
+    const b = simplePdf();
+    b.object(4, '<< /Title (x) >>').object(5, '<< /Filter /Standard >>');
+    b.xrefTable({ trailer: '/Root 1 0 R /Info 4 0 R /Encrypt 5 0 R' });
+    await choose(b.bytes());
+    expect(rows('Document information')).toEqual([['Title', '(encrypted)']]);
+  });
+
   it('REQ-PDF-003: given 501 objects, when shown, then 500 rows and a button for the rest', async () => {
     mount();
     const b = new PdfBuilder().object(1, '<< /Type /Catalog >>');

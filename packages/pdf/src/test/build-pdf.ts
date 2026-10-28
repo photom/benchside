@@ -41,6 +41,8 @@ export interface StreamSectionOptions {
   readonly predictor?: boolean;
   /** Flate-encodes the data. Default true. */
   readonly compress?: boolean;
+  /** ASCIIHex-encodes the data, after Flate when both are set. */
+  readonly hex?: boolean;
   readonly size?: number;
   readonly prev?: number | null;
   /** Writes no startxref and %%EOF. */
@@ -207,14 +209,22 @@ export class PdfBuilder {
     let dict = `/Type /XRef /Size ${options.size ?? this.maxNumber + 1} /W [${w.join(' ')}] /Index [${index.join(' ')}]`;
     const prev = options.prev !== undefined ? options.prev : this.sections.at(-1);
     if (prev != null) dict += ` /Prev ${prev}`;
-    if (options.predictor) {
-      data = pngUp(data, w[0] + w[1] + w[2]);
-      dict += ` /DecodeParms << /Predictor 12 /Columns ${w[0] + w[1] + w[2]} >>`;
-    }
-    if (options.compress !== false) {
-      data = new Uint8Array(deflateSync(data));
-      dict += ' /Filter /FlateDecode';
-    }
+    const parms = options.predictor ? `<< /Predictor 12 /Columns ${w[0] + w[1] + w[2]} >>` : null;
+    if (options.predictor) data = pngUp(data, w[0] + w[1] + w[2]);
+    if (options.compress !== false) data = new Uint8Array(deflateSync(data));
+    if (options.hex)
+      data = latin1(`${[...data].map((x) => x.toString(16).padStart(2, '0')).join('')}>`);
+    // FLT-1: one DecodeParms entry per filter; the predictor belongs to Flate, or stands alone.
+    const filters: [string, string | null][] = [
+      ...(options.hex ? ([['/ASCIIHexDecode', null]] as [string, null][]) : []),
+      ...(options.compress !== false
+        ? ([['/FlateDecode', parms]] as [string, string | null][])
+        : []),
+    ];
+    if (filters.length > 0) {
+      dict += ` /Filter [${filters.map(([f]) => f).join(' ')}]`;
+      if (parms) dict += ` /DecodeParms [${filters.map(([, p]) => p ?? 'null').join(' ')}]`;
+    } else if (parms) dict += ` /DecodeParms ${parms}`;
     this.offsets.set(num, at);
     this.raw(
       `${num} 0 obj${LF}<< /Length ${data.length} ${dict} ${options.trailer ?? ''} >>${LF}stream${EOL.CRLF}`,
