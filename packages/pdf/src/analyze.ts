@@ -1,24 +1,43 @@
 /** Analyzes one PDF (structure.md). */
 import { type ByteSource, Reader } from '@benchside/core';
+import { ActionCollector } from './actions.ts';
 import { byteMap } from './byte-map.ts';
+import { readDocument } from './document.ts';
 import { FindingList } from './findings.ts';
 import { readHeader } from './header.ts';
-import { type ReadContext, readObject, SEARCH_BUDGET, standalone, typeOf } from './objects.ts';
+import { type ReadContext, readObject, SEARCH_BUDGET, typeOf } from './objects.ts';
 import { asInteger } from './parser.ts';
+import { Resolver } from './resolver.ts';
 import { readChain } from './revisions.ts';
 import { readTail } from './tail.ts';
-import type { PdfObject, PdfReport, Ref, Region, Revision } from './types.ts';
+import type { PdfDocument, PdfObject, PdfReport, Ref, Region, Revision } from './types.ts';
 
 export interface Limits {
   readonly maxSections: number;
   readonly maxObjects: number;
   readonly maxFindings: number;
+  readonly maxPages: number;
+  readonly maxAnnotations: number;
+  readonly maxTreeItems: number;
+  readonly maxActions: number;
 }
 
 const READ_WINDOW = 256 * 1024;
+/** The document walk jumps around the file; small windows keep each jump cheap (ADR 0011). */
+const WALK_WINDOW = 8 * 1024;
+/** IND-3: Length references followed inside one another. */
+const MAX_LENGTH_NESTING = 8;
 
 /** README.md#limits */
-export const LIMITS: Limits = { maxSections: 256, maxObjects: 500_000, maxFindings: 1000 };
+export const LIMITS: Limits = {
+  maxSections: 256,
+  maxObjects: 500_000,
+  maxFindings: 1000,
+  maxPages: 100_000,
+  maxAnnotations: 100_000,
+  maxTreeItems: 100_000,
+  maxActions: 10_000,
+};
 
 export async function analyzePdf(
   source: ByteSource,
@@ -49,6 +68,8 @@ export async function analyzePdf(
       trailer: null,
       encrypted: false,
       regions,
+      document: null,
+      actions: [],
       findings: findings.list,
     };
   }
@@ -87,16 +108,28 @@ export async function analyzePdf(
     );
   }
 
-  // IND-3: an indirect Length is read through the merged entries. Its own findings come
-  // from the objects loop, once; here they would repeat for every stream using it.
+  // IND-3: an indirect Length is read through the resolver (RES-1), so it may be compressed.
+  // Its own findings come from the objects list. `pending` stops a Length that leads back
+  // to a stream still being read.
+  const pending = new Set<number>();
   const resolveLength = async (ref: Ref) => {
-    const m = chain.objects.get(ref.number);
-    if (m?.entry.type !== 'in-use' || m.entry.generation !== ref.generation) return null;
-    const o = await readObject(objectReader, m.entry.offset, new FindingList(), ref, standalone());
-    return o.kind === 'read' ? asInteger(o.object.indirect.value) : null;
+    if (pending.has(ref.number) || pending.size >= MAX_LENGTH_NESTING) return null;
+    pending.add(ref.number);
+    try {
+      return asInteger((await resolver.load(ref.number, ref.generation, { cache: false })).value);
+    } finally {
+      pending.delete(ref.number);
+    }
   };
   // IND-4: one endstream search budget for the whole file.
   const context: ReadContext = { resolveLength, search: { left: SEARCH_BUDGET } };
+  const resolver = new Resolver({
+    reader: new Reader(source, WALK_WINDOW),
+    objects: chain.objects,
+    findings,
+    context,
+    encrypted,
+  });
 
   // OBX-1..3, REP-3
   const objects: PdfObject[] = [];
@@ -124,6 +157,8 @@ export async function analyzePdf(
         status: 'compressed',
         container: entry.container,
         index: entry.index,
+        // OBX-3: read once for its type, and not kept.
+        ...typeOf((await resolver.load(number, 0, { findings, cache: false })).value),
       });
       continue;
     }
@@ -200,6 +235,37 @@ export async function analyzePdf(
     }
   }
 
+  // REP-8, REP-10: the document walk (CAT, INF, PG, ANN) and the actions it reaches (ACT).
+  const actions = new ActionCollector(resolver, findings, { encrypted, limits });
+  const read = trailer
+    ? await readDocument(
+        resolver,
+        trailer,
+        findings,
+        { encrypted, limits },
+        {
+          catalog: async (dict, object) => {
+            await actions.catalog(dict, object);
+            await actions.names(dict);
+          },
+          page: ({ index, object, dict }) => actions.page(index, object, dict),
+          annotation: ({ page, object, dict }) => actions.annotation(page, object, dict),
+        },
+      )
+    : null;
+  if (read?.catalogDict) {
+    await actions.fields(read.catalogDict);
+    await actions.outline(read.catalogDict);
+  }
+  const document: PdfDocument | null = read && {
+    catalog: read.catalog,
+    info: read.info,
+    pageCount: read.pageCount,
+    pages: read.pages,
+    outlineItems: actions.outlineItems,
+    fields: actions.fieldItems,
+  };
+
   return {
     ...base,
     revisions,
@@ -207,6 +273,8 @@ export async function analyzePdf(
     trailer,
     encrypted,
     regions: await byteMap(reader, regions, findings),
+    document,
+    actions: actions.actions,
     findings: findings.list,
   };
 }

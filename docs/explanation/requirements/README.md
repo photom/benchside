@@ -59,5 +59,7 @@ Not yet planned in detail: content checks (file types, CRC-32 of every entry).
 | [REQ-PDF-001](REQ-PDF-001-local-only.md) | Analyze PDFs without sending them anywhere | Accepted |
 | [REQ-PDF-002](REQ-PDF-002-show-structure.md) | Show the file structure | Accepted |
 | [REQ-PDF-003](REQ-PDF-003-robust-responsive.md) | Robust and responsive analysis | Accepted |
+| [REQ-PDF-004](REQ-PDF-004-show-document.md) | Show the document and its pages | Accepted |
+| [REQ-PDF-005](REQ-PDF-005-actions.md) | Find the actions a PDF can perform | Accepted |
 
-Planned next: rebuilding broken files, objects and streams, risk checks (JavaScript, actions, embedded files), hex view.
+Planned next: rebuilding broken files, embedded files, hex view.

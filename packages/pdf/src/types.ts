@@ -48,7 +48,31 @@ export type FindingId =
   | 'pdf.gap'
   | 'pdf.overlap'
   | 'pdf.too-many-objects'
-  | 'pdf.too-many-findings';
+  | 'pdf.too-many-findings'
+  | 'pdf.filter.error'
+  | 'pdf.filter.unsupported'
+  | 'pdf.filter.limit'
+  | 'pdf.objstm.invalid'
+  | 'pdf.objstm.missing'
+  | 'pdf.catalog.missing'
+  | 'pdf.catalog.type'
+  | 'pdf.info.invalid'
+  | 'pdf.pages.missing'
+  | 'pdf.pages.kid'
+  | 'pdf.pages.loop'
+  | 'pdf.pages.count'
+  | 'pdf.page.mediabox'
+  | 'pdf.tree.loop'
+  | 'pdf.tree.limit'
+  | 'pdf.action.unknown'
+  | 'pdf.action.loop'
+  | 'pdf.action.javascript'
+  | 'pdf.action.launch'
+  | 'pdf.action.submit-form'
+  | 'pdf.action.import-data'
+  | 'pdf.action.remote'
+  | 'pdf.action.automatic'
+  | 'pdf.too-many-actions';
 
 /** An indirect reference `n g R` (OBJ-8). */
 export interface Ref {
@@ -128,6 +152,84 @@ export interface Region {
   readonly object?: number;
 }
 
+/** REP-9, TXT: decoded text; null when the file is encrypted. */
+export interface Text {
+  readonly text: string | null;
+  readonly truncated: boolean;
+}
+
+/** CAT-3 */
+export interface Catalog {
+  readonly object: number | null;
+  readonly version: string | null;
+  readonly pageLayout: string | null;
+  readonly pageMode: string | null;
+  readonly lang: Text | null;
+  readonly keys: readonly string[];
+}
+
+/** INF-2 */
+export interface InfoEntry {
+  readonly key: string;
+  readonly kind: 'text' | 'name' | 'other';
+  readonly value: Text;
+}
+
+export interface Info {
+  readonly object: number | null;
+  readonly entries: readonly InfoEntry[];
+}
+
+/** ANN-1 */
+export interface Annotation {
+  readonly object: number | null;
+  readonly subtype: string | null;
+}
+
+/** PG-2..6 */
+export interface Page {
+  readonly index: number;
+  readonly object: number | null;
+  readonly mediaBox: readonly number[] | null;
+  readonly cropBox: readonly number[] | null;
+  readonly rotate: number;
+  readonly annotations: readonly Annotation[];
+}
+
+/** REP-8 */
+export interface PdfDocument {
+  readonly catalog: Catalog | null;
+  readonly info: Info | null;
+  readonly pageCount: number | null;
+  readonly pages: readonly Page[];
+  readonly outlineItems: number;
+  readonly fields: number;
+}
+
+/** ACT-1 */
+export type ActionSource = 'catalog' | 'names' | 'page' | 'annotation' | 'field' | 'outline';
+
+/** ACT-7 */
+export interface Script {
+  readonly text: Text;
+  readonly byteLength: number;
+}
+
+/** REP-10 */
+export interface Action {
+  readonly type: string;
+  readonly source: ActionSource;
+  readonly event: string;
+  readonly automatic: boolean;
+  readonly depth: number;
+  readonly page?: number;
+  readonly holder?: number;
+  readonly object?: number;
+  readonly label?: string;
+  readonly target?: Text;
+  readonly script?: Script;
+}
+
 export interface PdfReport {
   readonly byteLength: number;
   readonly header: Header | null;
@@ -137,5 +239,7 @@ export interface PdfReport {
   readonly trailer: Trailer | null;
   readonly encrypted: boolean;
   readonly regions: readonly Region[];
+  readonly document: PdfDocument | null;
+  readonly actions: readonly Action[];
   readonly findings: readonly Finding[];
 }

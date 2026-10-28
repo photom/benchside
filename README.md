@@ -8,7 +8,7 @@ Browser-only tools for taking apart emails, ZIPs, PDFs and more. Everything runs
 |---|---|
 | [Mail analyzer](https://photom.github.io/benchside/mail/) | SPF, DKIM, DMARC, ARC, and the receiver's results for an `.eml` file |
 | [ZIP analyzer](https://photom.github.io/benchside/zip/) | Every record of a ZIP file, ZIP64, local vs central headers, nested archives |
-| [PDF analyzer](https://photom.github.io/benchside/pdf/) | Header, objects, cross-reference tables and streams, every revision of a PDF |
+| [PDF analyzer](https://photom.github.io/benchside/pdf/) | Every revision and object, the pages and document information, and every action a PDF can perform, with its JavaScript |
 
 ## How "nothing leaves your machine" is enforced
 
