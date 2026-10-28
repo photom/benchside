@@ -1,6 +1,6 @@
 # PDF analyzer architecture
 
-Spec: [PDF analyzer specification](../reference/pdf/README.md). Decisions: [0009](decisions/0009-pdf-read-from-the-end.md), [0010](decisions/0010-shared-core-package.md), [0011](decisions/0011-pdf-resolve-on-demand.md).
+Spec: [PDF analyzer specification](../reference/pdf/README.md). Decisions: [0009](decisions/0009-pdf-read-from-the-end.md), [0010](decisions/0010-shared-core-package.md), [0011](decisions/0011-pdf-resolve-on-demand.md), [0012](decisions/0012-pdf-find-scripts.md).
 
 ## Modules
 
@@ -25,8 +25,10 @@ flowchart TD
     resolver --> filters
     analyze --> document[document.ts]
     analyze --> actions[actions.ts]
-    document & actions --> resolver
-    document & actions --> text[text.ts]
+    analyze --> scripts[scripts.ts]
+    scripts --> xfa[xfa.ts]
+    document & actions & scripts --> resolver
+    document & actions & scripts --> text[text.ts]
     table & xstream & objects --> parser[parser.ts]
     parser --> lexer[lexer.ts]
     analyze --> map[byte-map.ts]
@@ -54,6 +56,8 @@ flowchart TD
 | `text.ts` | Text strings: UTF-16BE, PDFDocEncoding, truncation | TXT-* |
 | `document.ts` | Catalog, document information, page tree, annotations | CAT-*, INF-*, PG-*, ANN-* |
 | `actions.ts` | Actions at every place, `Next` chains, outline, field and name trees, targets, scripts | ACT-* |
+| `scripts.ts` | 3D scripts, XFA resource, PostScript XObjects, JavaScript dictionaries nothing reaches or an update removed | SCR-1..3, SCR-6..10 |
+| `xfa.ts` | Script elements in XFA text: tag scan, events, entities | SCR-4, SCR-5 |
 | `revisions.ts` | Section chain through `XRefStm` and `Prev`, loop guard, merge | XREF-1, REV-* |
 | `objects.ts` | Reads each object at its offset; type, subtype, stream extent | OBX-*, IND-* |
 | `byte-map.ts` | Regions, gaps, overlaps | MAP-* |
@@ -75,10 +79,11 @@ flowchart TD
 ```mermaid
 flowchart TD
   h[Heading] --> drop[DropZone]
-  drop --> summary["Summary<br/>version, size, revisions, objects, encrypted"]
+  drop --> summary["Summary<br/>version, size, revisions, pages, actions, scripts, objects, encrypted"]
   summary --> findings[Findings]
   findings --> actions["Actions<br/>place, event, target, script"]
-  actions --> doc["Document<br/>catalog, information"]
+  actions --> scripts["Scripts<br/>source, language, when, text"]
+  scripts --> doc["Document<br/>catalog, information"]
   doc --> pages["Pages<br/>500 rows per page"]
   pages --> revs["Revisions<br/>newest first"]
   revs --> objs["Objects table<br/>500 rows per page"]
@@ -95,4 +100,5 @@ flowchart TD
 | Replaced objects say "replaced in revision n", not only a color | Distinctions must not rely on color alone |
 | Actions come right after findings | REQ-PDF-005: what a PDF can do is the first question for an untrusted file |
 | Actions that run without a click say "runs on open" in words | Distinctions must not rely on color alone |
+| Scripts outside actions come right after actions | REQ-PDF-006: the same question, other places |
 | Scripts show in a closed `<details>` as preformatted text | Long scripts would push the rest away; text, never run or rendered |

@@ -27,6 +27,8 @@ export interface DocumentResult {
   readonly info: Info | null;
   readonly pageCount: number | null;
   readonly pages: Page[];
+  /** SCR-8: the walk stopped at a limit. */
+  readonly cut?: boolean;
 }
 
 const refValue = (r: Ref): PdfValue => ({
@@ -78,7 +80,14 @@ export async function readDocument(
   await visitor.catalog(dict, root.object);
   const walk = new PageWalk(resolver, findings, options.limits, visitor);
   const pageCount = await walk.run(dictGet(dict, 'Pages'));
-  return { catalog, catalogDict: dict, info, pageCount, pages: walk.pages };
+  return {
+    catalog,
+    catalogDict: dict,
+    info,
+    pageCount,
+    pages: walk.pages,
+    cut: walk.cut,
+  };
 }
 
 /** INF-1, INF-2 */
@@ -178,6 +187,10 @@ class PageWalk {
       );
     }
     return count;
+  }
+
+  get cut() {
+    return this.limited.size > 0;
   }
 
   private limit(kind: string, message: string) {

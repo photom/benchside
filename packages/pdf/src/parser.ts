@@ -33,7 +33,8 @@ export interface Indirect {
   readonly endobj: boolean;
 }
 
-const MAX_DEPTH = 64;
+/** OBJ-9 */
+export const MAX_DEPTH = 64;
 const NULL: PdfValue = { kind: 'null' };
 // Keywords that end an object; inside an array or dictionary they mean it was never closed.
 const STRUCTURAL = new Set([

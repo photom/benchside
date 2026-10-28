@@ -177,6 +177,92 @@ describe('PDF app', () => {
     ]);
   });
 
+  it('REQ-PDF-006: given a 3D script that runs on open and a hidden script, when shown, then both rows, their scripts as text, and the summary count', async () => {
+    mount();
+    const b = new PdfBuilder()
+      .object(1, '<< /Type /Catalog /Pages 2 0 R >>')
+      .object(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>')
+      .object(3, '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>')
+      .object(4, '<< /Subtype /3D /Rect [0 0 1 1] /3DD 5 0 R /3DA << /A /PO >> >>')
+      .stream(5, '/Subtype /U3D /OnInstantiate (spin())', 'U3D')
+      .object(6, '<< /S /JavaScript /JS (<i>x</i>) >>')
+      .xrefTable({ trailer: '/Root 1 0 R' });
+    await choose(b.bytes());
+    expect(rows('Scripts').map((r) => r.slice(0, 3))).toEqual([
+      [
+        '3D artwork · JavaScript',
+        'Object 5, 3D annotation 4, page 1',
+        'When its page opens (runs without a click)',
+      ],
+      ['Not reached · JavaScript', 'Object 6', 'Nothing in the document leads to it'],
+    ]);
+    const scripts = section('Scripts');
+    expect(scripts.querySelector('i')).toBeNull();
+    expect([...scripts.querySelectorAll('pre')].map((p) => p.textContent)).toEqual([
+      'spin()',
+      '<i>x</i>',
+    ]);
+    expect(section('Summary').textContent).toContain('Scripts2 outside actions, 0 in actions');
+  });
+
+  it('REQ-PDF-006: given an XFA script, a PostScript XObject, and a removed script, when shown, then where and when for each', async () => {
+    mount();
+    const b = new PdfBuilder()
+      .object(
+        1,
+        '<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [] /XFA [(template) 3 0 R] >> >>',
+      )
+      .object(2, '<< /Type /Pages /Kids [] /Count 0 >>')
+      .stream(
+        3,
+        '',
+        '<event activity="click"><script contentType="application/x-formcalc">1+1</script></event>',
+      )
+      .stream(4, '/Subtype /PS', 'showpage')
+      .object(5, '<< /JS 9 0 R >>')
+      .xrefTable({ trailer: '/Root 1 0 R' });
+    b.object(5, '<< >>').xrefTable({ trailer: '/Root 1 0 R' });
+    await choose(b.bytes());
+    expect(rows('Scripts').map((r) => r.slice(0, 4))).toEqual([
+      [
+        'XFA form · application/x-formcalc',
+        'Object 3, packet "template"',
+        'XFA event "click"',
+        'Script, 3 bytes1+1',
+      ],
+      [
+        'PostScript XObject · PostScript',
+        'Object 4',
+        'Only when printed to a PostScript printer',
+        'Script, 8 bytesshowpage',
+      ],
+      [
+        'Removed · JavaScript',
+        'Object 5, revision 0',
+        'No longer in the newest revision',
+        '(not readable)',
+      ],
+    ]);
+  });
+
+  it('REQ-PDF-006: given a walk cut short by a limit, when shown, then a script it did not reach may run', async () => {
+    mount({ analyze: (file) => analyzePdf(blobSource(file), { limits: { maxActions: 1 } }) });
+    const b = new PdfBuilder()
+      .object(1, '<< /Type /Catalog /Pages 2 0 R /OpenAction 3 0 R /AA << /WC 4 0 R >> >>')
+      .object(2, '<< /Type /Pages /Kids [] /Count 0 >>')
+      .object(3, '<< /S /JavaScript /JS (a()) >>')
+      .object(4, '<< /S /JavaScript /JS (b()) >>')
+      .xrefTable({ trailer: '/Root 1 0 R' });
+    await choose(b.bytes());
+    expect(rows('Scripts').map((r) => r.slice(0, 3))).toEqual([
+      [
+        'Not checked · JavaScript',
+        'Object 4',
+        'May run: the document walk was cut short before reaching it',
+      ],
+    ]);
+  });
+
   it('REQ-PDF-004: given pages and document information, when shown, then the pages table and the Info entries', async () => {
     mount();
     const b = simplePdf();

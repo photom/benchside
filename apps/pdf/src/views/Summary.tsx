@@ -22,6 +22,11 @@ export function Summary({ report }: { report: PdfReport }) {
         <dd>{report.document ? report.document.pages.length : 'unknown'}</dd>
         <dt>Actions</dt>
         <dd>{report.actions.length}</dd>
+        <dt>Scripts</dt>
+        <dd>
+          {report.scripts.length} outside actions,{' '}
+          {report.actions.filter((a) => a.script || a.type === 'JavaScript').length} in actions
+        </dd>
         <dt>Objects</dt>
         <dd>{report.objects.length}</dd>
         {t && (

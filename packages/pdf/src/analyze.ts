@@ -5,10 +5,11 @@ import { byteMap } from './byte-map.ts';
 import { readDocument } from './document.ts';
 import { FindingList } from './findings.ts';
 import { readHeader } from './header.ts';
-import { type ReadContext, readObject, SEARCH_BUDGET, typeOf } from './objects.ts';
+import { LARGE_BUDGET, type ReadContext, readObject, SEARCH_BUDGET, typeOf } from './objects.ts';
 import { asInteger } from './parser.ts';
 import { Resolver } from './resolver.ts';
 import { readChain } from './revisions.ts';
+import { ScriptCollector } from './scripts.ts';
 import { readTail } from './tail.ts';
 import type { PdfDocument, PdfObject, PdfReport, Ref, Region, Revision } from './types.ts';
 
@@ -20,6 +21,7 @@ export interface Limits {
   readonly maxAnnotations: number;
   readonly maxTreeItems: number;
   readonly maxActions: number;
+  readonly maxScripts: number;
 }
 
 const READ_WINDOW = 256 * 1024;
@@ -37,6 +39,7 @@ export const LIMITS: Limits = {
   maxAnnotations: 100_000,
   maxTreeItems: 100_000,
   maxActions: 10_000,
+  maxScripts: 10_000,
 };
 
 export async function analyzePdf(
@@ -70,6 +73,7 @@ export async function analyzePdf(
       regions,
       document: null,
       actions: [],
+      scripts: [],
       findings: findings.list,
     };
   }
@@ -122,13 +126,22 @@ export async function analyzePdf(
     }
   };
   // IND-4: one endstream search budget for the whole file.
-  const context: ReadContext = { resolveLength, search: { left: SEARCH_BUDGET } };
+  const context: ReadContext = {
+    resolveLength,
+    search: { left: SEARCH_BUDGET },
+    large: { left: LARGE_BUDGET },
+  };
   const resolver = new Resolver({
     reader: new Reader(source, WALK_WINDOW),
     objects: chain.objects,
     findings,
     context,
     encrypted,
+  });
+  // SCR-6..9: the objects list and the byte map hand each object over as they read it.
+  const scripts = new ScriptCollector(resolver, findings, {
+    encrypted,
+    maxScripts: limits.maxScripts,
   });
 
   // OBX-1..3, REP-3
@@ -147,18 +160,21 @@ export async function analyzePdf(
     >;
     const common = { number, revision, replaced };
     if (entry.type === 'free') {
+      scripts.freed(number);
       objects.push({ ...common, generation: entry.generation, status: 'free' });
       continue;
     }
     if (entry.type === 'compressed') {
+      // OBX-3: read once for its type, and not kept.
+      const { value } = await resolver.load(number, 0, { findings, cache: false });
+      scripts.object(number, 0, value, false);
       objects.push({
         ...common,
         generation: 0,
         status: 'compressed',
         container: entry.container,
         index: entry.index,
-        // OBX-3: read once for its type, and not kept.
-        ...typeOf((await resolver.load(number, 0, { findings, cache: false })).value),
+        ...typeOf(value),
       });
       continue;
     }
@@ -190,6 +206,9 @@ export async function analyzePdf(
       continue;
     }
     if (outcome.kind === 'too-large') {
+      // RES-1: read again, larger, through the resolver so the walk reuses it (SCR-7).
+      const whole = await resolver.load(number, entry.generation);
+      scripts.object(number, entry.generation, whole.value, whole.stream !== null);
       findings.add(
         'pdf.object.too-large',
         `Object ${number} is larger than the 64 KiB read for it.`,
@@ -199,6 +218,7 @@ export async function analyzePdf(
       continue;
     }
     const { indirect, end, stream } = outcome.object;
+    scripts.object(number, entry.generation, indirect.value, stream !== null);
     if (!streamSections.has(entry.offset)) {
       regions.push({
         kind: 'object',
@@ -212,7 +232,8 @@ export async function analyzePdf(
 
   // MAP-1: older copies of replaced objects, read for their extent only.
   let budget = limits.maxObjects - objects.length;
-  for (const s of chain.sections) {
+  for (const [i, s] of chain.sections.entries()) {
+    const revision = revisions[i]?.index ?? 0;
     for (const list of s.xrefStm ? [s.entries, s.xrefStm.entries] : [s.entries]) {
       for (const [number, entry] of list) {
         const winner = chain.objects.get(number)?.entry;
@@ -224,6 +245,7 @@ export async function analyzePdf(
         const ref = { number, generation: entry.generation };
         const old = await readObject(objectReader, entry.offset, new FindingList(), ref, context);
         if (old.kind === 'read') {
+          scripts.olderCopy(number, entry.offset, revision, old.object.indirect.value);
           regions.push({
             kind: 'object',
             offset: entry.offset,
@@ -235,8 +257,10 @@ export async function analyzePdf(
     }
   }
 
-  // REP-8, REP-10: the document walk (CAT, INF, PG, ANN) and the actions it reaches (ACT).
+  // REP-8, REP-10, REP-11: the document walk (CAT, INF, PG, ANN), and the actions (ACT) and
+  // 3D scripts (SCR-2) it reaches.
   const actions = new ActionCollector(resolver, findings, { encrypted, limits });
+  const missesBefore = resolver.misses;
   const read = trailer
     ? await readDocument(
         resolver,
@@ -249,14 +273,22 @@ export async function analyzePdf(
             await actions.names(dict);
           },
           page: ({ index, object, dict }) => actions.page(index, object, dict),
-          annotation: ({ page, object, dict }) => actions.annotation(page, object, dict),
+          annotation: async ({ page, object, dict }) => {
+            await actions.annotation(page, object, dict);
+            await scripts.annotation(page, object, dict);
+          },
         },
       )
     : null;
   if (read?.catalogDict) {
     await actions.fields(read.catalogDict);
     await actions.outline(read.catalogDict);
+    await scripts.xfa(read.catalogDict);
   }
+  // SCR-8: a walk that stopped at a limit, or met an object it could not read, may have
+  // missed places.
+  const cut = Boolean(read?.cut) || actions.cut || resolver.misses > missesBefore;
+  await scripts.finish(actions.dicts, cut);
   const document: PdfDocument | null = read && {
     catalog: read.catalog,
     info: read.info,
@@ -275,6 +307,7 @@ export async function analyzePdf(
     regions: await byteMap(reader, regions, findings),
     document,
     actions: actions.actions,
+    scripts: scripts.scripts,
     findings: findings.list,
   };
 }

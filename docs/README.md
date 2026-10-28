@@ -17,7 +17,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 
 - [Mail analyzer specification](reference/mail/) — exact behavior, rules, findings, and data model
 - [ZIP analyzer specification](reference/zip/) — structure, ZIP64, fields, nested archives, findings, hex view
-- [PDF analyzer specification](reference/pdf/) — syntax, file structure, streams, document, actions, findings
+- [PDF analyzer specification](reference/pdf/) — syntax, file structure, streams, document, actions, scripts, findings
 
 ## Explanation
 

@@ -59,6 +59,8 @@ export interface ActionLimits {
 
 export class ActionCollector {
   readonly actions: Action[] = [];
+  /** SCR-8: every action dictionary listed, by identity. */
+  readonly dicts = new Set<PdfValue>();
   outlineItems = 0;
   fieldItems = 0;
   private readonly resolver: Resolver;
@@ -178,6 +180,11 @@ export class ActionCollector {
     });
   }
 
+  /** SCR-8: some actions were not listed, or some places not read. */
+  get cut() {
+    return this.full || this.limited.size > 0;
+  }
+
   /** Once per kind (ACT-15, ACT-4). */
   limit(kind: string, message: string) {
     if (this.limited.has(kind)) return;
@@ -254,6 +261,7 @@ export class ActionCollector {
       return;
     }
     const dict = r.value as PdfValue;
+    this.dicts.add(dict);
     const s = dictGet(dict, 'S');
     const type = s?.kind === 'name' ? s.text : '';
     const at =
@@ -263,7 +271,9 @@ export class ActionCollector {
     }
     const target = await this.target(type, dict);
     const script =
-      type === 'JavaScript' || type === 'Rendition' ? await this.script(dict) : undefined;
+      type === 'JavaScript' || type === 'Rendition'
+        ? await readScript(this.resolver, dict, 'JS', this.encrypted)
+        : undefined;
     const action: Action = {
       type,
       source: place.source,
@@ -368,21 +378,38 @@ export class ActionCollector {
     }
     return undefined;
   }
+}
 
-  /** ACT-7, ACT-8 */
-  private async script(dict: PdfValue): Promise<Script | undefined> {
-    const r = await this.resolver.resolve(dictGet(dict, 'JS'));
-    if (r.value?.kind === 'string') {
-      return {
-        text: textOf(r.value, this.encrypted) ?? ENCRYPTED_TEXT,
-        byteLength: r.value.bytes.length,
-      };
-    }
-    if (!r.stream) return undefined;
-    if (this.encrypted) return { text: ENCRYPTED_TEXT, byteLength: r.stream.byteLength };
-    const data = await this.resolver.streamData(r);
-    return data ? { text: decodeText(data), byteLength: data.length } : undefined;
-  }
+/** ACT-7, ACT-8: the script under `key` of `dict`: a string, or a stream decoded (FLT). */
+export async function readScript(
+  resolver: Resolver,
+  dict: PdfValue | null,
+  key: string,
+  encrypted: boolean,
+): Promise<Script | undefined> {
+  const r = await resolver.resolve(dictGet(dict, key));
+  return stringScript(r.value, encrypted) ?? streamScript(resolver, r, encrypted);
+}
+
+/** ACT-7, ACT-8: a string value as script text, or undefined. */
+export function stringScript(
+  v: PdfValue | null | undefined,
+  encrypted: boolean,
+): Script | undefined {
+  if (v?.kind !== 'string') return undefined;
+  return { text: textOf(v, encrypted) ?? ENCRYPTED_TEXT, byteLength: v.bytes.length };
+}
+
+/** ACT-7, ACT-8: a stream's data as script text. */
+export async function streamScript(
+  resolver: Resolver,
+  r: Resolved,
+  encrypted: boolean,
+): Promise<Script | undefined> {
+  if (!r.stream) return undefined;
+  if (encrypted) return { text: ENCRYPTED_TEXT, byteLength: r.stream.byteLength };
+  const data = await resolver.streamData(r);
+  return data ? { text: decodeText(data), byteLength: data.length } : undefined;
 }
 
 /** ACT-15: one tree walk with its visited set, item count, and depth limit. */

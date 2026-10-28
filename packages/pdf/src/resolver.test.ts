@@ -9,7 +9,7 @@ import { PdfBuilder } from './test/build-pdf.ts';
 
 const LF = String.fromCharCode(10);
 
-async function open(b: PdfBuilder, encrypted = false) {
+async function open(b: PdfBuilder, encrypted = false, large?: number) {
   const reader = new Reader(bytesSource(b.bytes()));
   const findings = new FindingList();
   const chain = await readChain(reader, b.sections.at(-1) as number, findings, {
@@ -20,7 +20,7 @@ async function open(b: PdfBuilder, encrypted = false) {
     reader,
     objects: chain.objects,
     findings,
-    context: standalone(),
+    context: large === undefined ? standalone() : { ...standalone(), large: { left: large } },
     encrypted,
   });
   return { resolver, findings, ids: () => findings.list.map((f) => f.id) };
@@ -29,6 +29,35 @@ async function open(b: PdfBuilder, encrypted = false) {
 const ref = (number: number): PdfValue => ({ kind: 'ref', number, generation: 0 });
 
 describe('references', () => {
+  it('RES-1: given an object larger than 64 KiB, when resolved, then it is read again with a larger window', async () => {
+    const big = 'a'.repeat(70_000);
+    const { resolver } = await open(new PdfBuilder().object(1, `(${big})`).xrefTable());
+    const r = await resolver.resolve(ref(1));
+    expect(r.value?.kind === 'string' && r.value.bytes.length).toBe(70_000);
+    expect(resolver.misses).toBe(0);
+  });
+
+  it('RES-1: given the larger reads used up, when a large object is resolved, then null and a miss', async () => {
+    const big = 'a'.repeat(70_000);
+    const { resolver } = await open(new PdfBuilder().object(1, `(${big})`).xrefTable(), false, 0);
+    expect((await resolver.resolve(ref(1))).value).toBeNull();
+    expect(resolver.misses).toBeGreaterThan(0);
+  });
+
+  it('RES-2: given a reference chain longer than 32, when resolved, then null and a miss', async () => {
+    const b = new PdfBuilder();
+    for (let n = 1; n <= 40; n++) b.object(n, `${n + 1} 0 R`);
+    const { resolver } = await open(b.object(41, '1').xrefTable());
+    expect((await resolver.resolve(ref(1))).value).toBeNull();
+    expect(resolver.misses).toBeGreaterThan(0);
+  });
+
+  it('RES-1: given a free or missing entry, when resolved, then null without a miss', async () => {
+    const { resolver } = await open(new PdfBuilder().object(1, '5').xrefTable());
+    await resolver.resolve(ref(9));
+    expect(resolver.misses).toBe(0);
+  });
+
   it('RES-1: given a reference to an object in use, when resolved, then its value and number', async () => {
     const { resolver } = await open(new PdfBuilder().object(1, '<< /A 7 >>').xrefTable());
     const r = await resolver.resolve(ref(1));

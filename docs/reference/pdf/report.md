@@ -16,6 +16,7 @@ classDiagram
     regions Region[]
     document Document or null
     actions Action[]
+    scripts ScriptItem[]
     findings Finding[]
   }
   class Header {
@@ -134,12 +135,25 @@ classDiagram
     text Text
     byteLength number
   }
+  class ScriptItem {
+    source 3d, xfa, postscript, unreached, unchecked, or removed
+    language string
+    automatic boolean
+    object number or undefined
+    holder number or undefined
+    page number or undefined
+    revision number or undefined
+    event string or undefined
+    label string or undefined
+    script Script or undefined
+  }
   Document --> Catalog
   Document --> Info
   Info --> InfoEntry
   Document --> Page
   Page --> Annotation
   Action --> Script
+  ScriptItem --> Script
 ```
 
 | ID | Rule |
@@ -154,6 +168,7 @@ classDiagram
 | REP-8 | `document` is null when no trailer was read. Otherwise it holds what CAT, INF, and PG found; `catalog` and `info` are null when they could not be read. `pages` are in page tree order (PG-2). `outlineItems` and `fields` count the items ACT-12 and ACT-13 visited. |
 | REP-9 | A `Text` with `text` null was not decoded because the file is encrypted (TXT-4). `truncated` is set by TXT-3. |
 | REP-10 | `actions` are in the order found: catalog, `JavaScript` name tree, pages with their annotations, form fields, outline (ACT-1). `event` is the key that holds the action (`OpenAction`, `A`, an `AA` key, or `JavaScript`). `holder` is the page, annotation, field, or outline item object; `object` is the action's own object when it is indirect. `label` is the field name, outline title, or name tree key. |
+| REP-11 | `scripts` are in this order: `3d` in page order, `xfa` in packet order, `postscript` and `unreached` or `unchecked` by object number, `removed` newest revision first (SCR-1). `object` is the 3D stream, the XFA stream, the PostScript XObject, or the object that holds the JavaScript dictionary. `holder` is the 3D annotation. `event` is the 3D activation (SCR-2) or the XFA activity (SCR-4). `label` is the XFA packet name, or `Level1` (SCR-6). `script` is absent when it could not be read. |
 
 ## Findings
 
@@ -219,3 +234,12 @@ classDiagram
 | `pdf.action.remote` | info | ACT-9 | 12.6.4.3 |
 | `pdf.action.automatic` | warning | ACT-10 | 12.6.3 |
 | `pdf.too-many-actions` | warning | ACT-11 | — |
+| `pdf.script.3d` | warning | SCR-2 | 13.6.3 |
+| `pdf.xfa` | info | SCR-3 | 12.7.8 |
+| `pdf.script.xfa` | warning | SCR-4 | 12.7.8 |
+| `pdf.script.postscript` | info | SCR-6 | 8.8.2 |
+| `pdf.xfa.incomplete` | warning | SCR-4 | — |
+| `pdf.script.unreached` | warning | SCR-8 | — |
+| `pdf.script.unchecked` | warning | SCR-8 | — |
+| `pdf.script.removed` | warning | SCR-9 | 7.5.6 |
+| `pdf.too-many-scripts` | warning | SCR-10 | — |

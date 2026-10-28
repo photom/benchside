@@ -61,5 +61,6 @@ Not yet planned in detail: content checks (file types, CRC-32 of every entry).
 | [REQ-PDF-003](REQ-PDF-003-robust-responsive.md) | Robust and responsive analysis | Accepted |
 | [REQ-PDF-004](REQ-PDF-004-show-document.md) | Show the document and its pages | Accepted |
 | [REQ-PDF-005](REQ-PDF-005-actions.md) | Find the actions a PDF can perform | Accepted |
+| [REQ-PDF-006](REQ-PDF-006-other-scripts.md) | Find scripts outside actions | Accepted |
 
-Planned next: rebuilding broken files, embedded files, hex view.
+Planned next: decrypting files with an empty user password, rebuilding broken files, embedded files, hex view.

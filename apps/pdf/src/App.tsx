@@ -9,6 +9,7 @@ import { Objects } from './views/Objects.tsx';
 import { Pages } from './views/Pages.tsx';
 import { References } from './views/References.tsx';
 import { Revisions } from './views/Revisions.tsx';
+import { Scripts } from './views/Scripts.tsx';
 import { Summary } from './views/Summary.tsx';
 import type { PdfHost } from './worker/host.ts';
 
@@ -51,6 +52,7 @@ export function App({ host }: { host: PdfHost }) {
           <Summary report={status.report} />
           <Findings findings={status.report.findings} />
           <Actions key={`a${run}`} actions={status.report.actions} />
+          <Scripts key={`s${run}`} scripts={status.report.scripts} />
           {status.report.document && (
             <>
               <Document document={status.report.document} />

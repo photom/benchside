@@ -1,5 +1,6 @@
 import type { Action, ActionSource } from '@benchside/pdf';
 import { usePage } from '@benchside/ui';
+import { ScriptText } from './ScriptText.tsx';
 import { shown } from './text.ts';
 
 const SOURCES: Record<ActionSource, string> = {
@@ -88,12 +89,7 @@ export function Actions({ actions }: { actions: readonly Action[] }) {
                 <td>{when(a)}</td>
                 <td>
                   {shown(a.target)}
-                  {a.script && (
-                    <details>
-                      <summary>Script, {a.script.byteLength} bytes</summary>
-                      <pre>{shown(a.script.text)}</pre>
-                    </details>
-                  )}
+                  {a.script && <ScriptText script={a.script} />}
                 </td>
               </tr>
             ))}

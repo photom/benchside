@@ -11,6 +11,9 @@ export const OBJECT_WINDOW = 64 * 1024;
 /** Most objects fit in this; a bigger one is read again with OBJECT_WINDOW. */
 const FIRST_TRY = 4 * 1024;
 const ENDSTREAM_SEARCH = 1024 * 1024;
+/** RES-1: an object too large for OBJECT_WINDOW is read again this far, within LARGE_BUDGET. */
+export const LARGE_WINDOW = 4 * 1024 * 1024;
+export const LARGE_BUDGET = 64 * 1024 * 1024;
 const PEEK = 64;
 
 export interface ReadObject {
@@ -35,13 +38,32 @@ export const SEARCH_BUDGET = 16 * 1024 * 1024;
 export interface ReadContext {
   readonly resolveLength: LengthResolver;
   readonly search: { left: number };
+  /** RES-1: bytes left for reading large objects again. */
+  readonly large: { left: number };
 }
 
 /** A context that resolves nothing, with its own search budget. */
 export const standalone = (): ReadContext => ({
   resolveLength: async () => null,
   search: { left: SEARCH_BUDGET },
+  large: { left: LARGE_BUDGET },
 });
+
+/** RES-1: readObject, and once more with LARGE_WINDOW when the object is too large. */
+export async function readLarge(
+  reader: Reader,
+  offset: number,
+  findings: FindingList,
+  expect: Ref | null,
+  context: ReadContext,
+): Promise<ObjectOutcome> {
+  const first = await readObject(reader, offset, findings, expect, context);
+  if (first.kind !== 'too-large') return first;
+  const cost = Math.min(LARGE_WINDOW, reader.byteLength - offset);
+  if (cost > context.large.left) return first;
+  context.large.left -= cost;
+  return readObject(reader, offset, findings, expect, context, LARGE_WINDOW);
+}
 
 /** Reads the object at `offset`. When `expect` is given, its number and generation must match (OBX-1). */
 export async function readObject(
@@ -50,12 +72,13 @@ export async function readObject(
   findings: FindingList,
   expect: Ref | null,
   context: ReadContext,
+  window = OBJECT_WINDOW,
 ): Promise<ObjectOutcome> {
   const size = reader.byteLength;
   if (offset < 0 || offset >= size) return { kind: 'out-of-range' };
   let parsed = await parseAt(reader, offset, FIRST_TRY);
   if (parsed.cutShort && parsed.indirect && !parsed.indirect.endobj && !parsed.indirect.stream) {
-    parsed = await parseAt(reader, offset, OBJECT_WINDOW);
+    parsed = await parseAt(reader, offset, window);
   }
   const { indirect, local, cutShort } = parsed;
   if (
