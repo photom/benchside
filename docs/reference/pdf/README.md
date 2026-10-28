@@ -17,7 +17,8 @@ flowchart LR
   structure --> streams["Streams<br/>filters, object streams, references"]
   streams --> document["Document<br/>catalog, info, pages"]
   document --> actions[Actions]
-  structure & document & actions --> report[Report]
+  document --> scripts[Scripts]
+  structure & document & actions & scripts --> report[Report]
 ```
 
 | Page | Covers |
@@ -27,6 +28,7 @@ flowchart LR
 | [Streams](streams.md) | Filters, object streams, following references |
 | [Document](document.md) | Text strings, catalog, document information, page tree, annotations |
 | [Actions](actions.md) | Where actions are, their targets and scripts, action findings |
+| [Scripts](scripts.md) | Code outside actions: 3D JavaScript, XFA scripts, PostScript XObjects, JavaScript nothing reaches or an update removed |
 | [Report](report.md) | Output data model and findings |
 
 ## Conventions
@@ -60,6 +62,9 @@ These are this analyzer's limits, not ISO 32000-1's.
 | Outline, field, and name tree items | 100 000 per tree, 64 levels | `pdf.tree.limit`; the rest are skipped |
 | `Next` chain depth | 64 | `pdf.tree.limit` |
 | Actions listed | 10 000 | `pdf.too-many-actions`; the rest are not listed |
+| Scripts listed | 10 000 | `pdf.too-many-scripts`; the rest are not listed |
+| Object read again when too large for the 64 KiB read (RES-1, SCR-7) | 4 MiB from its offset, 64 MiB per file | The object is null to references and not searched for JavaScript |
+| XFA script search | 16 characters examined per character of text | `pdf.xfa.incomplete`; later scripts are not listed |
 | Text kept | 65 536 characters | The text is cut and marked truncated (TXT-3) |
 | `endstream` search after a wrong `Length` | 1 MiB per stream, 16 MiB per file | `pdf.stream.length`; the stream ends at `Length`, or is empty when `Length` is not usable |
 | Gap inspected for blank bytes | 64 KiB | The gap counts as not blank (MAP-2) |

@@ -72,7 +72,16 @@ export type FindingId =
   | 'pdf.action.import-data'
   | 'pdf.action.remote'
   | 'pdf.action.automatic'
-  | 'pdf.too-many-actions';
+  | 'pdf.too-many-actions'
+  | 'pdf.script.3d'
+  | 'pdf.xfa'
+  | 'pdf.script.xfa'
+  | 'pdf.script.postscript'
+  | 'pdf.xfa.incomplete'
+  | 'pdf.script.unreached'
+  | 'pdf.script.unchecked'
+  | 'pdf.script.removed'
+  | 'pdf.too-many-scripts';
 
 /** An indirect reference `n g R` (OBJ-8). */
 export interface Ref {
@@ -230,6 +239,23 @@ export interface Action {
   readonly script?: Script;
 }
 
+/** SCR-1 */
+export type ScriptSource = '3d' | 'xfa' | 'postscript' | 'unreached' | 'unchecked' | 'removed';
+
+/** REP-11 */
+export interface ScriptItem {
+  readonly source: ScriptSource;
+  readonly language: string;
+  readonly automatic: boolean;
+  readonly object?: number;
+  readonly holder?: number;
+  readonly page?: number;
+  readonly revision?: number;
+  readonly event?: string;
+  readonly label?: string;
+  readonly script?: Script;
+}
+
 export interface PdfReport {
   readonly byteLength: number;
   readonly header: Header | null;
@@ -241,5 +267,6 @@ export interface PdfReport {
   readonly regions: readonly Region[];
   readonly document: PdfDocument | null;
   readonly actions: readonly Action[];
+  readonly scripts: readonly ScriptItem[];
   readonly findings: readonly Finding[];
 }

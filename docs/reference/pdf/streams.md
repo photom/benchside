@@ -41,7 +41,7 @@ flowchart LR
 
 | ID | Rule |
 |---|---|
-| RES-1 | A reference `n g R` resolves through the merged entries (REV-4). An in-use entry with generation g gives the object at its offset (OBX-1). A compressed entry, with g = 0, gives the object from its object stream (OST). A free or missing entry, or another generation, gives null (7.3.10). This is not a finding (OBJ-8). |
+| RES-1 | A reference `n g R` resolves through the merged entries (REV-4). An in-use entry with generation g gives the object at its offset (OBX-1). A compressed entry, with g = 0, gives the object from its object stream (OST). A free or missing entry, or another generation, gives null (7.3.10). This is not a finding (OBJ-8). An in-use object too large for the 64 KiB object read is read again with a window of up to 4 MiB, within 64 MiB of such reads per file; when it still does not fit, it gives null. |
 | RES-2 | A resolved value that is itself a reference is followed again, at most 32 times; then it is null. |
 | RES-3 | An object that cannot be read (OBX-1, OST) resolves to null. Its finding comes from the objects list (OBX) or the object stream (OST), once. |
 | RES-4 | A stream resolves to its dictionary and extent (IND-3, IND-4). Its data is read and decoded only when needed. |

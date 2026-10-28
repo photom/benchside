@@ -84,7 +84,8 @@ export function decodeText(bytes: Uint8Array): Text {
   return { text, truncated: bytes.length > MAX_TEXT };
 }
 
-function keep(text: string, cut: boolean): Text {
+/** TXT-3: text from elsewhere (SCR-5), cut to the limit. */
+export function keep(text: string, cut = false): Text {
   if (text.length <= MAX_TEXT) return { text, truncated: cut };
   // TXT-3: never keep half of a surrogate pair.
   const high = text.charCodeAt(MAX_TEXT - 1);
