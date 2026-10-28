@@ -26,6 +26,8 @@ const report = {
   trailer: null,
   encrypted: false,
   regions: [],
+  document: null,
+  actions: [],
   findings: [],
 } satisfies PdfReport;
 const file = new Blob(['x']);

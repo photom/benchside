@@ -32,3 +32,13 @@ td {
 .finding[data-severity="warning"] {
   border-left-color: #c80;
 }
+
+tr[data-automatic="true"] td:nth-child(3) {
+  font-weight: bold;
+}
+
+pre {
+  max-height: 20rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
