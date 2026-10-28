@@ -3,7 +3,7 @@ import type { Reader } from '@benchside/core';
 import { DECODE_BUDGET, decodeStream, MAX_DECODED } from './filters.ts';
 import { FindingList } from './findings.ts';
 import { Lexer } from './lexer.ts';
-import { type ReadContext, readObject } from './objects.ts';
+import { type ReadContext, readLarge } from './objects.ts';
 import { asInteger, asName, dictGet, Parser, type PdfValue } from './parser.ts';
 import type { Merged } from './revisions.ts';
 import type { StreamInfo } from './types.ts';
@@ -41,6 +41,11 @@ export interface ResolverOptions {
 }
 
 export class Resolver {
+  /**
+   * SCR-8: references that led to an object that exists but could not be read, or to a chain
+   * longer than RES-2. A walk compares it before and after.
+   */
+  misses = 0;
   /** FLT-9: decoding left for this analysis. */
   readonly budget = { left: DECODE_BUDGET };
   private readonly options: ResolverOptions;
@@ -58,10 +63,18 @@ export class Resolver {
   async resolve(v: PdfValue | null | undefined): Promise<Resolved> {
     let current: Resolved = { value: v ?? null, object: null, stream: null };
     for (let hops = 0; current.value?.kind === 'ref'; hops++) {
-      if (hops >= MAX_HOPS) return NONE;
+      if (hops >= MAX_HOPS) {
+        this.misses++;
+        return NONE;
+      }
       current = await this.load(current.value.number, current.value.generation);
     }
     return current;
+  }
+
+  /** A value already in the cache, or undefined. */
+  cached(number: number, generation: number): Resolved | undefined {
+    return this.cache.get(`${number} ${generation}`);
   }
 
   /**
@@ -88,6 +101,10 @@ export class Resolver {
         findings,
       );
     }
+    const exists =
+      (merged?.entry.type === 'in-use' && merged.entry.generation === generation) ||
+      (merged?.entry.type === 'compressed' && generation === 0);
+    if (exists && result.value === null) this.misses++;
     if (cache) this.cache.set(key, result);
     return result;
   }
@@ -146,7 +163,7 @@ export class Resolver {
   /** RES-3: findings for in-use objects come from the objects list, so this read keeps none. */
   private async readInUse(number: number, offset: number, generation: number): Promise<Resolved> {
     const ref = { number, generation };
-    const o = await readObject(
+    const o = await readLarge(
       this.options.reader,
       offset,
       new FindingList(),
