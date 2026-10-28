@@ -62,6 +62,15 @@ export const FINDINGS: Record<FindingId, { severity: Severity; clause?: string }
   'pdf.action.remote': { severity: 'info', clause: '12.6.4.3' },
   'pdf.action.automatic': { severity: 'warning', clause: '12.6.3' },
   'pdf.too-many-actions': { severity: 'warning' },
+  'pdf.script.3d': { severity: 'warning', clause: '13.6.3' },
+  'pdf.xfa': { severity: 'info', clause: '12.7.8' },
+  'pdf.script.xfa': { severity: 'warning', clause: '12.7.8' },
+  'pdf.script.postscript': { severity: 'info', clause: '8.8.2' },
+  'pdf.xfa.incomplete': { severity: 'warning' },
+  'pdf.script.unreached': { severity: 'warning' },
+  'pdf.script.unchecked': { severity: 'warning' },
+  'pdf.script.removed': { severity: 'warning', clause: '7.5.6' },
+  'pdf.too-many-scripts': { severity: 'warning' },
 };
 
 /** Collects findings in the order found, up to a limit (REP-7). */
