@@ -32,7 +32,7 @@ flowchart TD
     ip["ip.ts<br/>parseIp, reverseName"]
   end
   input --> zip["@benchside/zip"]
-  input --> core["@benchside/core<br/>inflate gzip"]
+  input --> core["@benchside/core<br/>inflateStream"]
   format & reverse --> ip
   reverse -. "Resolver, injected" .-> compose
   worker --> job & view & reverse
@@ -52,13 +52,15 @@ flowchart TD
 | `format/values.ts` | Enumerations, integers, IPs, domains, legacy SPF values, truncation | FMT-10..15 |
 | `format/hints.ts` | Content hints and the mixed-format finding | FMT-16, FMT-17 |
 | `job.ts` | The reading queue; steps of at most 50 ms; snapshots every 250 ms; stop; generations | PRG-1, PRG-3..9, PRG-13 |
-| `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, policies, forwarder IPs | CMB-1..5, CMB-8, FCT-7 |
+| `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, policies, forwarder IPs; tracks what changed since the last snapshot | CMB-1..5, CMB-8, FCT-7, PRG-14 |
 | `classify.ts` | Facts, path, cause, rule IDs | FCT-1..6, PATH-*, CAUSE-* |
 | `view.ts` | Filters, days, totals, timeline, reporters, formats, reporter errors | CMB-6, CMB-7, CMB-9..13 |
 | `enforcement.ts` | Policy in effect, failing messages, direct sources, SPF-only passes, overrides, status | ENF-* |
 | `sources.ts` | Source rows, detail rows, path and cause filters | SRC-1..5 |
 | `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`; takes a `Resolver` | RDNS-2..5, RDNS-9, PRG-2, PRG-11..13 |
 | `findings.ts` | Finding collector with the 10 000 limit | REP-7, REP-8 |
+
+In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters, and keeps the partial label and host names (PRG-13, PRG-15).
 
 `format/schema.ts` holds the element table of [Format](../reference/dmarc-aggregate/format.md#elements) as data. The tests and the reader both use it, so the two schemas are written down once.
 
@@ -80,7 +82,7 @@ flowchart LR
 - Input is a pipeline of streams: file bytes, then gzip members, then tar entries, then text chunks for the tokenizer. No step holds a whole archive in memory; one document holds at most 32 MiB (INP-6).
 - A record is classified once, when its report is counted.
 - A new report can reveal a forwarder IP (FCT-7). The batch then classifies again the records of that IP, and only those.
-- Records are stored in columns (typed arrays and string tables). The `View` is the only bulk data that crosses to the main thread.
+- Records are stored in columns (typed arrays and string tables). They never cross to the main thread; the UI gets grouped rows in the `View` and only the batch changes since the last snapshot (REP-10, PRG-14).
 
 ## Worker protocol
 
@@ -91,8 +93,7 @@ flowchart LR
 | UI → worker | `{ type: 'clear', id }` |
 | UI → worker | `{ type: 'view', id, filters, focus }`: `focus` is a path or cause filter (SRC-5), or null |
 | UI → worker | `{ type: 'lookup', id, on: boolean, provider }` |
-| worker → UI | `{ type: 'snapshot', generation, batch, view, progress, partial, filters }` (PRG-4, PRG-13) |
-| worker → UI | `{ type: 'view', id, generation, view, filters }` |
+| worker → UI | `{ type: 'snapshot', id, generation, changes, view, progress, partial, filters, focus }`: periodic while reading (PRG-4), and the answer to every `view` (PRG-8); `id` is the request it answers, or null |
 | worker → UI | `{ type: 'names', generation, session, changes, counts, log }`: changed lookup states (PRG-11, PRG-12) and new query log entries |
 | worker → UI | `{ type: 'failed', id, message }` |
 
@@ -103,7 +104,7 @@ sequenceDiagram
   UI->>W: add, files
   W-->>UI: snapshot, partial, 30 of 400
   UI->>W: view, domain filter
-  W-->>UI: view, partial data
+  W-->>UI: snapshot, partial, new filters
   W-->>UI: snapshot, partial, 210 of 400
   W-->>UI: snapshot, final
   UI->>W: lookup on, cloudflare
@@ -112,10 +113,10 @@ sequenceDiagram
 ```
 
 - `File` objects pass by reference. The worker reads them.
-- Snapshots and views carry the filters they were computed for, and the batch generation (PRG-13). The UI drops messages from an older generation. Of the rest, it shows the newest one whose filters match the current filters.
-- `names` messages of the current generation and lookup session always apply, since host names never change a view (RDNS-8). The UI merges `changes` into its host name map by IP.
+- Snapshots carry the filters they were computed for and the batch generation (PRG-13). The UI drops snapshots from an older generation. From every other snapshot it takes the batch changes, progress, and `partial`; it shows the `View` only when the filters and focus match (PRG-14, PRG-15).
+- `names` messages of the current generation apply in full from the newest session; from an older session only final states that nothing newer replaced (PRG-13). Host names never change a view (RDNS-8). The UI merges them into its host name map by IP.
 - The UI keeps expanded rows by source IP and keeps its scroll position across snapshots (REQ-DMARC-010).
-- `lookup` with `on: true` starts a session. After each snapshot, and after each `view` whose filters change the filtered set, the worker recomputes the targets and queues new ones (RDNS-2). A `view` that changes only the focus queues nothing. `on: false` aborts the session's signal (RDNS-9).
+- `lookup` with `on: true` starts a session. After each snapshot, and after each `view`, the worker recomputes the targets from the table as shown, focus included, and queues new ones (RDNS-2). `on: false` aborts the session's signal (RDNS-9).
 
 ## Build order
 
@@ -123,7 +124,7 @@ Each step is one pull request that passes CI on its own.
 
 ```mermaid
 flowchart LR
-  s1["1 Extract @benchside/dns<br/>0014, no behavior change"] --> s2["2 inflate gzip<br/>@benchside/core"]
+  s1["1 Extract @benchside/dns<br/>0014, no behavior change"] --> s2["2 inflateStream<br/>@benchside/core"]
   s2 --> s3["3 XML reader<br/>XML-*"]
   s3 --> s4["4 Format<br/>FMT-*"]
   s4 --> s5["5 Input and batch<br/>INP-*, tar, CMB-1..5"]

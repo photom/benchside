@@ -55,7 +55,7 @@ Multiplicity: `R` exactly one, `O` zero or one, `*` zero or more, `+` one or mor
 | `report_metadata/org_name` | R | R | Text | Reporter is "(unknown)" |
 | `report_metadata/email` | R | R | Text | Nothing |
 | `report_metadata/extra_contact_info` | O | O | Text, `lang` | Nothing |
-| `report_metadata/report_id` | R | R | Text | Report is never a duplicate (CMB-1) |
+| `report_metadata/report_id` | R | R | Text | Report has no identity (CMB-1) |
 | `report_metadata/date_range/begin` | R | R | Integer, seconds since the epoch | Report is undated (CMB-7) |
 | `report_metadata/date_range/end` | R | R | Integer, seconds since the epoch | Report is undated (CMB-7) |
 | `report_metadata/error` | * | O | Text, `lang` | Nothing |
@@ -115,7 +115,7 @@ Sources: §3.1.6; RFC 7489 Appendix C, "Descriptions of the PolicyOverrideTypes"
 | FMT-10 | Enumerated values are trimmed (XML-9), compared case-insensitively, and reported lowercase. A value in neither schema's enumeration gives `aggregate.value.unknown` (warning) with path and value, and is kept as written. A value from the other schema is accepted and listed as a content hint (FMT-16). |
 | FMT-11 | Text values are kept up to 4 096 characters. Longer ones are cut and marked truncated. |
 | FMT-12 | `source_ip` is an IPv4 address in dotted-decimal form or an IPv6 address (§3.1.1.8; RFC 3986 §3.2.2). IPv6 is rewritten in the form of RFC 5952 §4, and an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`) becomes the IPv4 address, so that equal addresses group together. Anything else gives `aggregate.value.invalid` (warning); the record is kept, its source is the text as written, and it is never looked up (RDNS-1). |
-| FMT-13 | `begin`, `end`, `count`, and `pct` are integers: optional sign, then decimal digits. A value that is not an integer, a negative `count`, a `count` above 2^53 − 1, or a `pct` outside 0 to 100 gives `aggregate.value.invalid` (warning) and is treated as missing (FMT-8). An invalid `count` is the exception: FMT-18 reports it. `version`, when present, must equal 1.0 as a decimal (`1`, `1.0`, and `1.00` are equal), else `aggregate.format.version` (info) (§3.1.1.2; RFC 7489 Appendix C). |
+| FMT-13 | `begin`, `end`, `count`, and `pct` are integers: optional sign, then decimal digits. A value that is not an integer, a negative `count`, a `count` above 2^53 − 1, a `begin` or `end` outside 0 to 253 402 300 799 (9999-12-31T23:59:59Z), or a `pct` outside 0 to 100 gives `aggregate.value.invalid` (warning) and is treated as missing (FMT-8). An invalid `count` is the exception: FMT-18 reports it. `version`, when present, must equal 1.0 as a decimal (`1`, `1.0`, and `1.00` are equal), else `aggregate.format.version` (info) (§3.1.1.2; RFC 7489 Appendix C). |
 | FMT-14 | Domain values are trimmed, a trailing dot is removed, and ASCII letters are lowercased. |
 | FMT-15 | For SPF results, `unknown` is read as `temperror` and `error` as `permerror`, with `aggregate.value.legacy` (info). The RFC 7489 schema notes these older spellings ("commonly implemented as"). The original text is kept. |
 | FMT-18 | A record is skipped when `source_ip`, `policy_evaluated/dkim`, or `policy_evaluated/spf` is missing (`policy_evaluated` itself missing counts as both), or when `count` is missing or invalid by FMT-13. A skipped record gives one `aggregate.record.skipped` (warning) naming every such element, and no `aggregate.schema.missing` or `aggregate.value.invalid` for them. An unknown value in `policy_evaluated/dkim` or `spf` (FMT-10) does not skip the record; FCT-1 treats it as not `pass`. |

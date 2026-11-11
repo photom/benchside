@@ -28,23 +28,25 @@ stateDiagram-v2
 | PRG-1 | The reading job reads the queued files in order (INP-1). An `add` while reading appends its files to the queue. |
 | PRG-2 | The lookup job runs as RDNS-2 describes. It uses only the reports counted so far. Each snapshot can add targets, so sources from later reports are looked up while reading goes on. |
 | PRG-3 | "Clear" stops both jobs, then empties the batch. |
-| PRG-13 | Every `snapshot`, `view`, and `names` message carries the batch generation, which starts at 1 and grows by one at each "Clear". `names` also carries the lookup session number, which grows by one each time lookups are turned on. The UI drops any message from an older generation or session. |
+| PRG-13 | Every `snapshot` and `names` message carries the batch generation, which starts at 1 and grows by one at each "Clear". The UI drops any message from an older generation. `names` also carries the lookup session number, which grows by one each time lookups are turned on. From the newest session the UI applies every state change and the counts (PRG-12). From an older session of the current generation it applies only final states (RDNS-5), and only for sources that have no state from a newer session, since a result is valid whichever session found it; `queued` and `looking-up` from an ended session are ignored. |
 
 ## Snapshots
 
 | ID | Rule |
 |---|---|
-| PRG-4 | While reading, the worker sends a snapshot: after the first report is counted, then whenever 250 ms have passed since the last one, and once when reading ends. A snapshot holds the `Batch`, the `View` for the latest filters, and the reading progress. |
+| PRG-4 | While reading, the worker sends a snapshot: after the first report is counted, then whenever 250 ms have passed since the last one, and once when reading ends. A snapshot holds the batch changes (PRG-14), the `View` for the latest filters, and the reading progress. |
 | PRG-5 | A snapshot sent while reading has `partial: true`. Its `View` covers the reports counted so far. The last snapshot has `partial: false`. |
 | PRG-6 | Reading progress: input bytes read and total, top-level files read and total, reports counted, and the phase: `reading`, `done`, or `stopped`. The byte total is the sum of the queued files' sizes; it grows when files are added. |
 | PRG-7 | Records can change class between snapshots when a later report reveals a forwarder IP (FCT-7). Each snapshot is computed fresh from the counted reports, so the last one is correct. |
-| PRG-8 | The worker reads in steps of at most 50 ms of work and checks for messages between steps. A `view` request during reading is answered with a view of the reports counted so far, within one step. |
+| PRG-8 | The worker reads in steps of at most 50 ms of work and checks for messages between steps. A `view` request is answered with a snapshot, within one step, whether or not reading is running. |
+| PRG-14 | A snapshot carries only what changed in the batch since the previous snapshot of the same generation: files, reports, and findings added, and files whose status changed. The UI keeps the lists. Its `View` is always complete, and so are its progress and `partial`. |
+| PRG-15 | The UI takes the batch changes and the progress from every snapshot of the current generation, so the indicator always reaches the end of reading. It shows a snapshot's `View` only when the snapshot's filters and focus (SRC-5) match the current ones. The indicator shows the newest progress. The partial label follows the `View` shown: its counts come from the snapshot that `View` came from, and it stays until a `View` from a snapshot with `partial: false` is shown. |
 
 ## Stop
 
 | ID | Rule |
 |---|---|
-| PRG-9 | "Stop" ends reading at the end of the current step. A report half read is dropped. Files not finished get the status `stopped` in `files`; the reports counted so far stay. The phase becomes `stopped`. |
+| PRG-9 | "Stop" ends reading at the end of the current step. A report half read is dropped. Files not finished get the status `stopped`, sent as file status changes (PRG-14); the reports counted so far stay. The phase becomes `stopped`. |
 | PRG-10 | Stopping the lookup job is RDNS-9. |
 
 ## Lookup progress
