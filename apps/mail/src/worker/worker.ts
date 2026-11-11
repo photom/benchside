@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
-import { analyze, createDnsCache } from '@benchside/mail';
-import { createDohTransport, type DohProvider } from '../dns/doh.ts';
+
+import { createDnsCache } from '@benchside/dns';
+import { createDohTransport, type DohProvider } from '@benchside/dns/doh';
+import { analyze } from '@benchside/mail';
 import type { FromWorker, ToWorker } from './protocol.ts';
 
 declare const self: DedicatedWorkerGlobalScope;

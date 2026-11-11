@@ -1,12 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
+import type { Transport } from '@benchside/dns';
+import { createDnsCache, type ManualRecord, offlineTransport } from '@benchside/dns';
 import { describe, expect, it } from 'vitest';
 import { seal } from '../test/support/arc-sealer.ts';
 import { signMessage } from '../test/support/dkim-signer.ts';
 import { rsaKey } from '../test/support/keys.ts';
 import { analyze } from './analyze.ts';
-import { createDnsCache } from './dns/cache.ts';
-import { type ManualRecord, offlineTransport } from './dns/offline.ts';
-import type { Transport } from './dns/types.ts';
 
 const bytes = (lines: string[]) =>
   new TextEncoder().encode(`${lines.join('\r\n')}\r\n\r\nbody\r\n`);
