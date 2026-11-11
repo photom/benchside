@@ -1,4 +1,5 @@
-import { type DnsType, joinTxtData, type Lookup, type Transport } from '@benchside/mail';
+import { joinTxtData } from './txt.ts';
+import type { DnsType, Lookup, Transport } from './types.ts';
 
 /** DNS-5. Each origin must also be in the mail app's CSP `connect-src`. */
 const ENDPOINTS = {
