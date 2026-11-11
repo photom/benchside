@@ -64,3 +64,23 @@ Not yet planned in detail: content checks (file types, CRC-32 of every entry).
 | [REQ-PDF-006](REQ-PDF-006-other-scripts.md) | Find scripts outside actions | Accepted |
 
 Planned next: decrypting files with an empty user password, rebuilding broken files, embedded files, hex view.
+
+## DMARC aggregate report analyzer
+
+Aggregate reports only (RFC 9990; RFC 7489 §7.2). Failure reports (RFC 9991; RFC 7489 §7.3) are out of scope.
+
+| ID | Title | Status |
+|---|---|---|
+| [REQ-DMARC-001](REQ-DMARC-001-local-only.md) | Read reports without sending them anywhere | Accepted |
+| [REQ-DMARC-002](REQ-DMARC-002-both-formats.md) | Read both aggregate report formats and show which one each report uses | Accepted |
+| [REQ-DMARC-003](REQ-DMARC-003-combine-reports.md) | Combine many reports from many receivers | Accepted |
+| [REQ-DMARC-004](REQ-DMARC-004-source-table.md) | Show each sending source with its results | Accepted |
+| [REQ-DMARC-005](REQ-DMARC-005-classify.md) | Classify delivery paths and causes of failure | Accepted |
+| [REQ-DMARC-006](REQ-DMARC-006-enforcement.md) | Show what a stricter policy would change | Accepted |
+| [REQ-DMARC-007](REQ-DMARC-007-visualize.md) | Visualize the combined reports | Accepted |
+| [REQ-DMARC-008](REQ-DMARC-008-reverse-lookup.md) | Optional reverse lookup of source IPs | Accepted |
+| [REQ-DMARC-009](REQ-DMARC-009-robust-responsive.md) | Robust and responsive analysis | Accepted |
+| [REQ-DMARC-010](REQ-DMARC-010-live-results.md) | Show results while the analysis runs | Accepted |
+| [REQ-DMARC-011](REQ-DMARC-011-bulk-input.md) | Take in many gzip reports at once | Accepted |
+
+Not yet planned in detail: opening the report emails themselves (`.eml`), CSV export.
