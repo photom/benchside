@@ -1,5 +1,5 @@
 /** RFC 9989 policy discovery and organizational domain (DMARC-4..6, DMARC-22). */
-import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
+import type { DnsAnswer, DnsQuery } from '@benchside/dns';
 import type { Finding } from '../shared/findings.ts';
 import { looksLikeDmarc, parseDmarcRecord } from './record.ts';
 

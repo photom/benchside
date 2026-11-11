@@ -1,5 +1,5 @@
 /** SPF macros (RFC 7208 §7; SPF-12, SPF-26, SPF-27). */
-import type { Ip } from '../shared/ip.ts';
+import type { Ip } from '@benchside/dns';
 
 export interface Macro {
   readonly letter: string;
@@ -131,7 +131,7 @@ async function letterValue(letter: string, env: MacroEnv): Promise<string> {
 }
 
 /** RFC 7208 §7.3: an IPv6 `i` is 32 dot-separated hex nibbles. */
-export function nibbles(bytes: Uint8Array): string {
+function nibbles(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => `${(b >> 4).toString(16)}.${(b & 15).toString(16)}`).join('.');
 }
 

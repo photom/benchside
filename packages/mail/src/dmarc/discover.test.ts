@@ -1,7 +1,6 @@
+import type { Lookup, Transport } from '@benchside/dns';
+import { composeResolver, createDnsCache } from '@benchside/dns';
 import { describe, expect, it } from 'vitest';
-import { createDnsCache } from '../dns/cache.ts';
-import { composeResolver } from '../dns/compose.ts';
-import type { Lookup, Transport } from '../dns/types.ts';
 import { treeWalk } from './discover-rfc9989.ts';
 import { parseDmarcRecord } from './record.ts';
 
