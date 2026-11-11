@@ -2,7 +2,7 @@
  * Shared by DKIM signatures and ARC-Message-Signatures (design: mail-design/dkim.md).
  * Works on the CRLF-normalized bytes; header `raw` ranges point into them.
  */
-import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
+import type { DnsAnswer, DnsQuery } from '@benchside/dns';
 import type { HeaderField } from '../message/headers.ts';
 import { decodeBase64 } from './base64.ts';
 import type { ByteRange } from './bytes.ts';
