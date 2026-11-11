@@ -81,9 +81,10 @@ These are this analyzer's limits, not the RFCs'.
 | Entries per tar archive | 10 000 | `aggregate.tar.too-many-entries`; later entries are not read |
 | XML nesting depth | 32 | `aggregate.xml.malformed`; the report is not read |
 | Text kept per element | 4 096 characters | The text is cut and marked truncated (FMT-11) |
+| Timeline days | 1 000, the latest | Earlier days are summed into one number (CMB-10) |
 | Records per batch | 1 000 000 | `aggregate.too-many-records`; later records are not read |
 | DKIM results per record | 100 (the §3.1.3 upper bound) | `aggregate.record.too-many-dkim`; the rest are ignored |
-| Lookup targets | The first 200 sources of the filtered set | The rest show "not looked up" (RDNS-2) |
+| Lookup targets | The first 200 rows of the source table as shown | The rest show "not looked up" (RDNS-2) |
 | Names checked forward per IP | 3 | The rest are not checked (RDNS-4) |
 | DNS queries per lookup session | 2 000 | `dns.budget-exhausted` (RDNS-6) |
 | Findings per batch | 10 000 | `aggregate.too-many-findings`; later findings are dropped |
