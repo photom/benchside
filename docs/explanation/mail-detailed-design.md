@@ -5,6 +5,12 @@ Builds on [Mail analyzer architecture](mail-architecture.md). Behavior rules: [s
 ## 1. File layout
 
 ```
+packages/dns/                       # @benchside/dns (0014)
+  src/
+    index.ts                      # types, composeResolver, cache, offline, idna, ip, txt
+    types.ts  compose.ts  cache.ts  offline.ts  idna.ts  ip.ts  txt.ts
+    doh.ts                        # entry point @benchside/dns/doh: the only fetch
+
 packages/mail/
   data/public_suffix_list.dat     # PSL snapshot (0003)
   src/
@@ -13,7 +19,7 @@ packages/mail/
     context.ts                    # AnalysisContext
     message/   parse.ts  headers.ts  mime.ts  line-endings.ts  encoded-words.ts
     envelope/  received.ts  heuristics.ts  boundary.ts  infer.ts  reference-time.ts
-    dns/       types.ts  compose.ts  log.ts  budget.ts  policy.ts  cache.ts  offline.ts  txt.ts
+    dns/       findings.ts               # dnsFindings; the resolver is in @benchside/dns (0014)
     spf/       record.ts  macro.ts  evaluate.ts
     dkim/      verify.ts
     dkim2/     fields.ts  recipes.ts  custody.ts  hashes.ts  verify.ts
@@ -22,6 +28,7 @@ packages/mail/
     authres/   parse.ts  list.ts  compare.ts
     psl/       lookup.ts
     shared/    bytes.ts  tag-list.ts  canonicalize.ts  crypto.ts  domain.ts  ip.ts  base64.ts  findings.ts  trace.ts
+               # domain.ts: isDomainName; ip.ts: isPublic, inCidr (parseIp is in @benchside/dns)
                signature-core.ts         # DKIM + ARC: header selection, body hash, keys, verify
                rfc5322-tokens.ts         # envelope + authres: CFWS, quoted strings
     report/    build.ts  summary.ts  export.ts
@@ -32,8 +39,7 @@ apps/mail/
   vite.config.ts                  # defineApp('mail', { connect: DOH_ORIGINS })
   src/
     main.tsx  App.tsx
-    worker/   protocol.ts  host.ts  worker.ts
-    dns/      doh.ts
+    worker/   protocol.ts  host.ts  worker.ts   # worker.ts imports @benchside/dns/doh
     state/    store.ts  actions.ts
     views/    InputPanel  EnvelopePanel  OptionsPanel  Summary  MethodDetail
               TraceTree  FindingList  SourceView  DnsLog  ExportButton
@@ -54,18 +60,18 @@ flowchart TD
   envelope --> message
   dkim & dkim2 & arc --> canon[shared/canonicalize] & crypto[shared/crypto] & tag[shared/tag-list]
   dmarc --> tag & psl & domain[shared/domain]
-  dkim2 --> domain
-  spf --> ip[shared/ip] & domain
+  dkim & arc --> domain
+  spf --> ip[shared/ip]
   envelope --> ip
-  checks --> dnsT[dns/types]
+  checks --> dnsT["@benchside/dns types"]
   checks --> find[shared/findings] & trace[shared/trace]
   message & envelope --> bytes[shared/bytes]
 ```
 
 | Rule |
 |---|
-| Checks import only `message` types, `dns/types`, and `shared/*`. Never each other. |
-| `dns/types` is the only DNS import in checks. Composition lives in `analyze.ts` and the worker. |
+| Checks import only `message` types, `@benchside/dns`, and `shared/*`. Never each other. |
+| From `@benchside/dns`, checks import only types, `parseIp`, and `reverseName`. Composition lives in `analyze.ts` and the worker. |
 | `shared/*` imports nothing from the package except `shared/*`. |
 
 ## 3. Core types
@@ -138,7 +144,7 @@ flowchart LR
 ```ts
 // index.ts
 export function analyze(input: Uint8Array, options: AnalyzeOptions, deps: {
-  transport: Transport;                  // doh.ts in the app; offline/fake in tests
+  transport: Transport;                  // @benchside/dns/doh in the worker; offline/fake in tests
   source: string;                        // 'cloudflare' | 'google' | 'offline' (DNS-14 cache key)
   cache: DnsCache;                       // survives across analyses in one session
   signal: AbortSignal;                   // caller's cancel; aborting rejects with AbortError
@@ -203,7 +209,7 @@ flowchart LR
 ```
 
 ```ts
-// dns/compose.ts
+// @benchside/dns: compose.ts
 export function composeResolver(o: {
   transport: Transport; source: string;  // 'cloudflare' | 'google' | 'offline'
   cache: DnsCache; budget: number; allowSensitive: boolean;
@@ -219,7 +225,7 @@ export function composeResolver(o: {
 | `cache` | Stores finished `NOERROR`/`NXDOMAIN` answers per `(source, name, type)`. Concurrent identical queries in one analysis share one in-flight promise |
 | `doh.ts` | `fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]), credentials: 'omit', referrerPolicy: 'no-referrer' })` |
 
-IDN: `shared/domain.ts` converts each non-ASCII label with the URL parser and refuses labels the parser would treat as URL syntax (DNS-18). No punycode library.
+IDN: `idna.ts` in `@benchside/dns` converts each non-ASCII label with the URL parser and refuses labels the parser would treat as URL syntax (DNS-18). No punycode library.
 
 ## 7. Shared primitives
 
@@ -228,8 +234,8 @@ IDN: `shared/domain.ts` converts each non-ASCII label with the URL parser and re
 | `tag-list.ts` | `parseTagList(value) → { tags, duplicates, errors }` | DKIM, DKIM keys, DKIM2, ARC, DMARC |
 | `canonicalize.ts` | `headerSimple`, `headerRelaxed`, `bodySimple(bytes)`, `bodyRelaxed(bytes)`; `l=` is applied by the caller | DKIM, ARC, DKIM2 |
 | `crypto.ts` | `importDkimKey(k, p, hash) → { ok, key, kind, bits? }`, `verifySignature(key, data, sig)`; digests use `crypto.subtle.digest` directly | DKIM, ARC, DKIM2 |
-| `domain.ts` | `labels`, `isFqdn`, `toALabel`, `relaxedMatch` (DKIM2), `isSubdomain` | SPF, DKIM, DKIM2, DMARC |
-| `ip.ts` | `parseIp`, `inCidr`, `reverseName`, `isPublic` | SPF, envelope |
+| `domain.ts` | `isDomainName` (RFC 6376 domain syntax) | DKIM, ARC, DMARC |
+| `ip.ts` | `isPublic`, `inCidr`; `parseIp` and `reverseName` are in `@benchside/dns` | SPF, envelope |
 | `base64.ts` | strict decode, ignoring folding whitespace | DKIM, DKIM2, ARC |
 | `psl/lookup.ts` | `organizationalDomain(name) → { domain, rule }`. Rules parsed lazily from `data/public_suffix_list.dat?raw` on first use | DMARC (`rfc7489`) |
 
@@ -355,7 +361,7 @@ function cspMeta(connect: string[]): Plugin {
 flowchart LR
   keys[keys.ts<br/>generate RSA 1024/2048, Ed25519] --> signer[dkim-signer.ts<br/>arc-sealer.ts<br/>test only]
   mb[message-builder.ts] --> signer --> fixture[Signed message bytes]
-  off[dns/offline.ts] --> fake[Fake transport<br/>= offline resolver + records]
+  off["@benchside/dns offline.ts"] --> fake[Fake transport<br/>= offline resolver + records]
   fixture & fake --> test[Check tests]
 ```
 
