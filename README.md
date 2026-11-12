@@ -9,7 +9,7 @@ Browser-only tools for taking apart emails, ZIPs, PDFs and more. Everything runs
 | [Mail analyzer](https://photom.github.io/benchside/mail/) | SPF, DKIM, DMARC, ARC, and the receiver's results for an `.eml` file |
 | [ZIP analyzer](https://photom.github.io/benchside/zip/) | Every record of a ZIP file, ZIP64, local vs central headers, nested archives |
 | [PDF analyzer](https://photom.github.io/benchside/pdf/) | Every revision and object, the pages and document information, every action a PDF can perform, and scripts anywhere else: 3D, XFA, PostScript, hidden or removed JavaScript |
-| [DMARC aggregate report analyzer](https://photom.github.io/benchside/dmarc-aggregate/) | DMARC aggregate (rua) reports from many files and folders at once: delivery paths, causes of failure, and readiness for enforcement. In progress |
+| [DMARC aggregate report analyzer](https://photom.github.io/benchside/dmarc-aggregate/) | DMARC aggregate (rua) reports from many files and folders at once: delivery paths, causes of failure, readiness for enforcement, and optional host names for source IPs |
 
 ## How "nothing leaves your machine" is enforced
 

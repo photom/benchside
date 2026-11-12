@@ -28,7 +28,7 @@ The mail tool can connect only to the DNS-over-HTTPS endpoints:
       content="default-src 'self'; connect-src https://cloudflare-dns.com https://dns.google; worker-src blob:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'">
 ```
 
-The planned DMARC aggregate report tool ([REQ-DMARC-001](requirements/REQ-DMARC-001-local-only.md)) will carry the same `connect-src` as the mail tool. It sends nothing by default. Reverse lookup of source IP addresses is opt-in, and the control says that the addresses go to the DoH provider ([REQ-DMARC-008](requirements/REQ-DMARC-008-reverse-lookup.md)).
+The DMARC aggregate report tool ([REQ-DMARC-001](requirements/REQ-DMARC-001-local-only.md)) carries the same `connect-src` as the mail tool. It sends nothing by default. Reverse lookup of source IP addresses is opt-in, and the control says that the addresses go to the DoH provider ([REQ-DMARC-008](requirements/REQ-DMARC-008-reverse-lookup.md)).
 
 Even if benchside's code or a dependency tried to send data elsewhere, the browser would block it. This includes background workers, which start from `blob:` URLs so that they inherit the policy ([0004](decisions/0004-worker-from-blob-url.md)). You can verify this yourself in the browser's developer tools.
 
