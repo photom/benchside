@@ -9,6 +9,7 @@ export type FindingId =
   | 'aggregate.report.duplicate'
   | 'aggregate.report.conflict'
   | 'aggregate.report.overlap'
+  | 'aggregate.record.inconsistent'
   | 'aggregate.too-many-findings';
 
 export interface Finding {

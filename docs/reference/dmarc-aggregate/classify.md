@@ -26,8 +26,8 @@ flowchart TD
 | FCT-3 | DKIM facts, from `auth_results/dkim`: aligned (`policy_evaluated/dkim` is `pass`); related pass (a result `pass` from a related domain); related fail (a result `fail` from a related domain); other pass (a result `pass` from an unrelated domain); temperror; permerror; none (no DKIM results, or all are `none`). |
 | FCT-4 | SPF facts, from the SPF result chosen by FMT-9: aligned (`policy_evaluated/spf` is `pass`); the raw result, or absent; and whether its domain is related. An empty domain (null reverse-path) is unrelated. |
 | FCT-5 | Forwarding reason: an override type `forwarded`, `trusted_forwarder`, or `mailing_list` (§3.1.6; RFC 7489 Appendix C). |
-| FCT-6 | An aligned `pass` without a raw `pass` of that method in `auth_results` gives `aggregate.record.inconsistent` (info). Classification still uses the aligned result. |
-| FCT-7 | A forwarder IP is a source IP with at least one record classified by PATH-2 or PATH-3 anywhere in the counted reports. All counted reports are used, not the filtered set, so a filter never changes a classification. |
+| FCT-6 | An aligned `pass` without a raw `pass` of that method in `auth_results` gives `aggregate.record.inconsistent` (info), once per record, naming each such method. It is checked when the report is counted. Classification still uses the aligned result. |
+| FCT-7 | A forwarder IP is a source IP with at least one record classified by PATH-2 or PATH-3 anywhere in the counted reports. The fact is given only for DMARC-failing records, the only ones that use it (CAUSE-3). All counted reports are used, not the filtered set, so a filter never changes a classification. |
 
 ## Delivery path
 
