@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@benchside/dmarc-aggregate": "*",
+    "@benchside/dns": "*",
     "@benchside/ui": "*",
     "preact": "11.0.2"
   }

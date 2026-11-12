@@ -25,3 +25,25 @@ describe('Worker handler (job.md)', () => {
     expect(posted).toEqual([{ type: 'failed', id: 1, message: 'Error: DataCloneError' }]);
   });
 });
+
+describe('Worker handler: lookups (RDNS-1, PRG-12)', () => {
+  it('RDNS-1: given lookup on and off, when handled, then the job looks up with that provider and names are posted', async () => {
+    const posted: FromWorker[] = [];
+    const providers: string[] = [];
+    const job = new Job({
+      send: () => {},
+      sendNames: (n) => posted.push(n),
+      transport: (p) => {
+        providers.push(p);
+        return async () => ({ rcode: 'NXDOMAIN', records: [], authenticated: false });
+      },
+      lookupFlushMs: 0,
+    });
+    const handle = createHandler(job, (m) => posted.push(m));
+    handle({ type: 'lookup', id: 1, on: true, provider: 'google' });
+    await job.lookupIdle;
+    handle({ type: 'lookup', id: 2, on: false, provider: 'google' });
+    expect(providers).toEqual(['google']);
+    expect(posted[0]).toMatchObject({ type: 'names', session: 1 });
+  });
+});
