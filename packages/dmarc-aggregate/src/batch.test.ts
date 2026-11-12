@@ -12,7 +12,24 @@ interface Opts {
   count?: number;
   /** Changes the bytes without changing the identity. */
   note?: string;
+  /** Record elements; one passing record when omitted. */
+  records?: string;
 }
+
+/** One record: policy_evaluated results and raw results. */
+const rec = (o: {
+  ip?: string;
+  dkim?: string;
+  spf?: string;
+  rawDkim?: string;
+  dkimDomain?: string;
+  rawSpf?: string;
+}) =>
+  `<record><row><source_ip>${o.ip ?? '192.0.2.10'}</source_ip><count>1</count><policy_evaluated><disposition>none</disposition><dkim>${o.dkim ?? 'fail'}</dkim><spf>${o.spf ?? 'fail'}</spf></policy_evaluated></row><identifiers><header_from>example.com</header_from></identifiers><auth_results>${o.rawDkim ? `<dkim><domain>${o.dkimDomain ?? 'example.com'}</domain><selector>s</selector><result>${o.rawDkim}</result></dkim>` : ''}<spf><domain>example.com</domain><result>${o.rawSpf ?? 'fail'}</result></spf></auth_results></record>`;
+/** DMARC pass by DKIM with raw SPF fail: PATH-3, which makes the IP a forwarder. */
+const forwarded = (ip: string) => rec({ ip, dkim: 'pass', rawDkim: 'pass' });
+/** DMARC fail with nothing else: CAUSE-9, or CAUSE-3 at a forwarder IP. */
+const failing = (ip: string) => rec({ ip, rawDkim: 'fail', dkimDomain: 'x.example.net' });
 
 const xml = (o: Opts = {}) => {
   const domain = o.domain ?? 'example.com';
@@ -23,7 +40,10 @@ const xml = (o: Opts = {}) => {
     begin === null || end === null
       ? ''
       : `<date_range><begin>${begin}</begin><end>${end}</end></date_range>`;
-  return `<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">${o.note ? `<!-- ${o.note} -->` : ''}<version>1.0</version><report_metadata><org_name>${o.org ?? 'Example Receiver'}</org_name><email>d@example.org</email>${id === null ? '' : `<report_id>${id}</report_id>`}${range}</report_metadata><policy_published><domain>${domain}</domain><p>none</p></policy_published><record><row><source_ip>192.0.2.10</source_ip><count>${o.count ?? 3}</count><policy_evaluated><disposition>none</disposition><dkim>pass</dkim><spf>pass</spf></policy_evaluated></row><identifiers><header_from>${domain}</header_from></identifiers><auth_results><spf><domain>${domain}</domain><result>pass</result></spf></auth_results></record></feedback>`;
+  const records =
+    o.records ??
+    `<record><row><source_ip>192.0.2.10</source_ip><count>${o.count ?? 3}</count><policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>pass</spf></policy_evaluated></row><identifiers><header_from>${domain}</header_from></identifiers><auth_results><spf><domain>${domain}</domain><result>pass</result></spf></auth_results></record>`;
+  return `<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">${o.note ? `<!-- ${o.note} -->` : ''}<version>1.0</version><report_metadata><org_name>${o.org ?? 'Example Receiver'}</org_name><email>d@example.org</email>${id === null ? '' : `<report_id>${id}</report_id>`}${range}</report_metadata><policy_published><domain>${domain}</domain><p>none</p></policy_published>${records}</feedback>`;
 };
 
 const parse = (text: string | Uint8Array): XmlDocument => {
@@ -237,5 +257,46 @@ describe('Batch: summaries and findings (REP-1..3, REP-7)', () => {
       report: 0,
       column: 1,
     });
+  });
+});
+
+describe('Batch: classification (FCT-6, FCT-7)', () => {
+  const causes = (batch: Batch, report: number) =>
+    batch.classifications(report)?.map((c) => c.causeRule ?? c.pathRule);
+
+  it('FCT-7: given a failing record before a forwarded one from the same IP in one report, when added, then the failing one is CAUSE-3', () => {
+    const { add, batch } = setup();
+    add({ records: failing('198.51.100.7') + forwarded('198.51.100.7') + failing('203.0.113.9') });
+    expect(causes(batch, 0)).toEqual(['CAUSE-3', 'PATH-3', 'CAUSE-9']);
+  });
+
+  it('FCT-7: given a later report that reveals a forwarder IP, when added, then earlier failing records of that IP become CAUSE-3', () => {
+    const { add, batch } = setup();
+    add({ id: 'a', records: failing('198.51.100.7') + failing('203.0.113.9') });
+    expect(causes(batch, 0)).toEqual(['CAUSE-9', 'CAUSE-9']);
+    add({ id: 'b', records: forwarded('198.51.100.7') });
+    expect(causes(batch, 0)).toEqual(['CAUSE-3', 'CAUSE-9']);
+  });
+
+  it('FCT-7: given a forwarded record in a report that is not counted, when added, then the IP is not a forwarder', () => {
+    const { add, batch } = setup();
+    add({ id: 'a', records: failing('198.51.100.7') });
+    add({ id: 'a', note: 'resent', records: forwarded('198.51.100.7') });
+    expect(causes(batch, 0)).toEqual(['CAUSE-9']);
+    expect(batch.classifications(1)).toBeNull();
+  });
+
+  it('FCT-6: given an aligned pass without a raw pass, when counted, then one inconsistent finding for that record', () => {
+    const { add, findings } = setup();
+    add({ records: forwarded('192.0.2.1') + rec({ dkim: 'pass', spf: 'pass' }) });
+    expect(findings.list).toEqual([
+      expect.objectContaining({
+        id: 'aggregate.record.inconsistent',
+        severity: 'info',
+        report: 0,
+        record: 1,
+      }),
+    ]);
+    expect(findings.list[0]?.message).toMatch(/DKIM.*SPF/);
   });
 });
