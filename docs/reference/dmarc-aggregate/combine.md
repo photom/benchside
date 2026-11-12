@@ -47,7 +47,7 @@ flowchart LR
 
 | ID | Rule |
 |---|---|
-| CMB-9 | Totals over the filtered set: messages; DMARC-passing and DMARC-failing messages (FCT-1); messages by disposition; by delivery path; by cause; reports; reporters; distinct source IPs; distinct author domains; and the period, from the earliest `begin` to the latest `end`. The DMARC pass rate is passing messages divided by messages; it is not shown when there are no messages. |
+| CMB-9 | Totals over the filtered set: messages; DMARC-passing and DMARC-failing messages (FCT-1); messages by disposition; by delivery path; by cause; reports; reporters; distinct source IPs; distinct author domains; and the period, from the earliest `begin` to the latest `end` of the dated reports. Undated reports (CMB-7), including those with `aggregate.report.future`, do not count toward the period. The DMARC pass rate is passing messages divided by messages; it is not shown when there are no messages. |
 | CMB-10 | Timeline: for each UTC day from the first to the last day of the filtered set, messages by delivery path and the DMARC pass rate. Days with no reports are present with no value, not zero. Messages of undated reports are given as one separate number. At most the latest 1 000 days are listed; messages of earlier days are given as one more separate number. |
 | CMB-11 | Reporters: for each reporter in the filtered set, reports, messages, DMARC-passing messages, pass rate, the days covered, and the declared formats of its reports. Sorted by messages, most first. |
 | CMB-12 | Formats: the reports in the filtered set by declared format and by namespace URI as written (FMT-2), and the number with `aggregate.format.mixed`. |
