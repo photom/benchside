@@ -5,6 +5,8 @@ import { type GunzipResult, gunzip } from './gunzip.ts';
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);
+/** Byte-wise equality; vitest's deep `toEqual` on megabyte arrays is slow. */
+const same = (a: Uint8Array, b: Uint8Array) => Buffer.from(a).equals(Buffer.from(b));
 
 /** Runs gunzip to the end and joins the chunks it yielded. */
 function run(
@@ -122,7 +124,7 @@ describe('gunzip (INP-4, 0017)', () => {
         for (const level of [1, 6, 9]) {
           const { out, result } = run(gzipSync(data, { level }), 1 << 30, 1024);
           expect(result).toEqual({ kind: 'ok', members: 1 });
-          expect(out).toEqual(data);
+          expect(same(out, data)).toBe(true);
         }
       }
     }
@@ -156,7 +158,7 @@ describe('gunzip (INP-4, 0017)', () => {
     for (let i = 0; i < data.length; i++) data[i] = (i * 31 + (i >> 7)) & 255;
     const { out, result } = run(gzipSync(data, { level: 9 }));
     expect(result.kind).toBe('ok');
-    expect(out).toEqual(data);
+    expect(same(out, data)).toBe(true);
   });
 
   it('INP-4: given a CRC-32 that does not match, when decoded, then crc error after the content', () => {
