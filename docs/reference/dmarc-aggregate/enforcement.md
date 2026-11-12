@@ -30,4 +30,4 @@ flowchart TD
 | `check-forwarded` | Only forwarded and other mail fails. Check how much forwarded mail you can lose |
 | `clear` | No failing direct or forwarded mail in the selected period |
 
-Every status shows the period it covers. RFC 9989 §5.1.7 notes it "may take many months" of reports before an owner can be sure, so a short period never reads as a final answer.
+Every status shows the period it covers, or "no dated reports" when the period is empty (CMB-9). RFC 9989 §5.1.7 notes it "may take many months" of reports before an owner can be sure, so a short period never reads as a final answer.
