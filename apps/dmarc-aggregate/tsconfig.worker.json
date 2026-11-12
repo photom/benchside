@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2024", "webworker"],
+    "types": []
+  },
+  "include": [
+    "src/worker/worker.ts",
+    "src/worker/protocol.ts",
+    "src/worker/job-file.ts",
+    "src/worker/handler.ts"
+  ]
+}
