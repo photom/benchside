@@ -14,8 +14,9 @@ export type GunzipResult =
 
 /**
  * Decodes gzip members one after another (RFC 1952 §2.2) with an in-house inflate (RFC 1951),
- * yielding output in chunks. Stops with `exceeded` before yielding past `limit` bytes (NaN counts
- * as 0). An empty chunk is a pause point: input that gives little output still yields often (PRG-8).
+ * yielding output in chunks. Stops with `exceeded` before yielding past `limit` bytes (NaN or a
+ * negative limit counts as 0); output past the limit wins over a later error (INP-6). An empty
+ * chunk is a pause point: input that gives little output still yields often (PRG-8).
  * Never throws on bad input.
  */
 export function* gunzip(
@@ -23,10 +24,10 @@ export function* gunzip(
   o: { readonly limit: number; readonly chunkSize?: number },
 ): Generator<Uint8Array, GunzipResult, void> {
   const size = o.chunkSize ?? 65536;
-  const chunkSize = Number.isFinite(size)
-    ? Math.min(Math.max(1024, Math.floor(size)), 1 << 24)
-    : 65536;
-  const limit = Number.isNaN(o.limit) ? 0 : o.limit;
+  const limit = Number.isNaN(o.limit) || o.limit < 0 ? 0 : o.limit;
+  // No bigger than the limit allows: a small limit never needs a large buffer.
+  const wanted = Number.isFinite(size) ? Math.floor(size) : 65536;
+  const chunkSize = Math.max(1024, Math.min(wanted, 1 << 24, limit + 1));
   const d = new Decoder(input, chunkSize);
   let total = 0;
   try {
@@ -57,8 +58,11 @@ class Stop {
 }
 
 const WINDOW = 32768;
-/** Loop steps per `run`: a header, a block header, one symbol, or one copy each. */
-const WORK_PER_RUN = 16384;
+/**
+ * Work units per `run` (PRG-8): one per loop step (a header, a block header, one symbol, one copy),
+ * plus one per 16 table entries a dynamic block builds, so blocks with no output still count.
+ */
+const WORK_PER_RUN = 65536;
 
 const State = { Header: 0, Block: 1, Stored: 2, Huffman: 3, Copy: 4, Trailer: 5, Done: 6 } as const;
 type State = (typeof State)[keyof typeof State];
@@ -150,12 +154,16 @@ class Decoder {
   private crc = 0;
   /** Bytes produced by the current member, for back references (§3.2.5) and ISIZE. */
   private memberOut = 0;
+  /** Work units spent in the current `run`. */
+  private work = 0;
+  private readonly dv: DataView;
 
   constructor(
     private readonly input: Uint8Array,
     chunkSize: number,
   ) {
     this.out = new Uint8Array(WINDOW + chunkSize);
+    this.dv = view(input);
   }
 
   /** Pending output; afterwards only the last 32 KiB stay, as history for back references. */
@@ -174,7 +182,8 @@ class Decoder {
   /** Decodes until the output buffer is full, the input ends, or a bounded amount of work is done. */
   run(): void {
     const out = this.out;
-    for (let work = 0; this.op < out.length && work < WORK_PER_RUN; work++) {
+    this.work = 0;
+    for (; this.op < out.length && this.work < WORK_PER_RUN; this.work++) {
       switch (this.state) {
         case State.Header:
           this.header();
@@ -245,7 +254,8 @@ class Decoder {
     let p = start + 10;
     if (flags & 4) {
       if (p + 2 > b.length) throw new Stop('truncated', p);
-      p += 2 + ((b[p] as number) | ((b[p + 1] as number) << 8));
+      p += 2 + this.dv.getUint16(p, true);
+      if (p > b.length) throw new Stop('truncated', start + 10);
     }
     for (const bit of [8, 16]) {
       if (!(flags & bit)) continue;
@@ -257,11 +267,10 @@ class Decoder {
     if (flags & 2) {
       // FHCRC: the low 16 bits of the CRC-32 of the header before it (RFC 1952 §2.3.1).
       if (p + 2 > b.length) throw new Stop('truncated', p);
-      const stored = (b[p] as number) | ((b[p + 1] as number) << 8);
+      const stored = this.dv.getUint16(p, true);
       if (stored !== (crc32(b.subarray(start, p)) & 0xffff)) throw new Stop('header', start);
       p += 2;
     }
-    if (p > b.length) throw new Stop('truncated', start + 10);
     this.pos = p;
     this.memberOut = 0;
     this.crc = 0;
@@ -283,8 +292,8 @@ class Decoder {
       const b = this.input;
       const p = this.pos;
       if (p + 4 > b.length) throw new Stop('truncated', p);
-      const len = (b[p] as number) | ((b[p + 1] as number) << 8);
-      const nlen = (b[p + 2] as number) | ((b[p + 3] as number) << 8);
+      const len = this.dv.getUint16(p, true);
+      const nlen = this.dv.getUint16(p + 2, true);
       if ((len ^ 0xffff) !== nlen) throw new Stop('data', p);
       this.pos = p + 4;
       this.stored = len;
@@ -335,6 +344,8 @@ class Decoder {
     if (lengths[256] === 0) throw new Stop('data', this.pos);
     this.literals = buildCode(lengths.subarray(0, hlit), this.pos);
     this.distances = buildCode(lengths.subarray(hlit), this.pos);
+    this.work +=
+      (clcode.table.length + this.literals.table.length + this.distances.table.length) >> 4;
   }
 
   /** RFC 1952 §2.3.1: CRC-32 and ISIZE, then the next member or the end. */
@@ -344,9 +355,8 @@ class Decoder {
     const p = this.pos;
     if (p + 8 > b.length) throw new Stop('truncated', p);
     this.syncCrc();
-    const v = view(b);
-    const crc = v.getUint32(p, true);
-    const size = v.getUint32(p + 4, true);
+    const crc = this.dv.getUint32(p, true);
+    const size = this.dv.getUint32(p + 4, true);
     if (crc !== this.crc) throw new Stop('crc', p);
     if (size !== this.memberOut >>> 0) throw new Stop('size', p + 4);
     this.members++;
