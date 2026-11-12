@@ -57,10 +57,10 @@ flowchart TD
 | `view.ts` | Filters, days, totals, timeline, reporters, formats, reporter errors | CMB-6, CMB-7, CMB-9..13 |
 | `enforcement.ts` | Policy in effect, failing messages, direct sources, SPF-only passes, overrides, status | ENF-* |
 | `sources.ts` | Source rows, detail rows, path and cause filters | SRC-1..5 |
-| `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`; takes a `Resolver` | RDNS-2..5, RDNS-9, PRG-2, PRG-11..13 |
+| `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`, the budget finding; takes a `Resolver` | RDNS-2..5, RDNS-9, PRG-2, PRG-11..13 |
 | `findings.ts` | Finding collector with the 10 000 limit | REP-7, REP-8 |
 
-In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters and focus, and keeps the shown `View` when a snapshot has none, the partial label, and host names (PRG-13, PRG-15, PRG-16).
+In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters and focus, keeps the partial label and host names across snapshots, and keeps the shown `View` when a snapshot has none (PRG-13, PRG-15, PRG-16).
 
 `format/schema.ts` holds the element table of [Format](../reference/dmarc-aggregate/format.md#elements) as data. The tests and the reader both use it, so the two schemas are written down once.
 
