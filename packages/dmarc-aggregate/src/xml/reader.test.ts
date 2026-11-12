@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import type { XmlDocument, XmlElement, XmlFinding } from './reader.ts';
 import { XmlReader } from './reader.ts';
@@ -335,5 +336,57 @@ describe('XML reader: chunks and broken input', () => {
         expect(() => read(input, 1 + (rand() % 9))).not.toThrow();
       }
     }
+  });
+});
+
+describe('XML reader: digests (XML-11)', () => {
+  const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
+
+  it('XML-11: given two documents, when read, then each digest covers its bytes up to the end of its root', () => {
+    const r = read(bytes('<?xml version="1.0"?>\n<a>1</a>', '\n<!-- c --><b/>', '\n'));
+    expect(r.documents.map((d) => d.digest)).toEqual([
+      sha(utf8('<?xml version="1.0"?>\n<a>1</a>')),
+      sha(utf8('<b/>')),
+    ]);
+  });
+
+  it('XML-11: given a report alone and the same report after another one, when read, then the digests are equal', () => {
+    const doc = '<?xml version="1.0"?>\n<r><x>1</x></r>';
+    const alone = read(bytes(doc, '\n')).documents[0]?.digest;
+    expect(read(bytes('<a/>\n', doc, '\n')).documents[1]?.digest).toBe(alone);
+    const root = '<r><x>1</x></r>';
+    expect(read(bytes('\n<!-- c -->\n', root)).documents[0]?.digest).toBe(sha(utf8(root)));
+  });
+
+  it('XML-11: given the same input in chunks of 1, 3, and 7 bytes, when read, then the digests are the same', () => {
+    const input = bytes('<a>', 'x'.repeat(300), '</a><b><c/></b>');
+    const want = read(input).documents.map((d) => d.digest);
+    for (const size of [1, 3, 7])
+      expect(read(input, size).documents.map((d) => d.digest)).toEqual(want);
+  });
+
+  it('XML-11: given a BOM at the start, when read, then the digest leaves it out', () => {
+    expect(read(bytes([0xef, 0xbb, 0xbf], '<a/>')).documents[0]?.digest).toBe(sha(utf8('<a/>')));
+  });
+
+  it('XML-11: given UTF-16 input, when read, then the digest is of the transcoded UTF-8', () => {
+    const text = `<a>${String.fromCharCode(0xe9)}</a>`;
+    expect(read(bytes([0xff, 0xfe], utf16le(text))).documents[0]?.digest).toBe(sha(utf8(text)));
+  });
+
+  it('XML-11: given documents before an error, when read, then they keep their digests', () => {
+    const r = read(bytes('<a/>', '<b>'));
+    expect(r.stop?.id).toBe('aggregate.xml.malformed');
+    expect(r.documents.map((d) => d.digest)).toEqual([sha(utf8('<a/>'))]);
+  });
+});
+
+describe('XML reader: size per document (INP-6)', () => {
+  it('INP-6: given two documents each under the limit but over it together, when read, then both are read', () => {
+    const doc = `<a>${'x'.repeat(600)}</a>`;
+    const reader = new XmlReader({ maxDocument: 1000 });
+    const out = [reader.push(utf8(doc + doc)), reader.end()];
+    expect(out.flatMap((o) => o.documents)).toHaveLength(2);
+    expect(out.map((o) => o.stop)).toEqual([null, null]);
   });
 });
