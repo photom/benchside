@@ -1,7 +1,15 @@
-import type { Filters as FilterSet, Focus } from '@benchside/dmarc-aggregate';
+import type { Filters as FilterSet, Focus, LookupProvider } from '@benchside/dmarc-aggregate';
 import { useEffect, useState } from 'preact/hooks';
 import type { Picked } from './input/collect.ts';
-import { applySnapshot, initialState, partialLabel, setFilters } from './state.ts';
+import {
+  applyNames,
+  applySnapshot,
+  hostLabel,
+  initialState,
+  partialLabel,
+  setFilters,
+  setLookup,
+} from './state.ts';
 import {
   CauseBars,
   DailyColumns,
@@ -14,6 +22,8 @@ import { FilesNotRead } from './views/FilesNotRead.tsx';
 import { Filters } from './views/Filters.tsx';
 import { Findings } from './views/Findings.tsx';
 import { Input } from './views/Input.tsx';
+import { Lookup } from './views/Lookup.tsx';
+import { QueryLog } from './views/QueryLog.tsx';
 import { Reports } from './views/Reports.tsx';
 import { Sources } from './views/Sources.tsx';
 import { StatusBar } from './views/StatusBar.tsx';
@@ -28,12 +38,19 @@ export function App({ host }: { host: DmarcHost }) {
   useEffect(() => {
     host.onSnapshot((s) => setState((prev) => applySnapshot(prev, s)));
     host.onFailed((message) => setFailure(`Reading failed: ${message}`));
+    host.onNames((n) => setState((prev) => applyNames(prev, n)));
   }, [host]);
 
   /** CMB-6, SRC-5: the choice applies at once; the View for it comes with the answer (PRG-8). */
   const choose = (filters: FilterSet, focus: Focus | null) => {
     setState((prev) => setFilters(prev, filters, focus));
     host.view(filters, focus);
+  };
+
+  /** RDNS-1, RDNS-9 */
+  const lookup = (on: boolean, provider: LookupProvider) => {
+    setState((prev) => setLookup(prev, on, provider));
+    host.lookup(on, provider);
   };
 
   const add = (files: Picked[]) => {
@@ -81,7 +98,12 @@ export function App({ host }: { host: DmarcHost }) {
       <p>Reads aggregate reports (rua). Failure reports (ruf) are not read.</p>
       <p class="note">Your files never leave this browser. They are read here and sent nowhere.</p>
       <Input onAdd={add} onClear={() => host.clear()} onError={setFailure} />
-      <StatusBar progress={state.progress} onStop={() => host.stop()} />
+      <StatusBar
+        progress={state.progress}
+        onStop={() => host.stop()}
+        lookup={state.lookup.on ? state.lookup.counts : null}
+        onLookupStop={() => lookup(false, state.lookup.provider)}
+      />
       {failure && (
         <p role="alert" class="error">
           {failure}
@@ -112,7 +134,11 @@ export function App({ host }: { host: DmarcHost }) {
       {state.shown && <ReporterBars rows={state.shown.view.reporters} />}
       {state.shown && <Reporters rows={state.shown.view.reporters} />}
       {state.shown && <Formats rows={state.shown.view.formats} />}
-      {state.shown && <Sources rows={state.shown.view.sources} />}
+      {state.shown && (
+        <Sources rows={state.shown.view.sources} host={(ip) => hostLabel(state, ip)} />
+      )}
+      {state.shown && <Lookup lookup={state.lookup} onChange={lookup} />}
+      <QueryLog lookup={state.lookup} />
       {state.shown && <ReporterErrors rows={state.shown.view.reporterErrors} />}
       <Policies rows={state.policies} />
       {state.reports.length > 0 && <Reports reports={state.reports} />}
