@@ -1,4 +1,10 @@
 export {
+  compareFilename,
+  type FilenamePart,
+  type ParsedFilename,
+  parseFilename,
+} from './filename.ts';
+export {
   type ContentHint,
   type DkimAuth,
   type ExtensionCount,
@@ -11,6 +17,16 @@ export {
   readReport,
   type SpfAuth,
 } from './format/read.ts';
+export {
+  type Budget,
+  INPUT_LIMITS,
+  type InputEvent,
+  type InputFinding,
+  type InputKind,
+  type InputLimits,
+  newBudget,
+  readInput,
+} from './input.ts';
 export {
   type XmlDocument,
   type XmlElement,
