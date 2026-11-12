@@ -1,65 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { Batch } from './batch.ts';
 import { Findings } from './findings.ts';
-import { type XmlDocument, XmlReader } from './xml/reader.ts';
-
-interface Opts {
-  org?: string;
-  id?: string | null;
-  domain?: string;
-  begin?: number | null;
-  end?: number | null;
-  count?: number;
-  /** Changes the bytes without changing the identity. */
-  note?: string;
-  /** Record elements; one passing record when omitted. */
-  records?: string;
-}
-
-/** One record: policy_evaluated results and raw results. */
-const rec = (o: {
-  ip?: string;
-  dkim?: string;
-  spf?: string;
-  rawDkim?: string;
-  dkimDomain?: string;
-  rawSpf?: string;
-}) =>
-  `<record><row><source_ip>${o.ip ?? '192.0.2.10'}</source_ip><count>1</count><policy_evaluated><disposition>none</disposition><dkim>${o.dkim ?? 'fail'}</dkim><spf>${o.spf ?? 'fail'}</spf></policy_evaluated></row><identifiers><header_from>example.com</header_from></identifiers><auth_results>${o.rawDkim ? `<dkim><domain>${o.dkimDomain ?? 'example.com'}</domain><selector>s</selector><result>${o.rawDkim}</result></dkim>` : ''}<spf><domain>example.com</domain><result>${o.rawSpf ?? 'fail'}</result></spf></auth_results></record>`;
-/** DMARC pass by DKIM with raw SPF fail: PATH-3, which makes the IP a forwarder. */
-const forwarded = (ip: string) => rec({ ip, dkim: 'pass', rawDkim: 'pass' });
-/** DMARC fail with nothing else: CAUSE-9, or CAUSE-3 at a forwarder IP. */
-const failing = (ip: string) => rec({ ip, rawDkim: 'fail', dkimDomain: 'x.example.net' });
-
-const xml = (o: Opts = {}) => {
-  const domain = o.domain ?? 'example.com';
-  const id = o.id === undefined ? 'r-1' : o.id;
-  const begin = o.begin === undefined ? 1_700_000_000 : o.begin;
-  const end = o.end === undefined ? 1_700_086_399 : o.end;
-  const range =
-    begin === null || end === null
-      ? ''
-      : `<date_range><begin>${begin}</begin><end>${end}</end></date_range>`;
-  const records =
-    o.records ??
-    `<record><row><source_ip>192.0.2.10</source_ip><count>${o.count ?? 3}</count><policy_evaluated><disposition>none</disposition><dkim>fail</dkim><spf>pass</spf></policy_evaluated></row><identifiers><header_from>${domain}</header_from></identifiers><auth_results><spf><domain>${domain}</domain><result>pass</result></spf></auth_results></record>`;
-  return `<feedback xmlns="urn:ietf:params:xml:ns:dmarc-2.0">${o.note ? `<!-- ${o.note} -->` : ''}<version>1.0</version><report_metadata><org_name>${o.org ?? 'Example Receiver'}</org_name><email>d@example.org</email>${id === null ? '' : `<report_id>${id}</report_id>`}${range}</report_metadata><policy_published><domain>${domain}</domain><p>none</p></policy_published>${records}</feedback>`;
-};
-
-const parse = (text: string | Uint8Array): XmlDocument => {
-  const r = new XmlReader();
-  const bytes = typeof text === 'string' ? new TextEncoder().encode(text) : text;
-  const doc = [...r.push(bytes).documents, ...r.end().documents][0];
-  if (!doc) throw new Error('no document');
-  return doc;
-};
+import {
+  D14,
+  DAY,
+  failing,
+  forwarded,
+  NOW,
+  parse,
+  type ReportOpts,
+  rec,
+  reportXml,
+} from './test/report-xml.ts';
 
 function setup() {
   const findings = new Findings();
-  const batch = new Batch(findings);
+  const batch = new Batch(findings, { now: () => NOW });
   let n = 0;
-  const add = (o: Opts = {}, filename: string | null = null, file = 0) =>
-    batch.addDocument({ label: `f${n++}.xml`, filename, document: parse(xml(o)) }, file);
+  const add = (o: ReportOpts = {}, filename: string | null = null, file = 0) =>
+    batch.addDocument({ label: `f${n++}.xml`, filename, document: parse(reportXml(o)) }, file);
   const ids = () => findings.list.map((f) => f.id);
   return { batch, findings, add, ids };
 }
@@ -233,7 +192,7 @@ describe('Batch: summaries and findings (REP-1..3, REP-7)', () => {
 
   it('REP-7: given format findings, when added, then they carry the file, label, report, record, path, and line', () => {
     const { batch, findings } = setup();
-    const text = xml().replace('<count>3</count>', '<count>x</count>');
+    const text = reportXml().replace('<count>3</count>', '<count>x</count>');
     batch.addDocument({ label: 'a.zip › r.xml', filename: 'r.xml', document: parse(text) }, 2);
     expect(findings.list[0]).toMatchObject({
       file: 2,
@@ -247,7 +206,7 @@ describe('Batch: summaries and findings (REP-1..3, REP-7)', () => {
 
   it('REP-7: given an XML warning in a document, when added, then it comes first and carries the report', () => {
     const { batch, findings } = setup();
-    const bytes = new TextEncoder().encode(xml({ org: 'A__B' }));
+    const bytes = new TextEncoder().encode(reportXml({ org: 'A__B' }));
     const text = new TextDecoder().decode(bytes);
     bytes[text.indexOf('A__B') + 1] = 0xff;
     batch.addDocument({ label: 'r.xml', filename: null, document: parse(bytes) }, 0);
@@ -298,5 +257,162 @@ describe('Batch: classification (FCT-6, FCT-7)', () => {
       }),
     ]);
     expect(findings.list[0]?.message).toMatch(/DKIM.*SPF/);
+  });
+});
+
+describe('Batch: report days (CMB-7)', () => {
+  it('CMB-7: given a period, when added, then the day is the UTC date of its midpoint', () => {
+    const { add } = setup();
+    expect(add({ begin: D14, end: D14 + DAY - 1 })?.day).toBe('2023-11-14');
+    expect(add({ id: 'b', begin: D14 + 12 * 3600, end: D14 + DAY + 12 * 3600 })?.day).toBe(
+      '2023-11-15',
+    );
+  });
+
+  it('CMB-7: given no period, when added, then undated without a CMB-7 finding', () => {
+    const { add, ids } = setup();
+    expect(add({ begin: null, end: null })?.day).toBeNull();
+    expect(ids().filter((id) => !id.startsWith('aggregate.schema.'))).toEqual([]);
+  });
+
+  it('CMB-7: given end before begin, when added, then value.invalid and undated', () => {
+    const { add, findings } = setup();
+    expect(add({ begin: D14 + 10, end: D14 })?.day).toBeNull();
+    expect(findings.list).toEqual([
+      expect.objectContaining({ id: 'aggregate.value.invalid', severity: 'warning', report: 0 }),
+    ]);
+  });
+
+  it('CMB-7: given an end more than 2 days after the time of reading, when added, then future and undated', () => {
+    const { add, findings } = setup();
+    expect(add({ id: 'a', begin: NOW, end: NOW + 2 * DAY })?.day).toBe('2023-11-17');
+    expect(add({ id: 'b', begin: NOW + 2 * DAY, end: NOW + 2 * DAY + 1 })?.day).toBeNull();
+    expect(findings.list).toEqual([
+      expect.objectContaining({ id: 'aggregate.report.future', severity: 'warning', report: 1 }),
+    ]);
+  });
+
+  it('CMB-7: given a period over 48 hours, when added, then long-range and the midpoint day', () => {
+    const { add, findings } = setup();
+    expect(add({ id: 'a', begin: D14 - 2 * DAY, end: D14 })?.day).toBe('2023-11-13');
+    expect(add({ id: 'b', begin: D14 + 1, end: D14 + 2 * DAY + 2 })?.day).toBe('2023-11-15');
+    expect(findings.list.map((f) => [f.id, f.severity, f.report])).toEqual([
+      ['aggregate.report.long-range', 'info', 1],
+    ]);
+  });
+
+  it('CMB-7: given a duplicate with a future end, when added, then it has no CMB-7 finding of its own', () => {
+    const { add, ids } = setup();
+    add({ begin: NOW + 3 * DAY, end: NOW + 4 * DAY });
+    add({ begin: NOW + 3 * DAY, end: NOW + 4 * DAY });
+    expect(ids()).toEqual(['aggregate.report.future', 'aggregate.report.duplicate']);
+  });
+});
+
+describe('Batch: policies (CMB-8)', () => {
+  const at = (n: number) => ({ begin: D14 + n * DAY, end: D14 + (n + 1) * DAY - 1 });
+
+  it('CMB-8: given one configuration, when added, then it is listed with its values, reporters, and days', () => {
+    const { add, batch } = setup();
+    add({ id: 'a', ...at(0), policy: '<p>reject</p><sp>quarantine</sp><pct>50</pct>' });
+    add({
+      id: 'b',
+      org: 'Other',
+      ...at(2),
+      policy: '<p>reject</p><sp>quarantine</sp><pct>50</pct>',
+    });
+    expect(batch.policies()).toEqual([
+      {
+        domain: 'example.com',
+        p: 'reject',
+        sp: 'quarantine',
+        np: null,
+        adkim: null,
+        aspf: null,
+        pct: 50,
+        fo: null,
+        testing: null,
+        discoveryMethod: null,
+        reporters: ['Example Receiver', 'Other'],
+        reports: 2,
+        firstDay: '2023-11-14',
+        lastDay: '2023-11-16',
+        inEffect: true,
+      },
+    ]);
+  });
+
+  it('CMB-8: given a domain with three configurations, when added, then policy.changed once, at the second', () => {
+    const { add, findings } = setup();
+    add({ id: 'a', ...at(0), policy: '<p>none</p>' });
+    add({ id: 'b', ...at(1), policy: '<p>quarantine</p>' });
+    add({ id: 'c', ...at(2), policy: '<p>reject</p>' });
+    expect(findings.list.map((f) => [f.id, f.severity, f.report])).toEqual([
+      ['aggregate.policy.changed', 'info', 1],
+    ]);
+  });
+
+  it('CMB-8: given configurations, when listed, then the one with the latest day is in effect', () => {
+    const { add, batch } = setup();
+    add({ id: 'a', ...at(2), policy: '<p>none</p>' });
+    add({ id: 'b', ...at(1), policy: '<p>reject</p>' });
+    add({ id: 'c', begin: null, end: null, policy: '<p>quarantine</p>' });
+    expect(batch.policies().map((c) => [c.p, c.inEffect])).toEqual([
+      ['none', true],
+      ['reject', false],
+      ['quarantine', false],
+    ]);
+  });
+
+  it('CMB-8: given a tie on the latest day, when listed, then more reports win, then the one seen first', () => {
+    const { add, batch } = setup();
+    add({ id: 'a', ...at(1), policy: '<p>none</p>' });
+    add({ id: 'b', ...at(1), policy: '<p>reject</p>' });
+    add({ id: 'c', ...at(0), policy: '<p>reject</p>' });
+    expect(batch.policies().map((c) => [c.p, c.inEffect])).toEqual([
+      ['none', false],
+      ['reject', true],
+    ]);
+    const s2 = setup();
+    s2.add({ id: 'a', ...at(1), policy: '<p>none</p>' });
+    s2.add({ id: 'b', ...at(1), policy: '<p>reject</p>' });
+    expect(s2.batch.policies().map((c) => c.inEffect)).toEqual([true, false]);
+  });
+
+  it('CMB-8: given only undated reports, when listed, then the first configuration is in effect', () => {
+    const { add, batch } = setup();
+    add({ id: 'a', begin: null, end: null, policy: '<p>none</p>' });
+    add({ id: 'b', begin: null, end: null, policy: '<p>reject</p>' });
+    expect(batch.policies().map((c) => [c.firstDay, c.inEffect])).toEqual([
+      [null, true],
+      [null, false],
+    ]);
+  });
+
+  it('CMB-8: given reports that change the list and one that does not, when added, then the revision moves only on change', () => {
+    const { add, batch } = setup();
+    const r0 = batch.policyRevision;
+    add({ id: 'a', ...at(0) });
+    const r1 = batch.policyRevision;
+    add({ id: 'a', ...at(0) });
+    expect(batch.policyRevision).toBe(r1);
+    add({ id: 'b', ...at(1) });
+    expect([r1 > r0, batch.policyRevision > r1]).toEqual([true, true]);
+  });
+});
+
+describe('Batch: reporter errors (CMB-13)', () => {
+  it('CMB-13: given error texts in a counted report, when added, then one report.error each; none for a duplicate', () => {
+    const { add, findings, batch } = setup();
+    add({ errors: ['DNS timeout', 'Bad data'] });
+    add({ errors: ['DNS timeout', 'Bad data'] });
+    const listed = findings.list.filter((f) => f.id !== 'aggregate.format.mixed');
+    expect(listed.map((f) => [f.id, f.severity, f.report])).toEqual([
+      ['aggregate.report.error', 'info', 0],
+      ['aggregate.report.error', 'info', 0],
+      ['aggregate.report.duplicate', 'info', 1],
+    ]);
+    expect(listed[0]?.message).toContain('DNS timeout');
+    expect(batch.classifications(0)).not.toBeNull();
   });
 });
