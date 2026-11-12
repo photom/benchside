@@ -32,27 +32,9 @@
   },
   "overrides": [
     {
-      "includes": ["packages/mail/src/**"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noRestrictedGlobals": {
-              "level": "error",
-              "options": {
-                "deniedGlobals": {
-                  "window": "Packages must not touch the DOM",
-                  "document": "Packages must not touch the DOM",
-                  "fetch": "Use the injected Resolver"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    {
       "includes": [
-        "packages/dns/src/**",
+        "packages/*/src/**",
+        "!packages/ui/**",
         "!packages/dns/src/doh.ts",
         "!packages/dns/src/doh.test.ts"
       ],
@@ -65,13 +47,42 @@
                 "deniedGlobals": {
                   "window": "Packages must not touch the DOM",
                   "document": "Packages must not touch the DOM",
-                  "fetch": "Only doh.ts makes requests (0014)",
-                  "XMLHttpRequest": "Only doh.ts makes requests (0014)",
-                  "WebSocket": "Only doh.ts makes requests (0014)",
-                  "EventSource": "Only doh.ts makes requests (0014)",
-                  "navigator": "Only doh.ts makes requests (0014)",
-                  "globalThis": "Only doh.ts makes requests (0014)",
-                  "self": "Only doh.ts makes requests (0014)"
+                  "fetch": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "XMLHttpRequest": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "WebSocket": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "EventSource": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "WebTransport": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "RTCPeerConnection": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "importScripts": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "navigator": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "globalThis": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "self": "Packages make no requests; only @benchside/dns/doh.ts does (0014)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/ui/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "fetch": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "XMLHttpRequest": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "WebSocket": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "EventSource": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "WebTransport": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "RTCPeerConnection": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "importScripts": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "navigator": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "globalThis": "Packages make no requests; only @benchside/dns/doh.ts does (0014)",
+                  "self": "Packages make no requests; only @benchside/dns/doh.ts does (0014)"
                 }
               }
             }
@@ -84,7 +95,7 @@
         "packages/*/src/**",
         "!packages/dns/**",
         "apps/*/src/**",
-        "!apps/*/src/worker/**"
+        "!apps/*/src/worker/worker.ts"
       ],
       "linter": {
         "rules": {
@@ -93,28 +104,7 @@
               "level": "error",
               "options": {
                 "paths": {
-                  "@benchside/dns/doh": "Only app workers import the DoH transport (0014)"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "includes": ["packages/zip/src/**"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noRestrictedGlobals": {
-              "level": "error",
-              "options": {
-                "deniedGlobals": {
-                  "window": "Packages must not touch the DOM",
-                  "document": "Packages must not touch the DOM",
-                  "fetch": "The ZIP analyzer makes no network requests (REQ-ZIP-001)",
-                  "XMLHttpRequest": "The ZIP analyzer makes no network requests (REQ-ZIP-001)",
-                  "WebSocket": "The ZIP analyzer makes no network requests (REQ-ZIP-001)"
+                  "@benchside/dns/doh": "Only app worker entries import the DoH transport (0014)"
                 }
               }
             }
