@@ -103,10 +103,12 @@ export function manualHost() {
   return { host, calls, send, fail: (m: string) => act(() => failed(m)) };
 }
 
+/** A section by its heading, or a chart by its caption. */
 export const section = (name: string) =>
-  [...root.querySelectorAll('section')].find(
-    (s) => s.querySelector('h2')?.textContent === name,
-  ) as HTMLElement;
+  ([...root.querySelectorAll('section')].find((s) => s.querySelector('h2')?.textContent === name) ??
+    [...root.querySelectorAll('figure')].find((f) =>
+      f.querySelector('figcaption')?.textContent?.startsWith(name),
+    )) as HTMLElement;
 
 export async function pick(files: File[], label = 'Add files') {
   const input = [...root.querySelectorAll('label')]
