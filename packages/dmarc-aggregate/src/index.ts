@@ -1,5 +1,15 @@
 export { Batch, type DocumentInput, type ReportSummary } from './batch.ts';
 export {
+  type Cause,
+  type Classification,
+  classify,
+  type Facts,
+  inconsistent,
+  type Path,
+  type PathRule,
+  recordFacts,
+} from './classify.ts';
+export {
   compareFilename,
   type FilenamePart,
   type ParsedFilename,

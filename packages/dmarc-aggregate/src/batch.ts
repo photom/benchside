@@ -1,10 +1,12 @@
-/** The reports of a batch: identity, duplicates, conflicts, overlaps, file names (CMB-1..5, INP-9, INP-10). */
+/** The reports of a batch: identity, duplicates, conflicts, overlaps, file names, classification (CMB-1..5, INP-9, INP-10, FCT-6, FCT-7). */
+import { type Classification, classify, inconsistent, recordFacts } from './classify.ts';
 import { compareFilename, type ParsedFilename, parseFilename } from './filename.ts';
 import type { Finding, Findings } from './findings.ts';
 import {
   type ContentHint,
   type ExtensionCount,
   type Format,
+  type ReadRecord,
   type ReadReport,
   readReport,
 } from './format/read.ts';
@@ -42,6 +44,14 @@ export interface DocumentInput {
 interface Counted {
   readonly summary: ReportSummary;
   readonly report: ReadReport;
+  /** One per record, in order. */
+  readonly classes: Classification[];
+}
+
+/** A DMARC-failing record, revisited when its source IP turns out to be a forwarder (FCT-7). */
+interface Failing {
+  readonly counted: Counted;
+  readonly record: number;
 }
 
 const PART_NAMES = { 'policy-domain': 'policy domain', begin: 'begin', end: 'end' } as const;
@@ -49,7 +59,11 @@ const PART_NAMES = { 'policy-domain': 'policy domain', begin: 'begin', end: 'end
 /** Holds the reports of one batch; every finding goes to the shared `Findings` (design: batch.md). */
 export class Batch {
   private readonly all: ReportSummary[] = [];
-  private readonly counted: Counted[] = [];
+  /** Counted reports by report index. */
+  private readonly counted = new Map<number, Counted>();
+  /** FCT-7 */
+  private readonly forwarders = new Set<string>();
+  private readonly failingByIp = new Map<string, Failing[]>();
   private readonly byDigest = new Map<string, ReportSummary>();
   private readonly byIdentity = new Map<string, ReportSummary>();
   /** Counted reports with a range, by reporter and policy domain (CMB-4). */
@@ -67,6 +81,11 @@ export class Batch {
   /** CMB-5: the first spelling loaded of a reporter, given any spelling. */
   reporterName(org: string): string {
     return this.names.get(org.toLowerCase()) ?? org;
+  }
+
+  /** The classification of each record of a counted report, or null when the report is not counted. */
+  classifications(report: number): readonly Classification[] | null {
+    return this.counted.get(report)?.classes ?? null;
   }
 
   /** Reads one document as a report and adds it; null when it is not a report (FMT-1). */
@@ -159,12 +178,69 @@ export class Batch {
       return summary;
     }
 
-    this.counted.push({ summary, report });
+    this.classifyReport(summary, report, at);
     this.byDigest.set(document.digest, summary);
     if (identity !== null) this.byIdentity.set(identity, summary);
     if (!this.names.has(reporterKey)) this.names.set(reporterKey, report.reporter);
     this.overlaps(summary, `${reporterKey}\n${report.policy.domain}`, at);
     return summary;
+  }
+
+  /**
+   * FCT-6, FCT-7 (design: classify.md). Passing records first: they may reveal forwarder IPs, which
+   * the failing records of this and earlier reports then use.
+   */
+  private classifyReport(
+    summary: ReportSummary,
+    report: ReadReport,
+    at: (f: Omit<Finding, 'file' | 'label'>) => Finding,
+  ): void {
+    const counted: Counted = { summary, report, classes: [] };
+    this.counted.set(summary.index, counted);
+    const domain = report.policy.domain;
+    const isForwarder = (ip: string) => this.forwarders.has(ip);
+    const facts = report.records.map((r) => recordFacts(r, domain, isForwarder));
+    const revealed: string[] = [];
+    report.records.forEach((r, i) => {
+      const f = facts[i] as (typeof facts)[number];
+      if (f.dmarc === 'fail') return;
+      const c = classify(f);
+      counted.classes[i] = c;
+      if (c.path === 'forwarded' && !this.forwarders.has(r.sourceIp)) {
+        this.forwarders.add(r.sourceIp);
+        revealed.push(r.sourceIp);
+      }
+    });
+    for (const ip of revealed) {
+      for (const { counted: o, record } of this.failingByIp.get(ip) ?? []) {
+        const r = o.report.records[record] as ReadRecord;
+        o.classes[record] = classify(recordFacts(r, o.report.policy.domain, isForwarder));
+      }
+    }
+    report.records.forEach((r, i) => {
+      if (counted.classes[i]) return;
+      counted.classes[i] = classify(recordFacts(r, domain, isForwarder));
+      let list = this.failingByIp.get(r.sourceIp);
+      if (!list) {
+        list = [];
+        this.failingByIp.set(r.sourceIp, list);
+      }
+      list.push({ counted, record: i });
+    });
+    for (const r of report.records) {
+      const methods = inconsistent(r);
+      if (methods.length === 0) continue;
+      this.findings.add(
+        at({
+          id: 'aggregate.record.inconsistent',
+          severity: 'info',
+          report: summary.index,
+          record: r.index,
+          line: r.line,
+          message: `Aligned as pass with no raw pass result: ${methods.map((m) => m.toUpperCase()).join(', ')}. The aligned result is used.`,
+        }),
+      );
+    }
   }
 
   /** CMB-4: one finding for the later report, naming the first counted report it overlaps. */
