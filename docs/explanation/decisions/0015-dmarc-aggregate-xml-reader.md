@@ -28,5 +28,6 @@ flowchart LR
 ## Consequences
 
 - We own and fuzz a few hundred lines of code.
+- Joined documents (XML-10) are all decoded with the first one's encoding, and each later one must name the same encoding. One with no declared encoding counts as UTF-8, as it would alone, so a report is never decoded with an encoding it did not name. The cost: a `cat`-joined pair whose first report declares another encoding and whose second declares none is refused with `aggregate.xml.encoding`.
 - Documents that rely on a DTD are refused. Neither schema needs one, and the RFC 9990 sample (Appendix B) has none.
 - The reader stays in `@benchside/dmarc-aggregate` until a second package needs a tree reader. The PDF XFA scanner does not: it only looks for tags.
