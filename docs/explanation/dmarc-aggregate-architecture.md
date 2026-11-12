@@ -116,7 +116,7 @@ sequenceDiagram
 - Snapshots carry the filters and focus they were computed for and the batch generation (PRG-13). The UI drops snapshots from an older generation. From every other snapshot it takes the batch changes, progress, and `partial`; it shows the `View` only when there is one and the filters and focus match (PRG-14 to PRG-16).
 - `names` messages of the current generation apply in full from the active session; from an ended session (including one just turned off) only final states that nothing newer replaced (PRG-13). Host names never change a view (RDNS-8). The UI merges them into its host name map by IP.
 - The UI keeps expanded rows by source IP and keeps its scroll position across snapshots (REQ-DMARC-010).
-- `lookup` with `on: true` starts a session. Whenever the worker computes a snapshot, it recomputes the targets from the table as shown, focus included (RDNS-2). A `view` always produces a snapshot, so this one trigger covers filter and focus changes. `on: false` aborts the session's signal (RDNS-9).
+- `lookup` with `on: true` starts a session and computes the first targets from the table as shown, focus included. After that the worker recomputes them whenever it computes a snapshot (RDNS-2); a `view` always produces one, so filter and focus changes are covered. `on: false` aborts the session's signal (RDNS-9).
 
 ## Build order
 

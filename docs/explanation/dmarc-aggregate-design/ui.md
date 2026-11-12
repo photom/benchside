@@ -59,10 +59,10 @@ stateDiagram-v2
 | Reading indicator | A determinate bar by bytes, and the text "Reading files: 120 of 400 (31 MiB of 98 MiB), 1 380 reports". A "Stop" button beside it | PRG-6, PRG-9 |
 | Lookup indicator | A second bar: "Looking up host names: 35 of 200". Its own "Stop" button turns lookups off | PRG-12, RDNS-9 |
 | Done note | "Read 400 files, 4 102 reports" or "Stopped after 120 of 400 files" for 5 s, then the bar hides. Files not read are listed under the reports | PRG-6, PRG-9 |
-| Partial label | The headline numbers and every chart title carry "Partial: 120 of 400 files", counted by the snapshot the shown `View` came from, while that snapshot is partial. It goes away when a `View` from a non-partial snapshot is shown | PRG-5, PRG-15 |
+| Partial label | The headline numbers and every chart title carry "Partial: 120 of 400 files", counted by the newest snapshot, while the shown `View` or the newest snapshot is partial. It goes away when the final snapshot's `View` is shown | PRG-5, PRG-15 |
 | Host name cells | `queued` shows "Waiting", `looking-up` shows "Looking up". Final states follow RDNS-5. Cells update in place; the row order does not change for host names | PRG-11, RDNS-8 |
 | Stable place | Snapshots keep expanded source rows (by IP), the "Show more" count, the scroll position, and keyboard focus | REQ-DMARC-010 |
-| Redraw | The UI merges the batch changes of every snapshot. It renders at most one `View` per animation frame, the newest that matches the filters and focus, and skips older `View`s. A snapshot without a `View` keeps the one shown | PRG-4, PRG-14 to PRG-16 |
+| Redraw | The UI merges the batch changes of every snapshot. It renders at most one `View` per animation frame: the newest `View` that matches the filters and focus, skipping snapshots without one. If no snapshot in the frame has a matching `View`, the one shown stays | PRG-4, PRG-14 to PRG-16 |
 
 The bars use `role="progressbar"` with `aria-valuenow` and `aria-valuemax`. A polite live region announces the start, each quarter, and the end, so screen reader users are not flooded every 250 ms. Under `prefers-reduced-motion`, the bars change without animation.
 
