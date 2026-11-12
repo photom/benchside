@@ -10,6 +10,10 @@ export type FindingId =
   | 'aggregate.report.conflict'
   | 'aggregate.report.overlap'
   | 'aggregate.record.inconsistent'
+  | 'aggregate.report.long-range'
+  | 'aggregate.report.future'
+  | 'aggregate.report.error'
+  | 'aggregate.policy.changed'
   | 'aggregate.too-many-findings';
 
 export interface Finding {

@@ -1,4 +1,10 @@
-export { Batch, type DocumentInput, type ReportSummary } from './batch.ts';
+export {
+  Batch,
+  type CountedReport,
+  type DocumentInput,
+  type PolicyConfig,
+  type ReportSummary,
+} from './batch.ts';
 export {
   type Cause,
   type Classification,
@@ -39,6 +45,17 @@ export {
   newBudget,
   readInput,
 } from './input.ts';
+export {
+  type Day,
+  type Filters,
+  type FormatCount,
+  type PathCounts,
+  type ReporterError,
+  type ReporterRow,
+  type Totals,
+  type View,
+  view,
+} from './view.ts';
 export {
   type XmlDocument,
   type XmlElement,
