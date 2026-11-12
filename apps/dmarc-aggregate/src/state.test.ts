@@ -1,6 +1,14 @@
-import type { Filters, Snapshot, View } from '@benchside/dmarc-aggregate';
+import type { Filters, Names, Snapshot, View } from '@benchside/dmarc-aggregate';
 import { describe, expect, it } from 'vitest';
-import { applySnapshot, initialState, partialLabel, setFilters } from './state.ts';
+import {
+  applyNames,
+  applySnapshot,
+  hostLabel,
+  initialState,
+  partialLabel,
+  setFilters,
+  setLookup,
+} from './state.ts';
 
 const ALL: Filters = { domain: null, reporters: null, days: null };
 const view = (reports: number) => ({ totals: { reports } }) as unknown as View;
@@ -180,5 +188,154 @@ describe('UI state (PRG-13..16)', () => {
     expect(partialLabel(s)).toBe('Partial: 120 of 400 files');
     s = applySnapshot(s, snap({ view: view(2), partial: false }));
     expect(partialLabel(s)).toBeNull();
+  });
+});
+
+describe('UI state: host names (PRG-11..13, RDNS-5)', () => {
+  const names = (o: Partial<Names> & { changes?: Names['changes'] }): Names => ({
+    type: 'names',
+    generation: 1,
+    session: 1,
+    changes: {},
+    counts: { queued: 0, lookingUp: 0, done: 0, targets: 0 },
+    log: [],
+    findings: [],
+    ...o,
+  });
+  const on = (s = initialState()) => setLookup(s, true, 'cloudflare');
+  const IP = '192.0.2.1';
+
+  it('PRG-11: given the active session, when states arrive, then the cell follows them: waiting, looking up, final', () => {
+    let s = on();
+    s = applyNames(s, names({ changes: { [IP]: { state: 'queued' } } }));
+    expect(hostLabel(s, IP)).toBe('Waiting');
+    s = applyNames(s, names({ changes: { [IP]: { state: 'looking-up' } } }));
+    expect(hostLabel(s, IP)).toBe('Looking up');
+    s = applyNames(
+      s,
+      names({ changes: { [IP]: { state: 'confirmed', names: ['mx.example.net'] } } }),
+    );
+    expect(hostLabel(s, IP)).toBe('mx.example.net');
+    expect(hostLabel(s, '192.0.2.9')).toBe('Not looked up');
+  });
+
+  it('RDNS-5: given each final state, when shown, then confirmed names, unconfirmed names marked, no name, or the error', () => {
+    let s = on();
+    s = applyNames(
+      s,
+      names({
+        changes: {
+          a: { state: 'unconfirmed', names: ['x.example.net', 'y.example.net'] },
+          b: { state: 'none' },
+          c: { state: 'error', rcode: 'TIMEOUT' },
+        },
+      }),
+    );
+    expect([hostLabel(s, 'a'), hostLabel(s, 'b'), hostLabel(s, 'c')]).toEqual([
+      'x.example.net, y.example.net (not confirmed)',
+      'No host name',
+      'Lookup failed (TIMEOUT)',
+    ]);
+  });
+
+  it('PRG-13: given lookups turned off, when shown, then queued and looking-up sources fall back to their last final state', () => {
+    let s = on();
+    s = applyNames(s, names({ changes: { [IP]: { state: 'none' } } }));
+    s = setLookup(s, false, 'cloudflare');
+    s = on(s);
+    s = applyNames(s, names({ session: 2, changes: { [IP]: { state: 'queued' } } }));
+    expect(hostLabel(s, IP)).toBe('Waiting');
+    s = setLookup(s, false, 'cloudflare');
+    expect(hostLabel(s, IP)).toBe('No host name');
+  });
+
+  it('PRG-13: given an ended session, when its names arrive, then only final states apply, and only where no newer session has a state', () => {
+    let s = on();
+    s = setLookup(s, false, 'cloudflare');
+    s = on(s);
+    s = applyNames(s, names({ session: 2, changes: { b: { state: 'none' } } }));
+    // A late message from session 1: its queued is ignored, its finals apply where session 2 has nothing.
+    s = applyNames(
+      s,
+      names({
+        session: 1,
+        changes: {
+          a: { state: 'confirmed', names: ['a.example'] },
+          b: { state: 'error', rcode: 'SERVFAIL' },
+          c: { state: 'queued' },
+        },
+      }),
+    );
+    expect([hostLabel(s, 'a'), hostLabel(s, 'b'), hostLabel(s, 'c')]).toEqual([
+      'a.example',
+      'No host name',
+      'Not looked up',
+    ]);
+  });
+
+  it('PRG-13: given an ended final held back by a newer queued state, when that source is removed, then the held final shows', () => {
+    let s = on();
+    s = setLookup(s, false, 'cloudflare');
+    s = on(s);
+    s = applyNames(s, names({ session: 2, changes: { [IP]: { state: 'queued' } } }));
+    s = applyNames(
+      s,
+      names({ session: 1, changes: { [IP]: { state: 'confirmed', names: ['late.example'] } } }),
+    );
+    expect(hostLabel(s, IP)).toBe('Waiting');
+    s = applyNames(s, names({ session: 2, changes: { [IP]: { state: 'removed' } } }));
+    expect(hostLabel(s, IP)).toBe('late.example');
+  });
+
+  it('PRG-12, PRG-13: given log entries and findings from any session of this generation, when applied, then they are kept; an older generation is dropped', () => {
+    let s = applySnapshot(on(), snap({ generation: 2 }));
+    const entry = {
+      queryId: 'q1',
+      name: 'x',
+      type: 'PTR',
+      rcode: 'NXDOMAIN',
+      records: [],
+      authenticated: false,
+      sensitivity: 'sensitive',
+      purpose: '',
+      durationMs: 1,
+      cacheHit: false,
+    } as const;
+    s = applyNames(
+      s,
+      names({
+        generation: 2,
+        session: 1,
+        log: [entry],
+        findings: [{ id: 'dns.budget-exhausted', severity: 'warning', message: 'm' }],
+      }),
+    );
+    s = applyNames(
+      s,
+      names({ generation: 1, session: 1, log: [entry], changes: { [IP]: { state: 'none' } } }),
+    );
+    expect(s.lookup.log).toHaveLength(1);
+    expect(s.lookup.findings).toHaveLength(1);
+    expect(hostLabel(s, IP)).toBe('Not looked up');
+  });
+
+  it('PRG-13: given a late message from the session just turned off, when applied, then it is an ended session: finals only, counts ignored', () => {
+    let s = on();
+    s = setLookup(s, false, 'cloudflare');
+    s = applyNames(
+      s,
+      names({
+        changes: { a: { state: 'queued' }, b: { state: 'none' } },
+        counts: { queued: 1, lookingUp: 0, done: 1, targets: 2 },
+      }),
+    );
+    expect([hostLabel(s, 'a'), hostLabel(s, 'b')]).toEqual(['Not looked up', 'No host name']);
+    expect(s.lookup.counts).toEqual({ queued: 0, lookingUp: 0, done: 0, targets: 0 });
+  });
+
+  it('PRG-12: given counts from the active session, when applied, then they are the ones shown', () => {
+    let s = on();
+    s = applyNames(s, names({ counts: { queued: 3, lookingUp: 1, done: 4, targets: 8 } }));
+    expect(s.lookup.counts).toEqual({ queued: 3, lookingUp: 1, done: 4, targets: 8 });
   });
 });

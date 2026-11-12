@@ -1,5 +1,6 @@
 /** Test harness for the app: mounting, hosts, pickers (App tests). */
-import { Job, type Progress, type Snapshot } from '@benchside/dmarc-aggregate';
+import { Job, type Names, type Progress, type Snapshot } from '@benchside/dmarc-aggregate';
+import type { Lookup } from '@benchside/dns';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, vi } from 'vitest';
@@ -26,11 +27,22 @@ export function mount(host: DmarcHost) {
 }
 
 /** A host that runs the real job in this thread. */
-export function jobHost() {
+/** DNS answers for the fake transport, keyed "TYPE name"; anything else is NXDOMAIN. */
+export type DnsTable = Record<string, Lookup>;
+
+export function jobHost(dns: DnsTable = {}) {
   let listener: (s: Snapshot) => void = () => {};
+  let names: (n: Names) => void = () => {};
   let n = 0;
+  const queries: string[] = [];
   const job = new Job({
     send: (s) => listener(s),
+    sendNames: (x) => names(x),
+    transport: () => async (q) => {
+      queries.push(`${q.type} ${q.name}`);
+      return dns[`${q.type} ${q.name}`] ?? { rcode: 'NXDOMAIN', records: [], authenticated: false };
+    },
+    lookupFlushMs: 0,
     stepMs: 0,
     yieldToEvents: () => Promise.resolve(),
     now: () => NOW + 4000 * 86_400,
@@ -47,12 +59,19 @@ export function jobHost() {
       calls.push('clear');
       job.clear();
     },
+    lookup: (on, provider) => {
+      calls.push(`lookup ${on} ${provider}`);
+      job.lookup(on, provider);
+    },
     onSnapshot: (l) => {
       listener = l;
     },
     onFailed: () => {},
+    onNames: (l) => {
+      names = l;
+    },
   };
-  return { host, calls, job };
+  return { host, calls, job, queries };
 }
 
 /** A host whose snapshots the test sends by hand. */
@@ -65,6 +84,8 @@ export function manualHost() {
     view: () => calls.push('view'),
     stop: () => calls.push('stop'),
     clear: () => calls.push('clear'),
+    lookup: () => calls.push('lookup'),
+    onNames: () => {},
     onSnapshot: (l) => {
       listener = l;
     },

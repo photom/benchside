@@ -19,7 +19,7 @@ scripts/    # build and deploy helpers
 - Parsers and analysis logic are pure, DOM-independent TypeScript in `packages/`. Apps only display their results.
 - Apps never import from other apps. Shared UI moves into a package when a second app needs it.
 - Keep runtime dependencies to a minimum. Write parsers in-house.
-- Each app has its own CSP, injected at build time. Apps that need no network use `connect-src 'none'`; only the mail app allows the DoH endpoints. The dmarc-aggregate app will too once its opt-in reverse lookup lands ([0013](docs/explanation/decisions/0013-dmarc-aggregate-app.md)).
+- Each app has its own CSP, injected at build time. Apps that need no network use `connect-src 'none'`; only the mail app and the dmarc-aggregate app (opt-in reverse lookup, [0013](docs/explanation/decisions/0013-dmarc-aggregate-app.md)) allow the DoH endpoints.
 
 See [docs/explanation/decisions/](docs/explanation/decisions/) for the reasoning.
 

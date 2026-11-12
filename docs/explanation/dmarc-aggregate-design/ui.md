@@ -165,7 +165,24 @@ flowchart LR
 - The path and cause tables are the "Table" views of the charts. Their rows set the focus (SRC-5) until the charts draw over them.
 - Source rows keep their open state and "Show more details" count by IP, so snapshots never close them (REQ-DMARC-010).
 - The folder walk stays in the app. It moves to `@benchside/ui` when a second app needs folders.
-- The CSP starts with `connect-src 'none'`. Reverse lookup (RDNS-*) widens it to the DoH endpoints, as 0013 records.
+- The CSP allows the two DoH endpoints, as 0013 records; nothing is sent until lookups are turned on (RDNS-1).
+
+### Host names in `state.ts` (PRG-13)
+
+| Per source IP | Holds |
+|---|---|
+| `current` | `queued` or `looking-up`, with the session that sent it |
+| `final` | The newest final state (RDNS-5), with its session |
+
+| `names` from | Applied |
+|---|---|
+| The active session | Every change and the counts. `removed` clears `current`, so `final` shows again |
+| An ended session of this generation | Final states only, for sources with no final state from a newer session. A newer `current` still shows first, so such a final waits behind it until it is removed |
+| Any session of this generation | Query log entries and findings |
+| An older generation | Nothing |
+
+- The worker numbers sessions by counting each "lookup on" from page load, across generations (PRG-13). The UI sends every one, so it counts the same way and knows the active session's number before its first `names` arrives.
+- Turning lookups off clears every `current` at once (PRG-13).
 
 ## Charts in code
 

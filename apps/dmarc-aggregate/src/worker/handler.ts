@@ -16,6 +16,7 @@ export function createHandler(job: Job, post: (m: FromWorker) => void): (m: ToWo
       }
     } else if (m.type === 'view') job.view(m.id, m.filters, m.focus);
     else if (m.type === 'stop') job.stop();
+    else if (m.type === 'lookup') job.lookup(m.on, m.provider);
     else job.clear();
   };
 }

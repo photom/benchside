@@ -5,9 +5,9 @@ Repository-wide view. Per-tool details:
 - [Mail analyzer architecture](mail-architecture.md)
 - [ZIP analyzer architecture](zip-architecture.md)
 - [PDF analyzer architecture](pdf-architecture.md)
-- [DMARC aggregate report analyzer architecture](dmarc-aggregate-architecture.md) (planned)
+- [DMARC aggregate report analyzer architecture](dmarc-aggregate-architecture.md)
 
-Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0010](decisions/0010-shared-core-package.md) (shared core package), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests). Planned: [0013](decisions/0013-dmarc-aggregate-app.md) (DMARC aggregate report app), [0014](decisions/0014-shared-dns-package.md) (shared DNS package).
+Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0010](decisions/0010-shared-core-package.md) (shared core package), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests). [0013](decisions/0013-dmarc-aggregate-app.md) (DMARC aggregate report app), [0014](decisions/0014-shared-dns-package.md) (shared DNS package).
 
 ## Repository
 
@@ -18,7 +18,7 @@ flowchart TD
     mail[mail]
     zip[zip]
     pdf[pdf]
-    dmarc["dmarc-aggregate<br/><i>planned</i>"]
+    dmarc["dmarc-aggregate"]
   end
 
   subgraph packages [packages/ — @benchside/*]
@@ -26,7 +26,7 @@ flowchart TD
     pzip[zip<br/>no DOM]
     ppdf[pdf<br/>no DOM]
     core[core<br/>no DOM<br/>byte reading, inflate]
-    pdmarc["dmarc-aggregate<br/>no DOM<br/><i>planned</i>"]
+    pdmarc["dmarc-aggregate<br/>no DOM"]
     pdns["dns<br/>resolver, DoH, IP"]
     ui[ui<br/>Preact<br/><i>when 2+ apps share</i>]
   end
@@ -93,14 +93,14 @@ flowchart LR
   zip[zip] --x net
   pdf[pdf] --x net
   mail[mail] --> doh[(cloudflare-dns.com<br/>dns.google)]
-  dmarc["dmarc-aggregate, planned"] -. "reverse lookup,<br/>opt-in" .-> doh
+  dmarc["dmarc-aggregate"] -. "reverse lookup,<br/>opt-in" .-> doh
 ```
 
 | App | `connect-src` |
 |---|---|
 | home, zip, pdf | `'none'` |
 | mail | `https://cloudflare-dns.com https://dns.google` |
-| dmarc-aggregate (planned) | `https://cloudflare-dns.com https://dns.google`, used only when the user turns on reverse lookup ([0013](decisions/0013-dmarc-aggregate-app.md)) |
+| dmarc-aggregate | `https://cloudflare-dns.com https://dns.google`, used only when the user turns on reverse lookup ([0013](decisions/0013-dmarc-aggregate-app.md)) |
 
 All apps also use `default-src 'self'; worker-src blob:; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; form-action 'none'`. Built by `vite.shared.ts` ([detailed design §10](mail-detailed-design.md#10-build-vitesharedts)).
 
@@ -127,7 +127,7 @@ flowchart TD
   root --> m["/benchside/mail/"]
   root --> z["/benchside/zip/"]
   root --> p["/benchside/pdf/"]
-  root --> d["/benchside/dmarc-aggregate/<br/><i>planned</i>"]
+  root --> d["/benchside/dmarc-aggregate/"]
 ```
 
 ## Tests
