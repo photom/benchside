@@ -15,7 +15,7 @@ flowchart LR
 
 | ID | Rule |
 |---|---|
-| XML-1 | The encoding is chosen in this order: a UTF-8 BOM gives UTF-8; a UTF-16 BOM gives UTF-16 of that byte order; the `encoding` of the XML declaration, when `TextDecoder` knows its label; otherwise UTF-8. A declared label `TextDecoder` does not know gives `aggregate.xml.encoding` (error) and the report is not read. |
+| XML-1 | The encoding is chosen in this order: a UTF-8 BOM gives UTF-8; a UTF-16 BOM gives UTF-16 of that byte order; the `encoding` of the XML declaration, when `TextDecoder` knows its label; otherwise UTF-8. A declared label `TextDecoder` does not know gives `aggregate.xml.encoding` (error) and the report is not read. The declaration is read as ASCII, so a declared UTF-16 without a BOM is read as UTF-8. A declared encoding whose characters can hold ASCII markup bytes (`ISO-2022-JP`) also gives `aggregate.xml.encoding` (error). |
 | XML-2 | Bytes invalid in the chosen encoding are replaced with U+FFFD, and the report gets one `aggregate.xml.encoding` (warning). Line ends `CR LF` and lone `CR` become `LF`. |
 
 ## Markup
@@ -25,7 +25,7 @@ flowchart LR
 | XML-3 | Read: the XML declaration, elements, attributes, character data, CDATA sections, comments, and processing instructions. Comments and processing instructions are skipped. |
 | XML-4 | A document type declaration (`<!DOCTYPE`) gives `aggregate.xml.doctype` (error) and the report is not read. Reports have no use for one, and its entities are the attack surface of §8.1. |
 | XML-5 | References: the five predefined entities (`&lt;` `&gt;` `&amp;` `&apos;` `&quot;`) and character references (`&#…;`, `&#x…;`). Any other entity reference, or a character reference to a code point XML does not allow, is not well-formed. |
-| XML-6 | Not well-formed: an end tag that does not match, an element left open at the end, an unquoted or repeated attribute, a `<` inside an attribute value, non-white-space text outside the root, or nesting deeper than 32. Any of these gives `aggregate.xml.malformed` (error) with the line and column, and the report is not read. Reading of that input stops there; the documents before it stay (XML-10). |
+| XML-6 | Not well-formed: an end tag that does not match, an element left open at the end, an unquoted or repeated attribute, a `<` inside an attribute value, non-white-space text outside the root, nesting deeper than 32, an XML declaration that is not at the start of a document (XML-10), or input that ends with no root element. Any of these gives `aggregate.xml.malformed` (error) with the line and column, and the report is not read. Reading of that input stops there; the documents before it stay (XML-10). |
 
 ## Names
 

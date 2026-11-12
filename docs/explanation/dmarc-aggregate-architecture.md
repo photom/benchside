@@ -1,6 +1,6 @@
 # DMARC aggregate report analyzer architecture
 
-Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md).
+Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md). XML reader: [design](dmarc-aggregate-design/xml.md).
 
 ## Modules
 
@@ -18,7 +18,7 @@ flowchart TD
     input --> tar[tar.ts]
     input --> filename[filename.ts]
     input --> xml
-    batch --> xml["xml/<br/>decode, tokenizer, tree"]
+    batch --> xml["xml/<br/>decode, reader"]
     batch --> format["format/<br/>namespace, schema, values, hints"]
     batch --> classify[classify.ts]
     view[view.ts] --> enforce[enforcement.ts]
@@ -44,9 +44,8 @@ flowchart TD
 | `input.ts` | File kind by leading bytes, gzip members as one stream (`gunzip`, 0017), ZIP entries, nesting, labels, byte budget | INP-2..7, INP-13 |
 | `tar.ts` | tar headers, pax and GNU long names, checksums, entries as a stream | INP-12 |
 | `filename.ts` | Attachment name grammar, comparison with content | INP-8..10 |
-| `xml/decode.ts` | BOM, declaration, `TextDecoder`, line ends | XML-1, XML-2 |
-| `xml/tokenizer.ts` | Incremental: takes text in chunks. Tags, text, CDATA, comments, PIs, references; DTD refusal | XML-3..6 |
-| `xml/tree.ts` | Namespace scopes, element tree, depth limit, document boundaries | XML-7..10 |
+| `xml/decode.ts` | BOM, declaration, `TextDecoder` per value, UTF-16 to UTF-8 transcoding | XML-1, XML-2, XML-10 |
+| `xml/reader.ts` | `XmlReader`: takes bytes in chunks. Tags, text, CDATA, comments, PIs, references, DTD refusal; namespace scopes, element tree, depth limit, document boundaries, line ends | XML-2..10 |
 | `format/namespace.ts` | Root check, namespace to format | FMT-1..3 |
 | `format/schema.ts` | One table of paths with the multiplicity per format; report and extension elements; missing and repeated elements | FMT-4..9 |
 | `format/values.ts` | Enumerations, integers, IPs, domains, legacy SPF values, truncation | FMT-10..15 |
