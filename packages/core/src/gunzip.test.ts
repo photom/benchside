@@ -217,6 +217,32 @@ describe('gunzip (INP-4, 0017)', () => {
     expect(out.length).toBeLessThanOrEqual(100_000);
   });
 
+  it('PRG-8: given many empty members, when decoded, then it yields control before the end', () => {
+    const empty = gzipSync(new Uint8Array());
+    const input = cat(...new Array<Uint8Array>(20_000).fill(empty));
+    const it = gunzip(input, { limit: 1 << 30 });
+    let steps = 0;
+    let step = it.next();
+    while (!step.done) {
+      steps++;
+      step = it.next();
+    }
+    expect(step.value).toEqual({ kind: 'ok', members: 20_000 });
+    expect(steps).toBeGreaterThan(3);
+  });
+
+  it('INP-6: given a bomb whose trailer is corrupt, when decoded past the limit, then exceeded', () => {
+    // The first chunk (96 KiB) fits; the rest, taken when the CRC fails, passes the limit.
+    const bomb = gzipSync(new Uint8Array(100_000));
+    bomb[bomb.length - 8] = (bomb[bomb.length - 8] as number) ^ 0xff; // CRC-32
+    expect(run(bomb, 99_000).result).toEqual({ kind: 'exceeded' });
+  });
+
+  it('0017: given a huge chunk size or a NaN limit, when decoded, then it does not throw and allows no output past zero', () => {
+    expect(() => run(gzipSync(enc('x')), 1 << 30, 1e12)).not.toThrow();
+    expect(run(gzipSync(enc('x')), Number.NaN).result).toEqual({ kind: 'exceeded' });
+  });
+
   it('0017: given mutated gzip data, when decoded, then it never throws and always ends', () => {
     const base = gzipSync(enc('<feedback><record><row>x</row></record></feedback>'.repeat(50)));
     let seed = 7;

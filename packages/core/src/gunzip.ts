@@ -1,4 +1,5 @@
 import { crc32 } from './crc32.ts';
+import { view } from './source.ts';
 
 /** How `gunzip` ended (0017). Chunks yielded before an error or `exceeded` stay valid. */
 export type GunzipResult =
@@ -13,7 +14,8 @@ export type GunzipResult =
 
 /**
  * Decodes gzip members one after another (RFC 1952 §2.2) with an in-house inflate (RFC 1951),
- * yielding output in chunks. Stops with `exceeded` before yielding past `limit` bytes.
+ * yielding output in chunks. Stops with `exceeded` before yielding past `limit` bytes (NaN counts
+ * as 0). An empty chunk is a pause point: input that gives little output still yields often (PRG-8).
  * Never throws on bad input.
  */
 export function* gunzip(
@@ -21,24 +23,28 @@ export function* gunzip(
   o: { readonly limit: number; readonly chunkSize?: number },
 ): Generator<Uint8Array, GunzipResult, void> {
   const size = o.chunkSize ?? 65536;
-  const d = new Decoder(input, Number.isFinite(size) ? Math.max(1024, Math.floor(size)) : 65536);
+  const chunkSize = Number.isFinite(size)
+    ? Math.min(Math.max(1024, Math.floor(size)), 1 << 24)
+    : 65536;
+  const limit = Number.isNaN(o.limit) ? 0 : o.limit;
+  const d = new Decoder(input, chunkSize);
   let total = 0;
   try {
     while (!d.done) {
       d.run();
       const chunk = d.take();
-      if (chunk.length === 0) continue;
       total += chunk.length;
-      if (total > o.limit) return { kind: 'exceeded' };
-      yield chunk;
+      if (total > limit) return { kind: 'exceeded' };
+      if (chunk.length > 0 || !d.done) yield chunk;
     }
     return { kind: 'ok', members: d.members };
   } catch (e) {
     if (!(e instanceof Stop)) throw e;
     // Output decoded before the problem is still the caller's (INP-4: completed reports stay).
-    // The error wins over the limit: a chunk that would pass the limit is dropped, not reported.
     const chunk = d.take();
-    if (chunk.length > 0 && total + chunk.length <= o.limit) yield chunk;
+    // Output past the limit is a bomb (INP-6) whatever follows it.
+    if (total + chunk.length > limit) return { kind: 'exceeded' };
+    if (chunk.length > 0) yield chunk;
     return { kind: 'error', reason: e.reason, offset: e.offset };
   }
 }
@@ -51,6 +57,8 @@ class Stop {
 }
 
 const WINDOW = 32768;
+/** Loop steps per `run`: a header, a block header, one symbol, or one copy each. */
+const WORK_PER_RUN = 16384;
 
 const State = { Header: 0, Block: 1, Stored: 2, Huffman: 3, Copy: 4, Trailer: 5, Done: 6 } as const;
 type State = (typeof State)[keyof typeof State];
@@ -163,10 +171,10 @@ class Decoder {
     return chunk;
   }
 
-  /** Decodes until the output buffer is full or the input ends. */
+  /** Decodes until the output buffer is full, the input ends, or a bounded amount of work is done. */
   run(): void {
     const out = this.out;
-    while (this.op < out.length) {
+    for (let work = 0; this.op < out.length && work < WORK_PER_RUN; work++) {
       switch (this.state) {
         case State.Header:
           this.header();
@@ -241,17 +249,19 @@ class Decoder {
     }
     for (const bit of [8, 16]) {
       if (!(flags & bit)) continue;
+      const field = p;
       while (p < b.length && b[p] !== 0) p++;
+      if (p >= b.length) throw new Stop('truncated', field);
       p++;
     }
     if (flags & 2) {
       // FHCRC: the low 16 bits of the CRC-32 of the header before it (RFC 1952 §2.3.1).
-      if (p + 2 > b.length) throw new Stop('truncated', b.length);
+      if (p + 2 > b.length) throw new Stop('truncated', p);
       const stored = (b[p] as number) | ((b[p + 1] as number) << 8);
       if (stored !== (crc32(b.subarray(start, p)) & 0xffff)) throw new Stop('header', start);
       p += 2;
     }
-    if (p > b.length) throw new Stop('truncated', b.length);
+    if (p > b.length) throw new Stop('truncated', start + 10);
     this.pos = p;
     this.memberOut = 0;
     this.crc = 0;
@@ -334,18 +344,9 @@ class Decoder {
     const p = this.pos;
     if (p + 8 > b.length) throw new Stop('truncated', p);
     this.syncCrc();
-    const crc =
-      ((b[p] as number) |
-        ((b[p + 1] as number) << 8) |
-        ((b[p + 2] as number) << 16) |
-        ((b[p + 3] as number) << 24)) >>>
-      0;
-    const size =
-      ((b[p + 4] as number) |
-        ((b[p + 5] as number) << 8) |
-        ((b[p + 6] as number) << 16) |
-        ((b[p + 7] as number) << 24)) >>>
-      0;
+    const v = view(b);
+    const crc = v.getUint32(p, true);
+    const size = v.getUint32(p + 4, true);
     if (crc !== this.crc) throw new Stop('crc', p);
     if (size !== this.memberOut >>> 0) throw new Stop('size', p + 4);
     this.members++;
