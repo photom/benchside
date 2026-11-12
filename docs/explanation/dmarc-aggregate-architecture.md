@@ -1,6 +1,6 @@
 # DMARC aggregate report analyzer architecture
 
-Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md).
+Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md).
 
 ## Modules
 
@@ -32,7 +32,7 @@ flowchart TD
     ip["ip.ts<br/>parseIp, reverseName"]
   end
   input --> zip["@benchside/zip"]
-  input --> core["@benchside/core<br/>inflateStream"]
+  input --> core["@benchside/core<br/>gunzip"]
   format & reverse --> ip
   reverse -. "Resolver, injected" .-> compose
   worker --> job & view & reverse
@@ -41,7 +41,7 @@ flowchart TD
 
 | Module | Does | Rules |
 |---|---|---|
-| `input.ts` | File kind by leading bytes, gzip members as one stream, ZIP entries, nesting, labels, byte budget | INP-2..7, INP-13 |
+| `input.ts` | File kind by leading bytes, gzip members as one stream (`gunzip`, 0017), ZIP entries, nesting, labels, byte budget | INP-2..7, INP-13 |
 | `tar.ts` | tar headers, pax and GNU long names, checksums, entries as a stream | INP-12 |
 | `filename.ts` | Attachment name grammar, comparison with content | INP-8..10 |
 | `xml/decode.ts` | BOM, declaration, `TextDecoder`, line ends | XML-1, XML-2 |
@@ -124,7 +124,7 @@ Each step is one pull request that passes CI on its own.
 
 ```mermaid
 flowchart LR
-  s1["1 Extract @benchside/dns<br/>0014, no behavior change"] --> s2["2 inflateStream<br/>@benchside/core"]
+  s1["1 Extract @benchside/dns<br/>0014, no behavior change"] --> s2["2 gunzip<br/>@benchside/core, 0017"]
   s2 --> s3["3 XML reader<br/>XML-*"]
   s3 --> s4["4 Format<br/>FMT-*"]
   s4 --> s5["5 Input and batch<br/>INP-*, tar, CMB-1..5"]
@@ -148,6 +148,6 @@ flowchart LR
 | `job.ts` | Snapshot timing, partial flag, stop, add while reading | A fake clock |
 | `reverse.ts` | Order, confirmation, states, budget | A fake `Resolver` |
 | App | Views render a `View`; filters send `view`; the indicator follows `progress`; expanded rows survive snapshots | happy-dom |
-| Browser | CSP blocks other hosts; no request while lookups are off; `DecompressionStream` reads a multi-member gzip | Chromium in CI |
+| Browser | CSP blocks other hosts; no request while lookups are off | Chromium in CI |
 
 All data uses documentation addresses (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32) and `example` domains. Real reports stay in `samples/private/`.
