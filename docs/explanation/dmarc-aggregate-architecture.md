@@ -19,7 +19,7 @@ flowchart TD
     input --> filename[filename.ts]
     input --> xml
     batch --> xml["xml/<br/>decode, reader"]
-    batch --> format["format/<br/>namespace, schema, values, hints"]
+    batch --> format["format/<br/>schema, read"]
     batch --> classify[classify.ts]
     view[view.ts] --> enforce[enforcement.ts]
     view --> sources[sources.ts]
@@ -46,10 +46,8 @@ flowchart TD
 | `filename.ts` | Attachment name grammar, comparison with content | INP-8..10 |
 | `xml/decode.ts` | BOM, declaration, `TextDecoder` per value, UTF-16 to UTF-8 transcoding | XML-1, XML-2, XML-10 |
 | `xml/reader.ts` | `XmlReader`: takes bytes in chunks. Tags, text, CDATA, comments, PIs, references, DTD refusal; namespace scopes, element tree, depth limit, document boundaries, line ends | XML-2..10 |
-| `format/namespace.ts` | Root check, namespace to format | FMT-1..3 |
-| `format/schema.ts` | One table of paths with the multiplicity per format; report and extension elements; missing and repeated elements | FMT-4..9 |
-| `format/values.ts` | Enumerations, integers, IPs, domains, legacy SPF values, truncation | FMT-10..15 |
-| `format/hints.ts` | Content hints and the mixed-format finding | FMT-16, FMT-17 |
+| `format/schema.ts` | One table of paths with the multiplicity per format, and the enumerations per path, as data | FMT-4..10 |
+| `format/read.ts` | `readReport`: root check and format; report and extension elements; missing and repeated elements; enumerations, integers, IPs, domains, legacy SPF values, truncation; skipped records; content hints and the mixed-format finding | FMT-1..18 |
 | `job.ts` | The reading queue; steps of at most 50 ms; snapshots every 250 ms; null `View` when unchanged; stop; generations | PRG-1, PRG-3..9, PRG-13, PRG-16 |
 | `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, policies, forwarder IPs; tracks what changed since the last snapshot | CMB-1..5, CMB-8, FCT-7, PRG-14 |
 | `classify.ts` | Facts, path, cause, rule IDs | FCT-1..6, PATH-*, CAUSE-* |
