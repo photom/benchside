@@ -1,6 +1,6 @@
 # DMARC aggregate report analyzer architecture
 
-Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md). XML reader: [design](dmarc-aggregate-design/xml.md).
+Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md). XML reader: [design](dmarc-aggregate-design/xml.md). Input: [design](dmarc-aggregate-design/input.md).
 
 ## Modules
 
@@ -41,14 +41,14 @@ flowchart TD
 
 | Module | Does | Rules |
 |---|---|---|
-| `input.ts` | File kind by leading bytes, gzip members as one stream (`gunzip`, 0017), ZIP entries, nesting, labels, byte budget | INP-2..7, INP-13 |
+| `input.ts` | File kind by leading bytes, gzip members as one stream (`gunzip`, 0017), ZIP entries (`inflateRawStream`), nesting, labels, byte budget | INP-3..7, INP-13 |
 | `tar.ts` | tar headers, pax and GNU long names, checksums, entries as a stream | INP-12 |
 | `filename.ts` | Attachment name grammar, comparison with content | INP-8..10 |
 | `xml/decode.ts` | BOM, declaration, `TextDecoder` per value, UTF-16 to UTF-8 transcoding | XML-1, XML-2, XML-10 |
 | `xml/reader.ts` | `XmlReader`: takes bytes in chunks. Tags, text, CDATA, comments, PIs, references, DTD refusal; namespace scopes, element tree, depth limit, document boundaries, line ends | XML-2..10 |
 | `format/schema.ts` | One table of paths with the multiplicity per format, and the enumerations per path, as data | FMT-4..10 |
 | `format/read.ts` | `readReport`: root check and format; report and extension elements; missing and repeated elements; enumerations, integers, IPs, domains, legacy SPF values, truncation; skipped records; content hints and the mixed-format finding | FMT-1..18 |
-| `job.ts` | The reading queue; steps of at most 50 ms; snapshots every 250 ms; null `View` when unchanged; stop; generations | PRG-1, PRG-3..9, PRG-13, PRG-16 |
+| `job.ts` | The reading queue; file count, size, and folder skips at `add`; steps of at most 50 ms; snapshots every 250 ms; null `View` when unchanged; stop; generations | INP-1, INP-2, INP-11, PRG-1, PRG-3..9, PRG-13, PRG-16 |
 | `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, policies, forwarder IPs; tracks what changed since the last snapshot | CMB-1..5, CMB-8, FCT-7, PRG-14 |
 | `classify.ts` | Facts, path, cause, rule IDs | FCT-1..6, PATH-*, CAUSE-* |
 | `view.ts` | Filters, days, totals, timeline, reporters, formats, reporter errors | CMB-6, CMB-7, CMB-9..13 |

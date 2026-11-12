@@ -1,7 +1,7 @@
 import { deflateRawSync, gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { crc32 } from './crc32.ts';
-import { type GunzipResult, gunzip } from './gunzip.ts';
+import { type GunzipResult, gunzip, inflateRawStream } from './gunzip.ts';
 
 const enc = (s: string) => new TextEncoder().encode(s);
 const dec = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -14,8 +14,11 @@ function run(
   limit = 1 << 30,
   chunkSize?: number,
 ): { out: Uint8Array; result: GunzipResult } {
+  return drain(gunzip(input, chunkSize === undefined ? { limit } : { limit, chunkSize }));
+}
+
+function drain<R>(it: Generator<Uint8Array, R, void>): { out: Uint8Array; result: R } {
   const chunks: Uint8Array[] = [];
-  const it = gunzip(input, chunkSize === undefined ? { limit } : { limit, chunkSize });
   for (;;) {
     const step = it.next();
     if (step.done) {
@@ -281,6 +284,65 @@ describe('gunzip (INP-4, 0017)', () => {
       const bytes = base.slice(0, rand() % (base.length + 1));
       for (let k = 0; k < 4; k++) if (bytes.length) bytes[rand() % bytes.length] = rand() & 255;
       expect(() => run(bytes, 1 << 20)).not.toThrow();
+    }
+  });
+});
+
+describe('inflateRawStream (INP-5, 0017)', () => {
+  const raw = (input: Uint8Array, limit = 1 << 30, chunkSize?: number) =>
+    drain(inflateRawStream(input, chunkSize === undefined ? { limit } : { limit, chunkSize }));
+
+  it('INP-5: given bare deflate data, when decoded in small chunks, then the bytes match and ok', () => {
+    const data = enc('<feedback><record/></feedback>'.repeat(5000));
+    const { out, result } = raw(deflateRawSync(data), 1 << 30, 1024);
+    expect(same(out, data)).toBe(true);
+    expect(result).toEqual({ kind: 'ok' });
+  });
+
+  it('INP-5: given empty deflate data, when decoded, then no output and ok', () => {
+    expect(raw(deflateRawSync(new Uint8Array(0)))).toEqual({
+      out: new Uint8Array(0),
+      result: { kind: 'ok' },
+    });
+  });
+
+  it('INP-6: given output past the limit, when decoded, then exceeded without yielding past it', () => {
+    const { out, result } = raw(deflateRawSync(new Uint8Array(100_000)), 5000);
+    expect(result).toEqual({ kind: 'exceeded' });
+    expect(out.length).toBeLessThanOrEqual(5000);
+  });
+
+  it('INP-5: given deflate data cut short, when decoded, then truncated error', () => {
+    const body = deflateRawSync(enc('abcdefghij'.repeat(1000)));
+    expect(raw(body.subarray(0, body.length - 3)).result).toMatchObject({
+      kind: 'error',
+      reason: 'truncated',
+    });
+  });
+
+  it('INP-5: given the reserved block type, when decoded, then data error', () => {
+    expect(raw(Uint8Array.of(0b111)).result).toMatchObject({ kind: 'error', reason: 'data' });
+  });
+
+  it('INP-5: given bytes after the final block, when decoded, then they are ignored', () => {
+    const { out, result } = raw(cat(deflateRawSync(enc('<a/>')), enc('junk')));
+    expect(dec(out)).toBe('<a/>');
+    expect(result).toEqual({ kind: 'ok' });
+  });
+
+  it('INP-5: given mutated deflate data, when decoded, then it never throws and always ends', () => {
+    const base = deflateRawSync(
+      enc('<feedback><record><row>x</row></record></feedback>'.repeat(50)),
+    );
+    let seed = 3;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed;
+    };
+    for (let n = 0; n < 300; n++) {
+      const bytes = base.slice(0, rand() % (base.length + 1));
+      for (let k = 0; k < 4; k++) if (bytes.length) bytes[rand() % bytes.length] = rand() & 255;
+      expect(() => raw(bytes, 1 << 20)).not.toThrow();
     }
   });
 });

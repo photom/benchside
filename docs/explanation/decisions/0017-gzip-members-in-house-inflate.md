@@ -23,7 +23,8 @@ flowchart LR
 - It checks each member's CRC-32, ISIZE, and header CRC (FHCRC). A mismatch, a bad header, a truncated member, or bytes after a member that neither start another one nor are all zero is an error. Zero padding after the last member is accepted, as gzip(1) does. The chunks yielded before the error stay with the caller.
 - The caller passes the most output it will take. `gunzip` stops as soon as the output passes it, so a bomb never grows past the caller's limit (INP-6).
 - It works in steps: the caller pulls chunks, so the reading job can stop between chunks (PRG-8). Each step does a bounded amount of work; input that gives little output, such as many empty members, yields empty chunks as pause points.
-- The whole-buffer `inflate` over `DecompressionStream` stays for ZIP entries and PDF streams: those have one stream with a known end.
+- The whole-buffer `inflate` over `DecompressionStream` stays for the ZIP and PDF tools: those have one stream with a known end.
+- `inflateRawStream` runs the same decoder on bare deflate data, without member headers or trailers. The DMARC aggregate analyzer uses it for ZIP entries (INP-5), so an entry is decoded in chunks under the same budget as gzip input.
 
 ## Consequences
 
