@@ -23,7 +23,7 @@ flowchart TD
     extra --> decode[extra-decode.ts]
     fields --> text[text.ts<br/>UTF-8, CP437]
     open[nested.ts] --> inflate[inflate.ts]
-    open --> crc[crc32.ts]
+    open --> crc["crc32.ts<br/>re-export of @benchside/core"]
     analyze & open --> source[source.ts<br/>ByteSource]
     analyze --> findings[findings.ts]
     analyze --> sec[security.ts]
@@ -47,7 +47,7 @@ flowchart TD
 | `extra.ts` | Extra field blocks, names, ZIP64 and Unicode Path decoding | EXT-1..4, EXT-10, NAME-2 |
 | `extra-decode.ts` | Timestamps, UNIX owner, NTFS times, AES, Android alignment | EXT-5..9, EXT-11 |
 | `text.ts` | UTF-8 and Code Page 437 decoding | NAME-1, NAME-3, NAME-4 |
-| `crc32.ts` | CRC-32 | EXT-4 |
+| `crc32.ts` | CRC-32, re-exported from `@benchside/core` (shared with `gunzip`, 0017) | EXT-4 |
 | `inflate.ts` | Bounded raw-deflate decompression | NEST-3 |
 | `nested.ts` | Refusal reasons, content, verification | NEST-* |
 | `findings.ts` | Finding collector with the 1 000 limit; severity, category, and section per ID | REP-7, REP-8, REP-10 |
