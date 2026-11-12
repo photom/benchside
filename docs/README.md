@@ -33,4 +33,5 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [PDF analyzer architecture](explanation/pdf-architecture.md) — modules, worker protocol, UI
 - [DMARC aggregate report analyzer architecture](explanation/dmarc-aggregate-architecture.md) (planned): modules, worker protocol, build order, tests
 - [DMARC aggregate report UI design](explanation/dmarc-aggregate-design/ui.md) (planned): layout, chart forms, color, interaction
+- [DMARC aggregate XML reader design](explanation/dmarc-aggregate-design/xml.md): byte scanning, chunks, UTF-16 transcoding
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made
