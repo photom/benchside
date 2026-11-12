@@ -257,10 +257,7 @@ export class Job {
         });
         g.bytesRead += e.file.size;
         this.finish(g, e, 'failed');
-        if (e.file.fromFolder) {
-          e.add.pending--;
-          this.maybeSkippedFinding(e.add);
-        }
+        this.decided(e);
         continue;
       }
       if (this.gen !== g) return;
@@ -312,15 +309,14 @@ export class Job {
       } else {
         this.finish(g, e, error && reports === 0 ? 'failed' : 'read', reports);
       }
-      if (e.file.fromFolder) {
-        e.add.pending--;
-        this.maybeSkippedFinding(e.add);
-      }
+      this.decided(e);
     }
     if (stopped) {
       for (let i = g.next; i < g.entries.length; i++) {
         const e = g.entries[i] as Entry;
-        if (e.status === 'queued') this.finish(g, e, 'stopped');
+        if (e.status !== 'queued') continue;
+        this.finish(g, e, 'stopped');
+        this.decided(e);
       }
       g.next = g.entries.length;
     }
@@ -341,6 +337,13 @@ export class Job {
       reports,
       findings: g.findings.countFor(e.index),
     });
+  }
+
+  /** A queued folder file was read, skipped, failed, or stopped (INP-11). */
+  private decided(e: Entry): void {
+    if (!e.file.fromFolder) return;
+    e.add.pending--;
+    this.maybeSkippedFinding(e.add);
   }
 
   /** INP-11: one finding per add, once its folder files are all decided. */
