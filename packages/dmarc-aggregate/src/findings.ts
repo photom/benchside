@@ -5,6 +5,9 @@ import type { InputFinding } from './input.ts';
 export type FindingId =
   | InputFinding['id']
   | FormatFinding['id']
+  | 'aggregate.input.too-many-files'
+  | 'aggregate.input.skipped'
+  | 'aggregate.input.unreadable'
   | 'aggregate.filename.mismatch'
   | 'aggregate.report.duplicate'
   | 'aggregate.report.conflict'

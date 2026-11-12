@@ -29,7 +29,7 @@ classDiagram
     index number
     name string
     byteLength number
-    kind xml, gzip, zip, tar, or unknown
+    kind xml, gzip, zip, tar, unknown, or null
     status queued, read, skipped, stopped, or failed
   }
   class ReportSummary {
@@ -157,7 +157,7 @@ classDiagram
 | `FormatCount` | Format, namespace, reports, mixed | CMB-12 |
 | `PolicyConfig` | One configuration of a policy domain, its reporters and days; not filtered, so it rides on the batch changes, not the `View` | CMB-8 |
 | `Focus` | A delivery path or a cause | SRC-5 |
-| `FileStatusChange` | A file `index`, its new `status`, and, once the status is final, the file's `reports` and `findings` counts | PRG-14, REP-1 |
+| `FileStatusChange` | A file `index`, its new `status`, and, once the status is final, the file's `kind` (null when it was not read), `reports`, and `findings` counts. A `FileResult` has `kind` null until then | PRG-14, REP-1 |
 | `DomainEnforcement` | ENF-1 to ENF-7 for one policy domain | |
 | `ReporterError` | CMB-13 | |
 | `ResultCount` | One raw result with its domain (and selector for DKIM) and messages | SRC-2 |
@@ -186,6 +186,7 @@ classDiagram
 | `aggregate.input.unknown-type` | error | INP-3, INP-4 |
 | `aggregate.input.gzip` | error | INP-4 |
 | `aggregate.input.budget` | error | INP-6 |
+| `aggregate.input.unreadable` | error | INP-14 |
 | `aggregate.input.skipped` | info | INP-11 |
 | `aggregate.input.nested` | warning | INP-13 |
 | `aggregate.zip.unreadable` | error | INP-5 |

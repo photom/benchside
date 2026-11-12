@@ -53,6 +53,16 @@ export {
   readInput,
 } from './input.ts';
 export {
+  type BatchChanges,
+  type FileResult,
+  type FileStatus,
+  type FileStatusChange,
+  Job,
+  type JobFile,
+  type Progress,
+  type Snapshot,
+} from './job.ts';
+export {
   type DetailRow,
   type DispositionCount,
   type Focus,

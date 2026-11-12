@@ -1,6 +1,6 @@
 /** The filtered set and what is computed from it (CMB-6, CMB-9..13; design: view.md). */
 import type { Batch, CountedReport } from './batch.ts';
-import type { Cause, Path } from './classify.ts';
+import type { Cause, Classification, Path } from './classify.ts';
 import { type DomainEnforcement, domainEnforcement } from './enforcement.ts';
 import type { Format } from './format/read.ts';
 import { CAUSE_ORDER, type Focus, type Item, type SourceRow, sourceRows } from './sources.ts';
@@ -189,8 +189,8 @@ export function view(batch: Batch, filters: Filters, focus: Focus | null = null)
     }
 
     c.report.records.forEach((r, i) => {
-      const cl = c.classes[i];
-      if (!cl) return;
+      // Every record of a counted report is classified when the report is counted (FCT-7).
+      const cl = c.classes[i] as Classification;
       const item: Item = { record: r, cls: cl, report: c, reporter: reporterName };
       items.push(item);
       domainItems.push(item);
