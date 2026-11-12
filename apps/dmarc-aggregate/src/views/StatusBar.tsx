@@ -1,4 +1,4 @@
-import type { Progress } from '@benchside/dmarc-aggregate';
+import type { Names, Progress } from '@benchside/dmarc-aggregate';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { count, mib } from './format.ts';
 
@@ -15,7 +15,18 @@ function announcement(p: Progress): string {
 }
 
 /** The sticky reading indicator, Stop, and the done note (PRG-4..6, PRG-9). */
-export function StatusBar({ progress, onStop }: { progress: Progress | null; onStop: () => void }) {
+export function StatusBar({
+  progress,
+  onStop,
+  lookup,
+  onLookupStop,
+}: {
+  progress: Progress | null;
+  onStop: () => void;
+  /** The lookup counts while lookups are on (PRG-12). */
+  lookup: Names['counts'] | null;
+  onLookupStop: () => void;
+}) {
   const [noteVisible, setNoteVisible] = useState(false);
   const [live, setLive] = useState('');
   const quarter = useRef(-1);
@@ -79,6 +90,25 @@ export function StatusBar({ progress, onStop }: { progress: Progress | null; onS
       ) : progress && noteVisible ? (
         <span class="done">{doneText(progress)}</span>
       ) : null}
+      {lookup && lookup.targets > 0 && lookup.done < lookup.targets && (
+        <>
+          <div
+            role="progressbar"
+            aria-label="Looking up host names"
+            aria-valuenow={lookup.done}
+            aria-valuemax={lookup.targets}
+            class="bar"
+          >
+            <div class="fill" style={{ width: `${(100 * lookup.done) / lookup.targets}%` }} />
+          </div>
+          <span>
+            Looking up host names: {count(lookup.done)} of {count(lookup.targets)}
+          </span>{' '}
+          <button type="button" onClick={onLookupStop}>
+            Stop lookups
+          </button>
+        </>
+      )}
       <span aria-live="polite" class="visually-hidden">
         {live}
       </span>

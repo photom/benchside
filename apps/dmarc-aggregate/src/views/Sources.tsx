@@ -16,7 +16,14 @@ const results = (list: SourceRow['spf']) =>
     .join(', ');
 
 /** SRC-1..4 and SRC-6. Expanded rows are kept by IP, so snapshots do not close them (REQ-DMARC-010). */
-export function Sources({ rows }: { rows: readonly SourceRow[] }) {
+export function Sources({
+  rows,
+  host,
+}: {
+  rows: readonly SourceRow[];
+  /** The host name cell (RDNS-5); display only (RDNS-8). */
+  host: (ip: string) => string;
+}) {
   const [shown, setShown] = useState(ROWS);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const toggle = (ip: string) => {
@@ -52,6 +59,7 @@ export function Sources({ rows }: { rows: readonly SourceRow[] }) {
               row={r}
               open={open.has(r.sourceIp)}
               onToggle={() => toggle(r.sourceIp)}
+              host={host(r.sourceIp)}
             />
           ))}
         </tbody>
@@ -69,10 +77,12 @@ function SourceRows({
   row: r,
   open,
   onToggle,
+  host,
 }: {
   row: SourceRow;
   open: boolean;
   onToggle: () => void;
+  host: string;
 }) {
   const [shown, setShown] = useState(DETAILS);
   return (
@@ -83,7 +93,7 @@ function SourceRows({
             {r.sourceIp}
           </button>
         </td>
-        <td>Not looked up</td>
+        <td>{host}</td>
         <td class="num">{count(r.messages)}</td>
         <td class="num">{count(r.failing)}</td>
         <td class="num">

@@ -13,7 +13,7 @@ const apps = [
     name: 'dmarc-aggregate',
     dir: 'site/dmarc-aggregate',
     base: '/benchside/dmarc-aggregate/',
-    connect: [] as string[],
+    connect: DOH_ORIGINS,
   },
 ];
 
