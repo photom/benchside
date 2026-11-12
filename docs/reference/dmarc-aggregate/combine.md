@@ -19,10 +19,10 @@ flowchart LR
 
 | ID | Rule |
 |---|---|
-| CMB-1 | A report's identity is the reporter (`org_name`, case-insensitive), the `report_id`, and the policy domain. The Report-ID is unique "among reports to the same domain" (§3.5.1). A report without `report_id` has no identity: it is counted unless CMB-2 finds a byte-identical copy, and CMB-3 never applies to it. |
-| CMB-2 | A report whose decompressed XML bytes are identical (SHA-256) to those of a counted report gives `aggregate.report.duplicate` (info) and is not counted (§3.5.4). This holds with or without an identity, so the same file dropped twice counts once. |
+| CMB-1 | A report's identity is the reporter (`org_name`, case-insensitive), the `report_id` as written, and the policy domain (case-insensitive, trailing dot ignored). The Report-ID is unique "among reports to the same domain" (§3.5.1). A report without `report_id` has no identity: it is counted unless CMB-2 finds a byte-identical copy, and CMB-3 never applies to it. |
+| CMB-2 | A report whose XML bytes are identical to those of a counted report, by the SHA-256 digest of XML-11, gives `aggregate.report.duplicate` (info) and is not counted (§3.5.4). This holds with or without an identity, so the same file dropped twice counts once. |
 | CMB-3 | A report whose identity was already counted but whose bytes differ gives `aggregate.report.conflict` (warning) and is not counted. The report loaded first stays. §3.5.2 requires a resent report to keep its original name, so a differing copy is unexpected. |
-| CMB-4 | Two counted reports from the same reporter for the same policy domain whose ranges overlap (`begin` < other `end` and other `begin` < `end`) give `aggregate.report.overlap` (warning). Both stay counted. §3.1.1.4: periods "SHOULD NOT overlap"; §3.5.4 leaves the choice to the receiver. |
+| CMB-4 | Two counted reports from the same reporter for the same policy domain whose ranges overlap (`begin` < other `end` and other `begin` < `end`) give `aggregate.report.overlap` (warning). Both stay counted. The finding is raised once, for the report counted later; it names the first counted report it overlaps and how many others it overlaps. A report without both `begin` and `end` overlaps nothing. §3.1.1.4: periods "SHOULD NOT overlap"; §3.5.4 leaves the choice to the receiver. |
 | CMB-5 | Reporters are grouped case-insensitively by `org_name`. The spelling shown is the first one loaded. |
 
 ## Filters

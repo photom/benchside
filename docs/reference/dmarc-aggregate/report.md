@@ -150,6 +150,7 @@ classDiagram
 
 | Type | Holds | Rules |
 |---|---|---|
+| `Finding` | `id`, `severity`, `message`, `file`, `label`; and when known `report`, `record`, `path`, `line`, `column` | REP-7, REP-8 |
 | `Totals` | CMB-9; the period is null when no report in the filtered set is dated | |
 | `Day` | Date, messages by path, pass rate | CMB-10 |
 | `ReporterRow` | CMB-11 | |
@@ -170,7 +171,7 @@ classDiagram
 | REP-4 | `day` is the UTC day of CMB-7 as `YYYY-MM-DD`, or null when undated. `begin` and `end` are seconds since the epoch, as in the report. |
 | REP-5 | A record's `spf` keeps every SPF result in order (FMT-9). The one used by FCT-4 is marked. Each `DkimResult` has `domain`, `selector`, `result`, and `humanResult`; each `SpfResult` has `domain`, `scope`, `result`, `original` (FMT-15), and `humanResult`. |
 | REP-6 | A `View` is computed for one set of filters (CMB-6) and one path or cause filter (SRC-5). Its parts follow CMB-9 to CMB-13, ENF-1 to ENF-7, and SRC-1 to SRC-4. Rows not yet shown (SRC-6) are still in the `View`, so "Show more" needs no new request. |
-| REP-7 | A finding carries the `index` and label of the file it belongs to: the top-level file being read when it was found, even when it is about an earlier report (CMB-4). A finding raised at `add` carries the file it is about (INP-2 `aggregate.input.too-large`); `aggregate.input.too-many-files` and `aggregate.input.skipped` cover many files and carry null. Other findings about a file, such as `aggregate.input.unknown-type`, are raised when it is read. When they have one, findings also carry the report index, the record index within the report, the element path, and the XML line. |
+| REP-7 | A finding carries the `index` of the file it belongs to, and the label (INP-7) of the part it is about, which starts with the file's name: the top-level file being read when it was found, even when it is about an earlier report (CMB-4). A finding raised at `add` carries the file it is about (INP-2 `aggregate.input.too-large`); `aggregate.input.too-many-files` and `aggregate.input.skipped` cover many files and carry null. Other findings about a file, such as `aggregate.input.unknown-type`, are raised when it is read. When they have one, findings also carry the report index, the record index within the report, the element path, and the XML line. |
 | REP-8 | Findings keep the order in which they were found. After 10 000, one `aggregate.too-many-findings` (warning) is added and later ones are dropped. `dns.budget-exhausted` is not part of this list or its limit: it comes in `names`, at most once per session, and is shown with the query log (PRG-12). |
 | REP-9 | `changes`, `view`, `partial`, `Progress`, and the timing of snapshots follow PRG-4 to PRG-6 and PRG-14 to PRG-16. Host name states arrive only in `names` messages, keyed by source IP; `SourceRow` carries none (RDNS-8, PRG-11 to PRG-13). |
 | REP-10 | `Record` and `Classification` stay in the worker. The UI sees records only through `SourceRow` and `DetailRow`, which group them (SRC-1, SRC-4). |
