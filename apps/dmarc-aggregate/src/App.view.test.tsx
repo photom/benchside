@@ -29,6 +29,12 @@ const button = (scope: Element, text: string) =>
     b.textContent?.includes(text),
   ) as HTMLButtonElement;
 
+/** A clickable chart mark by the start of its accessible name. */
+const mark = (scope: Element, name: string) =>
+  [...scope.querySelectorAll('g[role="button"]')].find((g) =>
+    g.getAttribute('aria-label')?.startsWith(name),
+  ) as SVGGElement;
+
 async function loaded() {
   const { host } = jobHost();
   mount(host);
@@ -108,7 +114,11 @@ describe('App: paths, causes, and focus (CMB-9, SRC-5)', () => {
   it('SRC-5: given a cause clicked, when focused, then the chip shows and the source table keeps that cause only', async () => {
     await loaded();
     expect(section('Sources').querySelectorAll('tbody > tr.source')).toHaveLength(4);
-    act(() => button(section('Causes of failure'), 'Nothing authenticates').click());
+    act(() => {
+      mark(section('Causes of failure'), 'Nothing authenticates').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
     await settle();
     expect(root.querySelector('.chip')?.textContent).toContain('Nothing authenticates');
     const ips = [...section('Sources').querySelectorAll('tbody > tr.source')].map(
@@ -123,7 +133,11 @@ describe('App: paths, causes, and focus (CMB-9, SRC-5)', () => {
 
   it('SRC-5: given a path clicked, when focused, then sources keep that path', async () => {
     await loaded();
-    act(() => button(section('Delivery path'), 'Forwarded').click());
+    act(() => {
+      mark(section('Delivery path'), 'Forwarded').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
     await settle();
     const ips = [...section('Sources').querySelectorAll('tbody > tr.source')].map(
       (r) => r.querySelector('td')?.textContent,
@@ -189,6 +203,7 @@ describe('App: enforcement and tables (ENF-1..7, CMB-8, CMB-11..13)', () => {
   });
 
   it('CMB-11, CMB-12: given reports from two reporters, when shown, then reporter and format rows', async () => {
+    const { host } = jobHost();
     await loaded();
     const reporters = [...section('Reporters').querySelectorAll('tbody tr')].map(
       (r) => r.querySelector('td')?.textContent,
