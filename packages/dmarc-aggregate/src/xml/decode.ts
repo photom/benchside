@@ -35,7 +35,9 @@ export function detect(head: Uint8Array, final: boolean): Detected {
   if (head.length < 2 && !final) return { kind: 'more' };
   const decl = declaration(head, 0, final);
   if (decl === 'more') return { kind: 'more' };
-  if (decl === null || decl.encoding === null) return { kind: 'ok', encoding: UTF8, skip: 0 };
+  if (decl === null || decl === 'long' || decl.encoding === null) {
+    return { kind: 'ok', encoding: UTF8, skip: 0 };
+  }
   const name = resolve(decl.encoding);
   if (name === null) return { kind: 'unknown', label: decl.encoding };
   if (INCOMPATIBLE.has(name)) return { kind: 'incompatible', label: decl.encoding };
@@ -65,13 +67,14 @@ const ASCII = new TextDecoder('latin1');
 
 /**
  * The XML declaration at `at`, read as ASCII: null when there is none, `more` when it may be cut.
- * `encoding` is null when the declaration has no `encoding`.
+ * `encoding` is null when the declaration has no `encoding`; `long` when it has no `?>` within
+ * 1024 bytes, which the reader reports as malformed.
  */
 export function declaration(
   b: Uint8Array,
   at: number,
   final: boolean,
-): { encoding: string | null; end: number } | null | 'more' {
+): { encoding: string | null; end: number } | null | 'more' | 'long' {
   const want = '<?xml';
   for (let i = 0; i < want.length; i++) {
     if (at + i >= b.length) return final ? null : 'more';
@@ -87,7 +90,10 @@ export function declaration(
       break;
     }
   }
-  if (end < 0) return final || b.length - at >= 1024 ? null : 'more';
+  if (end < 0) {
+    if (b.length - at >= 1024) return 'long';
+    return final ? null : 'more';
+  }
   const text = ASCII.decode(b.subarray(at, end));
   const m = /\sencoding\s*=\s*(["'])([^"']*)\1/.exec(text);
   return { encoding: m ? (m[2] as string) : null, end };
@@ -171,8 +177,9 @@ export class ValueDecoder {
   private readonly lenient: TextDecoder;
 
   constructor(name: string) {
-    this.fatal = new TextDecoder(name, { fatal: true });
-    this.lenient = new TextDecoder(name);
+    // A value may start with U+FEFF; only the document's BOM is skipped (XML-1).
+    this.fatal = new TextDecoder(name, { fatal: true, ignoreBOM: true });
+    this.lenient = new TextDecoder(name, { ignoreBOM: true });
   }
 
   decode(b: Uint8Array): { text: string; replaced: boolean } {
