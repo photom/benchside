@@ -47,7 +47,7 @@ Heuristics (examples are synthetic):
 | ID | Rule |
 |---|---|
 | ENV-17 | IPv4 octets are decimal, 1 to 3 digits (RFC 5321 Snum). Leading zeros are allowed: `010` is 10. |
-| ENV-6 | IPv6 literals: accept `[IPv6:addr]`, `[addr]`, and bare `addr` inside parentheses. Normalize to RFC 5952 form. |
+| ENV-6 | IPv6 literals: accept `[IPv6:addr]`, `[addr]`, and bare `addr` inside parentheses. Normalize to RFC 5952 form. The `IPv6:` tag counts only inside brackets and must be followed by IPv6 syntax; `[IPv6:192.0.2.1]` and a bare `IPv6:addr` are not addresses (RFC 5321 §4.1.3). |
 | ENV-7 | IPv4-mapped IPv6 (`::ffff:a.b.c.d`) is converted to IPv4. |
 
 ## Trust boundary

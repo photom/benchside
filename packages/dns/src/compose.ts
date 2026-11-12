@@ -10,7 +10,9 @@ export interface ComposedResolver {
 
 /**
  * One resolver per analysis. Steps inside `resolve`: log → budget → policy →
- * cache → transport (design: mail-design/dns.md). Only `cache` is shared across analyses.
+ * cache → transport. Only `cache` is shared across analyses. Users: the mail checks
+ * (docs/reference/mail/dns.md, budget 200) and DMARC aggregate reverse lookup
+ * (docs/reference/dmarc-aggregate/reverse-dns.md, budget 2 000 per session).
  */
 export function composeResolver(o: {
   transport: Transport;

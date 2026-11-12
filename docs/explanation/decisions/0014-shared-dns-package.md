@@ -33,6 +33,6 @@ flowchart LR
 
 ## Consequences
 
-- One tested copy of the transport and the cache. The CSP allowlist and the endpoint list are still checked together by the build test.
-- The rule "packages never call `fetch`" gets one named exception, `@benchside/dns/doh.ts`. Lint enforces both sides: `fetch` is denied in the rest of `@benchside/dns`, and packages may not import `@benchside/dns/doh`.
+- One tested copy of the transport and the cache. `vite.shared.test.ts` checks that the transport's endpoints (`DOH_ENDPOINTS`) and `DOH_ORIGINS` name the same origins. The build test checks each app's CSP against `DOH_ORIGINS`.
+- The rule "packages never call `fetch`" gets one named exception, `@benchside/dns/doh.ts`. Lint enforces both sides. The rest of `@benchside/dns` may not use `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `navigator`, `globalThis`, or `self`. Packages and app code outside `src/worker/` may not import `@benchside/dns/doh`.
 - The refactor moves files and tests without changing behavior. It lands as its own change before the DMARC aggregate app uses it.

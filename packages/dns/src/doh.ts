@@ -1,13 +1,16 @@
 import { joinTxtData } from './txt.ts';
 import type { DnsType, Lookup, Transport } from './types.ts';
 
-/** DNS-5. Each origin must also be in the mail app's CSP `connect-src`. */
-const ENDPOINTS = {
+/**
+ * DNS-5. The origins must equal `DOH_ORIGINS` in vite.shared.ts, which builds the CSP
+ * `connect-src` of every app that uses this transport (vite.shared.test.ts checks this).
+ */
+export const DOH_ENDPOINTS = {
   cloudflare: 'https://cloudflare-dns.com/dns-query',
   google: 'https://dns.google/resolve',
 } as const;
 
-export type DohProvider = keyof typeof ENDPOINTS;
+export type DohProvider = keyof typeof DOH_ENDPOINTS;
 
 /** RFC 1035 / RFC 3596 type numbers in the JSON `Answer` array. */
 const TYPE_NUMBER: Record<DnsType, number> = { A: 1, PTR: 12, MX: 15, TXT: 16, AAAA: 28 };
@@ -22,7 +25,7 @@ export function createDohTransport(
 ): Transport {
   return async ({ name, type }, signal) => {
     // DNS-6: name and type only. The resolver already converted the name to A-labels (DNS-18).
-    const url = `${ENDPOINTS[provider]}?name=${encodeURIComponent(name)}&type=${type}`;
+    const url = `${DOH_ENDPOINTS[provider]}?name=${encodeURIComponent(name)}&type=${type}`;
     const timeout = AbortSignal.timeout(timeoutMs);
     let response: Response;
     let body: unknown;
