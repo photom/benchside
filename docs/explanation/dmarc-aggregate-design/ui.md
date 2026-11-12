@@ -162,5 +162,7 @@ flowchart LR
 | `state.ts` | Pure: drops older generations, merges batch changes, keeps the shown `View` and its partial label | PRG-13..16 |
 | `views/*` | Status bar, headline numbers, reports, findings, files not read; filters, tables, and charts in later steps | |
 
+- The path and cause tables are the "Table" views of the charts. Their rows set the focus (SRC-5) until the charts draw over them.
+- Source rows keep their open state and "Show more details" count by IP, so snapshots never close them (REQ-DMARC-010).
 - The folder walk stays in the app. It moves to `@benchside/ui` when a second app needs folders.
 - The CSP starts with `connect-src 'none'`. Reverse lookup (RDNS-*) widens it to the DoH endpoints, as 0013 records.
