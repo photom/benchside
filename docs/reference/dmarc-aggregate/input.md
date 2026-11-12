@@ -41,7 +41,7 @@ flowchart TD
 
 | ID | Rule |
 |---|---|
-| INP-6 | Every byte decompressed counts toward a 1 GiB batch budget. Past it, `aggregate.input.budget` (error); later files are not read. One XML document over 32 MiB gives `aggregate.input.too-large` and is not read; reading goes on with the next document. |
+| INP-6 | Every byte decompressed counts toward a 1 GiB batch budget. Past it, `aggregate.input.budget` (error); later files are not read. One XML document over 32 MiB gives `aggregate.input.too-large` and is not read; reading goes on with the next document. Output past either limit is reported as such even when the compressed data is also damaged after it (INP-4). |
 | INP-7 | Each XML document is one report. Its label is the file name; then, for each archive entry, ` › ` and the entry name; then, when the XML holds more than one document, ` #` and the document number from 1. Example: `week.tar.gz › 2026/11/a.xml.gz #2`. Findings and reports carry this label. |
 
 ## File names

@@ -219,7 +219,7 @@ describe('gunzip (INP-4, 0017)', () => {
 
   it('PRG-8: given many empty members, when decoded, then it yields control before the end', () => {
     const empty = gzipSync(new Uint8Array());
-    const input = cat(...new Array<Uint8Array>(20_000).fill(empty));
+    const input = cat(...new Array<Uint8Array>(100_000).fill(empty));
     const it = gunzip(input, { limit: 1 << 30 });
     let steps = 0;
     let step = it.next();
@@ -227,8 +227,35 @@ describe('gunzip (INP-4, 0017)', () => {
       steps++;
       step = it.next();
     }
-    expect(step.value).toEqual({ kind: 'ok', members: 20_000 });
+    expect(step.value).toEqual({ kind: 'ok', members: 100_000 });
     expect(steps).toBeGreaterThan(3);
+  });
+
+  it('PRG-8: given one member of many empty stored blocks, when decoded, then it yields control before the end', () => {
+    // 300 000 empty stored blocks (BFINAL 0, BTYPE 00, LEN 0, NLEN 0xFFFF), then a final one.
+    const body = new Uint8Array(300_001 * 5);
+    for (let at = 0; at < body.length; at += 5) body.set([0, 0, 0, 0xff, 0xff], at);
+    body[body.length - 5] = 1;
+    const it = gunzip(member(new Uint8Array(), { body }), { limit: 1 << 30 });
+    let steps = 0;
+    let step = it.next();
+    while (!step.done) {
+      steps++;
+      step = it.next();
+    }
+    expect(step.value).toEqual({ kind: 'ok', members: 1 });
+    expect(steps).toBeGreaterThan(3);
+  });
+
+  it('INP-4: given FEXTRA longer than the input with FNAME set, when decoded, then the truncation offset is inside the input', () => {
+    const bad = Uint8Array.of(0x1f, 0x8b, 8, 4 | 8, 0, 0, 0, 0, 0, 255, 0xe8, 0x03);
+    const { result } = run(bad);
+    expect(result).toMatchObject({ kind: 'error', reason: 'truncated' });
+    expect(result.kind === 'error' && result.offset <= bad.length).toBe(true);
+  });
+
+  it('0017: given a negative limit and an empty member, when decoded, then ok', () => {
+    expect(run(gzipSync(new Uint8Array()), -1).result).toEqual({ kind: 'ok', members: 1 });
   });
 
   it('INP-6: given a bomb whose trailer is corrupt, when decoded past the limit, then exceeded', () => {
