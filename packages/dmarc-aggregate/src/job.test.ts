@@ -321,6 +321,20 @@ describe('Job: files (INP-2, INP-11, REP-1)', () => {
     expect(f).toEqual([expect.objectContaining({ severity: 'error', file: null, label: null })]);
   });
 
+  it('INP-11: given a stop before the folder files of an add are read, when stopped, then the skipped finding still comes', async () => {
+    const { job, sent } = setup();
+    job.add([
+      file('r/.hidden', 'x', true),
+      file('r/a.xml', report(0), true),
+      file('r/b.xml', report(1), true),
+    ]);
+    job.stop();
+    await job.idle;
+    const findings = all(sent, (s) => s.changes.findingsAdded);
+    expect(findings.map((f) => f.id)).toEqual(['aggregate.input.skipped']);
+    expect(findings[0]?.message).toContain('1 file');
+  });
+
   it('INP-11: given folder files that are hidden, too large, or of unknown type, when read, then skipped with one finding for the add', async () => {
     const { job, sent } = setup();
     job.add([
