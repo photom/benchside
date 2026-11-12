@@ -1,7 +1,9 @@
 /** The filtered set and what is computed from it (CMB-6, CMB-9..13; design: view.md). */
 import type { Batch, CountedReport } from './batch.ts';
 import type { Cause, Path } from './classify.ts';
+import { type DomainEnforcement, domainEnforcement } from './enforcement.ts';
 import type { Format } from './format/read.ts';
+import { CAUSE_ORDER, type Focus, type Item, type SourceRow, sourceRows } from './sources.ts';
 
 export interface Filters {
   /** One policy domain, or null for all. */
@@ -82,20 +84,13 @@ export interface View {
   readonly reporters: readonly ReporterRow[];
   readonly formats: readonly FormatCount[];
   readonly reporterErrors: readonly ReporterError[];
+  /** SRC-1..5, under the focus. */
+  readonly sources: readonly SourceRow[];
+  /** ENF-1..7, one per policy domain in the filtered set, in the order first seen. */
+  readonly domains: readonly DomainEnforcement[];
 }
 
 const MAX_DAYS = 1000;
-const CAUSE_ORDER: readonly Cause[] = [
-  'reported-forwarding',
-  'dkim-broken',
-  'spf-broken-by-forwarding',
-  'spf-not-aligned',
-  'dkim-not-aligned',
-  'temporary-error',
-  'permanent-error',
-  'no-dkim',
-  'unauthenticated',
-];
 
 const rate = (passing: number, messages: number) => (messages > 0 ? passing / messages : null);
 const paths = (): PathCounts => ({ direct: 0, forwarded: 0, other: 0 });
@@ -122,8 +117,8 @@ interface ReporterAcc {
   formats: Format[];
 }
 
-/** CMB-6, CMB-9..13 for one set of filters. */
-export function view(batch: Batch, filters: Filters): View {
+/** CMB-6, CMB-9..13, SRC-1..5, and ENF-1..7 for one set of filters and focus (REP-6). */
+export function view(batch: Batch, filters: Filters, focus: Focus | null = null): View {
   const wanted = filters.reporters ? new Set(filters.reporters.map((r) => r.toLowerCase())) : null;
   let messages = 0;
   let passing = 0;
@@ -141,11 +136,19 @@ export function view(batch: Batch, filters: Filters): View {
   const reporters = new Map<string, ReporterAcc>();
   const formats = new Map<string, FormatCount & { reports: number; mixed: number }>();
   const reporterErrors: ReporterError[] = [];
+  const items: Item[] = [];
+  const byDomain = new Map<string, Item[]>();
 
   for (const c of batch.countedReports()) {
     if (!passes(c, filters, wanted)) continue;
     const s = c.summary;
     reports++;
+    let domainItems = byDomain.get(s.policyDomain);
+    if (!domainItems) {
+      domainItems = [];
+      byDomain.set(s.policyDomain, domainItems);
+    }
+    const reporterName = batch.reporterName(s.reporter);
     const key = s.reporter.toLowerCase();
     reporterKeys.add(key);
     if (s.day !== null && s.begin !== null && s.end !== null) {
@@ -178,7 +181,7 @@ export function view(batch: Batch, filters: Filters): View {
     for (const text of c.report.errors) {
       reporterErrors.push({
         report: s.index,
-        reporter: batch.reporterName(s.reporter),
+        reporter: reporterName,
         policyDomain: s.policyDomain,
         day: s.day,
         text,
@@ -188,6 +191,9 @@ export function view(batch: Batch, filters: Filters): View {
     c.report.records.forEach((r, i) => {
       const cl = c.classes[i];
       if (!cl) return;
+      const item: Item = { record: r, cls: cl, report: c, reporter: reporterName };
+      items.push(item);
+      domainItems.push(item);
       const n = r.count;
       const pass = cl.dmarc === 'pass' ? n : 0;
       messages += n;
@@ -211,6 +217,7 @@ export function view(batch: Batch, filters: Filters): View {
   }
 
   const { timeline, earlierMessages } = makeTimeline(days);
+  const policies = batch.policies();
   return {
     totals: {
       messages,
@@ -250,6 +257,14 @@ export function view(batch: Batch, filters: Filters): View {
       .sort((x, y) => y.messages - x.messages),
     formats: [...formats.values()],
     reporterErrors,
+    sources: sourceRows(items, focus),
+    domains: [...byDomain].map(([domain, list]) =>
+      domainEnforcement(
+        domain,
+        list,
+        policies.find((p) => p.domain === domain && p.inEffect),
+      ),
+    ),
   };
 }
 

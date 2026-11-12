@@ -1,4 +1,6 @@
 /** Builds DMARC aggregate report XML for tests (RFC 9990 namespace, no findings by default). */
+import { Batch } from '../batch.ts';
+import { Findings } from '../findings.ts';
 import { type XmlDocument, XmlReader } from '../xml/reader.ts';
 
 export interface ReportOpts {
@@ -31,8 +33,12 @@ export const rec = (o: {
   count?: number;
   disposition?: string;
   headerFrom?: string;
+  spfDomain?: string;
+  envelopeFrom?: string;
+  /** Override reason types. */
+  reasons?: string[];
 }) =>
-  `<record><row><source_ip>${o.ip ?? '192.0.2.10'}</source_ip><count>${o.count ?? 1}</count><policy_evaluated><disposition>${o.disposition ?? 'none'}</disposition><dkim>${o.dkim ?? 'fail'}</dkim><spf>${o.spf ?? 'fail'}</spf></policy_evaluated></row><identifiers><header_from>${o.headerFrom ?? 'example.com'}</header_from></identifiers><auth_results>${o.rawDkim ? `<dkim><domain>${o.dkimDomain ?? 'example.com'}</domain><selector>s</selector><result>${o.rawDkim}</result></dkim>` : ''}<spf><domain>example.com</domain><result>${o.rawSpf ?? 'fail'}</result></spf></auth_results></record>`;
+  `<record><row><source_ip>${o.ip ?? '192.0.2.10'}</source_ip><count>${o.count ?? 1}</count><policy_evaluated><disposition>${o.disposition ?? 'none'}</disposition><dkim>${o.dkim ?? 'fail'}</dkim><spf>${o.spf ?? 'fail'}</spf>${(o.reasons ?? []).map((t) => `<reason><type>${t}</type></reason>`).join('')}</policy_evaluated></row><identifiers><header_from>${o.headerFrom ?? 'example.com'}</header_from>${o.envelopeFrom === undefined ? '' : `<envelope_from>${o.envelopeFrom}</envelope_from>`}</identifiers><auth_results>${o.rawDkim ? `<dkim><domain>${o.dkimDomain ?? 'example.com'}</domain><selector>s</selector><result>${o.rawDkim}</result></dkim>` : ''}<spf><domain>${o.spfDomain ?? 'example.com'}</domain><result>${o.rawSpf ?? 'fail'}</result></spf></auth_results></record>`;
 /** DMARC pass by DKIM with raw SPF fail: PATH-3, which makes the IP a forwarder. */
 export const forwarded = (ip: string, count = 1) =>
   rec({ ip, dkim: 'pass', rawDkim: 'pass', count });
@@ -71,3 +77,16 @@ export const NOW = 1_700_092_800;
 export const DAY = 86_400;
 /** 2023-11-14T00:00:00Z */
 export const D14 = 1_699_920_000;
+
+/** One day of reports: day `n` after 2023-11-14. */
+export const on = (n: number) => ({ begin: D14 + n * DAY, end: D14 + (n + 1) * DAY - 1 });
+
+/** A batch of the given reports, each with a distinct report_id unless set, read long after them. */
+export function batchOf(...reports: ReportOpts[]): Batch {
+  const b = new Batch(new Findings(), { now: () => NOW + 4000 * DAY });
+  reports.forEach((o, i) => {
+    const document = parse(reportXml({ id: `id${i}`, ...o }));
+    b.addDocument({ label: `r${i}`, filename: null, document }, 0);
+  });
+  return b;
+}

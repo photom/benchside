@@ -3,6 +3,7 @@
  * reporter errors, classification (CMB-1..5, CMB-7, CMB-8, CMB-13, INP-9, INP-10, FCT-6, FCT-7).
  */
 import { type Classification, classify, inconsistent, recordFacts } from './classify.ts';
+import { weakerThanPolicy } from './enforcement.ts';
 import { compareFilename, type ParsedFilename, parseFilename } from './filename.ts';
 import type { Finding, Findings } from './findings.ts';
 import {
@@ -385,6 +386,22 @@ export class Batch {
         this.failingByIp.set(r.sourceIp, list);
       }
       list.push({ counted, record: i });
+    });
+    report.records.forEach((r, i) => {
+      // ENF-6: a weaker disposition than the report's own policy must carry a reason (§3.1.1.9).
+      if ((counted.classes[i] as Classification).dmarc === 'pass') return;
+      if (r.reasons.length > 0 || !weakerThanPolicy(r, report.policy)) return;
+      this.findings.add(
+        at({
+          id: 'aggregate.record.no-reason',
+          severity: 'info',
+          report: summary.index,
+          record: r.index,
+          line: r.line,
+          path: 'record/row/policy_evaluated',
+          message: `Disposition ${r.disposition} is weaker than the policy, and no reason is given.`,
+        }),
+      );
     });
     for (const r of report.records) {
       const methods = inconsistent(r);

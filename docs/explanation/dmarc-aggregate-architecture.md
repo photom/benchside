@@ -52,7 +52,7 @@ flowchart TD
 | `format/read.ts` | `readReport`: root check and format; report and extension elements; missing and repeated elements; enumerations, integers, IPs, domains, legacy SPF values, truncation; skipped records; content hints and the mixed-format finding | FMT-1..18 |
 | `sha256.ts` | Streaming SHA-256 for the digests of XML-11 | CMB-2 |
 | `job.ts` | The reading queue; file count, size, and folder skips at `add`; steps of at most 50 ms; snapshots every 250 ms; null `View` when unchanged; stop; generations | INP-1, INP-2, INP-11, PRG-1, PRG-3..9, PRG-13, PRG-16 |
-| `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, filename check, policies, forwarder IPs; tracks what changed since the last snapshot | CMB-1..5, CMB-7, CMB-8, CMB-13 findings, INP-9, INP-10, FCT-6, FCT-7, PRG-14 |
+| `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, filename check, policies, forwarder IPs; tracks what changed since the last snapshot | CMB-1..5, CMB-7, CMB-8, CMB-13 findings, INP-9, INP-10, FCT-6, FCT-7, ENF-6 finding, PRG-14 |
 | `classify.ts` | Facts, path, cause, rule IDs | FCT-1..6, PATH-*, CAUSE-* |
 | `view.ts` | Filters, totals, timeline, reporters, formats, reporter errors | CMB-6, CMB-9..13 |
 | `enforcement.ts` | Policy in effect, failing messages, direct sources, SPF-only passes, overrides, status | ENF-* |

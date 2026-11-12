@@ -10,6 +10,7 @@ export type FindingId =
   | 'aggregate.report.conflict'
   | 'aggregate.report.overlap'
   | 'aggregate.record.inconsistent'
+  | 'aggregate.record.no-reason'
   | 'aggregate.report.long-range'
   | 'aggregate.report.future'
   | 'aggregate.report.error'
