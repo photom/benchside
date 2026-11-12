@@ -29,14 +29,17 @@ flowchart TD
     views[views/*<br/>Preact]
     host[worker-host.ts<br/>request IDs, cancel]
     entry[worker.ts<br/>worker entry]
-    doh[doh.ts<br/>DoH transport]
+  end
+
+  subgraph "@benchside/dns"
+    doh["doh.ts<br/>DoH transport<br/>@benchside/dns/doh"]
+    dns["compose, cache, offline<br/>budget → policy → cache → log"]
   end
 
   subgraph "@benchside/mail"
     analyze[analyze.ts<br/>orchestrator, deadline]
     message[message/<br/>headers, MIME, line endings]
     envelope[envelope/<br/>Received parser, boundary]
-    dns[dns/<br/>budget → policy → cache → log]
     spf[spf/]
     dkim[dkim/]
     dkim2[dkim2/]
@@ -67,7 +70,7 @@ flowchart TD
 | `@benchside/mail` has no DOM and no Preact | Runs in Node for tests |
 | Checks never call each other; only `analyze.ts` combines them | Each check is testable alone |
 | `shared/` holds only code used by 2+ checks | DKIM, DKIM2, and ARC share tag lists, canonicalization, and crypto |
-| Nothing goes to `@benchside/core` yet | No second package exists |
+| The resolver lives in `@benchside/dns`; only workers import `@benchside/dns/doh` | A second app needs it ([0014](decisions/0014-shared-dns-package.md)) |
 
 ## Analysis pipeline
 

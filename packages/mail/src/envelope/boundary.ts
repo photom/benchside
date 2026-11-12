@@ -1,5 +1,6 @@
+import { parseIp } from '@benchside/dns';
 import type { Finding } from '../shared/findings.ts';
-import { isPublic, parseIp } from '../shared/ip.ts';
+import { isPublic } from '../shared/ip.ts';
 import type { ParsedReceived } from './received.ts';
 
 /**

@@ -2,8 +2,9 @@
  * ARC chain validation (docs/reference/mail/arc.md; design: mail-design/arc.md).
  * Never throws on input.
  */
+
+import type { DnsAnswer, DnsQuery } from '@benchside/dns';
 import { type AuthResultEntry, parseAuthResults } from '../authres/parse.ts';
-import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
 import { guard } from '../shared/abort.ts';
 import { decodeBase64 } from '../shared/base64.ts';

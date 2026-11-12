@@ -14,6 +14,7 @@ flowchart LR
     types[types.ts] --- compose[compose.ts] --- cache[cache.ts]
     offline[offline.ts] --- idna["idna.ts<br/>toALabels"]
     ip["ip.ts<br/>parseIp, reverseName"]
+    txt["txt.ts<br/>joinTxtData"]
     doh["doh.ts<br/>createDohTransport<br/>the only fetch"]
   end
   mail["@benchside/mail"] --> dns
@@ -22,15 +23,16 @@ flowchart LR
   pdmarc["@benchside/dmarc-aggregate"] --> dns
 ```
 
-- A new package, `@benchside/dns`, holds what both apps need: the types, `composeResolver`, the cache, offline records, IDNA conversion, IP parsing, reverse names, and the DoH transport.
+- A new package, `@benchside/dns`, holds what both apps need: the types, `composeResolver`, the cache, offline records, IDNA conversion, IP parsing, reverse names, TXT joining, and the DoH transport.
 - `reverseName(ip)` replaces the inline code in SPF, so both reverse lookups build names the same way (RFC 1035 §3.5, RFC 3596 §2.5).
-- `doh.ts` is the only code in any package that calls `fetch`. Only app workers import it. Checks still receive a resolver and never see the transport.
-- TXT joining (DNS-7) and the mail findings (`dnsFindings`) stay in the mail package. They are mail rules.
-- `@benchside/mail` re-exports what it exported before, so its users do not change.
+- `doh.ts` is the only code in any package that calls `fetch`. It is a separate entry point, `@benchside/dns/doh`, so importing `@benchside/dns` never loads it. Only app workers import it. Checks still receive a resolver and never see the transport.
+- TXT joining (DNS-7) moves too: the DoH transport applies it to every TXT answer.
+- The mail findings (`dnsFindings`), `isDomainName` (RFC 6376), `isPublic` (ENV-8), and `inCidr` (SPF-22) stay in the mail package. They are mail rules.
+- `@benchside/mail` stops exporting DNS symbols. The mail app was their only user, and it now imports them from `@benchside/dns`, so each symbol has one public path.
 - The budget stays a parameter: 200 for mail (DNS-13), 2 000 per reverse lookup session (RDNS-6).
 
 ## Consequences
 
 - One tested copy of the transport and the cache. The CSP allowlist and the endpoint list are still checked together by the build test.
-- The rule "packages never call `fetch`" gets one named exception, `@benchside/dns/doh.ts`. Code review checks that no other package imports it.
+- The rule "packages never call `fetch`" gets one named exception, `@benchside/dns/doh.ts`. Lint enforces both sides: `fetch` is denied in the rest of `@benchside/dns`, and packages may not import `@benchside/dns/doh`.
 - The refactor moves files and tests without changing behavior. It lands as its own change before the DMARC aggregate app uses it.

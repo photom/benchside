@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDnsCache } from './cache.ts';
-import { composeResolver, dnsFindings } from './compose.ts';
+import { composeResolver } from './compose.ts';
 import type { DnsQuery, Lookup, Transport } from './types.ts';
 
 const signal = new AbortController().signal;
@@ -104,36 +104,23 @@ describe('DNS layers', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('DNS-13: given more queries than the budget, when resolved, then the extra ones are BUDGET, cache hits count, and dns.budget-exhausted is reported', async () => {
+  it('DNS-13: given more queries than the budget, when resolved, then the extra ones are BUDGET and cache hits count', async () => {
     const { transport } = fakeTransport();
     const r = resolver(transport, { budget: 2 });
     await r.resolve(txt('a.example'), signal);
     await r.resolve(txt('a.example'), signal); // cache hit still counts
     const third = await r.resolve(txt('b.example'), signal);
     expect(third.rcode).toBe('BUDGET');
-    expect(dnsFindings(r.log)).toEqual([
-      expect.objectContaining({
-        id: 'dns.budget-exhausted',
-        severity: 'error',
-        evidence: [{ kind: 'dns', queryId: 'q3' }],
-      }),
-    ]);
+    expect(r.log.map((e) => e.rcode)).toEqual(['NOERROR', 'NOERROR', 'BUDGET']);
   });
 
-  it('DNS-10, DNS-11: given a sensitive query, when not allowed, then it is BLOCKED, not sent, logged with its name, and dns.blocked-sensitive is reported', async () => {
+  it('DNS-10, DNS-11: given a sensitive query, when not allowed, then it is BLOCKED, not sent, and logged with its name', async () => {
     const { transport, calls } = fakeTransport();
     const r = resolver(transport);
     const a = await r.resolve(txt('alice._spf.example', 'sensitive'), signal);
     expect(a.rcode).toBe('BLOCKED');
     expect(calls).toEqual([]);
     expect(r.log[0]).toMatchObject({ name: 'alice._spf.example', rcode: 'BLOCKED' });
-    expect(dnsFindings(r.log)).toEqual([
-      expect.objectContaining({
-        id: 'dns.blocked-sensitive',
-        severity: 'info',
-        evidence: [{ kind: 'dns', queryId: 'q1' }],
-      }),
-    ]);
   });
 
   it('DNS-10: given a sensitive query, when allowed, then it is sent', async () => {

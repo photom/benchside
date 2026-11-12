@@ -1,4 +1,4 @@
-import type { DnsLogEntry } from '@benchside/mail';
+import type { DnsLogEntry } from '@benchside/dns';
 
 /** Every DNS query of the analysis (DNS-15); rows are evidence targets (id dns-qN). */
 export function DnsLog({ entries }: { entries: readonly DnsLogEntry[] }) {
