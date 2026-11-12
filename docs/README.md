@@ -37,4 +37,5 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [DMARC aggregate input design](explanation/dmarc-aggregate-design/input.md): sniffing, nested layers as generators, tar
 - [DMARC aggregate batch design](explanation/dmarc-aggregate-design/batch.md): digests, duplicates, conflicts, overlaps, the finding collector
 - [DMARC aggregate classification design](explanation/dmarc-aggregate-design/classify.md): facts, ordered rules, forwarder IPs
+- [DMARC aggregate view design](explanation/dmarc-aggregate-design/view.md): report days, policies, filters, totals, timeline
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made

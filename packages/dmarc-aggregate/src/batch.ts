@@ -1,4 +1,7 @@
-/** The reports of a batch: identity, duplicates, conflicts, overlaps, file names, classification (CMB-1..5, INP-9, INP-10, FCT-6, FCT-7). */
+/**
+ * The reports of a batch: identity, duplicates, conflicts, overlaps, file names, days, policies,
+ * reporter errors, classification (CMB-1..5, CMB-7, CMB-8, CMB-13, INP-9, INP-10, FCT-6, FCT-7).
+ */
 import { type Classification, classify, inconsistent, recordFacts } from './classify.ts';
 import { compareFilename, type ParsedFilename, parseFilename } from './filename.ts';
 import type { Finding, Findings } from './findings.ts';
@@ -6,6 +9,7 @@ import {
   type ContentHint,
   type ExtensionCount,
   type Format,
+  type Policy,
   type ReadRecord,
   type ReadReport,
   readReport,
@@ -26,6 +30,8 @@ export interface ReportSummary {
   readonly policyDomain: string;
   readonly begin: number | null;
   readonly end: number | null;
+  /** CMB-7: the UTC day of the midpoint as YYYY-MM-DD, or null when undated (REP-4). */
+  readonly day: string | null;
   readonly status: 'counted' | 'duplicate' | 'conflict';
   readonly hints: readonly ContentHint[];
   readonly extensions: readonly ExtensionCount[];
@@ -41,10 +47,15 @@ export interface DocumentInput {
   readonly document: XmlDocument;
 }
 
-interface Counted {
+/** A counted report with the classification of each record. */
+export interface CountedReport {
   readonly summary: ReportSummary;
   readonly report: ReadReport;
   /** One per record, in order. */
+  readonly classes: readonly Classification[];
+}
+
+interface Counted extends CountedReport {
   readonly classes: Classification[];
 }
 
@@ -53,6 +64,83 @@ interface Failing {
   readonly counted: Counted;
   readonly record: number;
 }
+
+/** CMB-8: one `policy_published` configuration of a policy domain. */
+export interface PolicyConfig {
+  readonly domain: string;
+  readonly p: string | null;
+  readonly sp: string | null;
+  readonly np: string | null;
+  readonly adkim: string | null;
+  readonly aspf: string | null;
+  readonly pct: number | null;
+  readonly fo: string | null;
+  readonly testing: string | null;
+  readonly discoveryMethod: string | null;
+  /** First spellings (CMB-5), in the order seen. */
+  readonly reporters: readonly string[];
+  readonly reports: number;
+  readonly firstDay: string | null;
+  readonly lastDay: string | null;
+  readonly inEffect: boolean;
+}
+
+interface PolicyEntry {
+  readonly policy: Policy;
+  readonly reporters: Map<string, string>;
+  reports: number;
+  firstDay: string | null;
+  lastDay: string | null;
+}
+
+const DAY = 86_400;
+const POLICY_KEYS = [
+  'p',
+  'sp',
+  'np',
+  'adkim',
+  'aspf',
+  'pct',
+  'fo',
+  'testing',
+  'discoveryMethod',
+] as const;
+
+type DayIssue = 'invalid' | 'future' | 'long-range' | null;
+
+/** CMB-7: the day and what was wrong with the period, in the order the checks run. */
+function reportDay(
+  begin: number | null,
+  end: number | null,
+  now: number,
+): { day: string | null; issue: DayIssue } {
+  if (begin === null || end === null) return { day: null, issue: null };
+  if (end < begin) return { day: null, issue: 'invalid' };
+  if (end > now + 2 * DAY) return { day: null, issue: 'future' };
+  const day = new Date(Math.floor((begin + end) / 2) * 1000).toISOString().slice(0, 10);
+  return { day, issue: end - begin > 2 * DAY ? 'long-range' : null };
+}
+
+const DAY_FINDINGS = {
+  invalid: {
+    id: 'aggregate.value.invalid',
+    severity: 'warning',
+    path: 'report_metadata/date_range',
+    message: 'The period ends before it begins; the report is undated.',
+  },
+  future: {
+    id: 'aggregate.report.future',
+    severity: 'warning',
+    path: 'report_metadata/date_range/end',
+    message: 'The period ends more than 2 days after now; the report is undated.',
+  },
+  'long-range': {
+    id: 'aggregate.report.long-range',
+    severity: 'info',
+    path: 'report_metadata/date_range',
+    message: 'The period is longer than 48 hours; its midpoint gives the day.',
+  },
+} as const;
 
 const PART_NAMES = { 'policy-domain': 'policy domain', begin: 'begin', end: 'end' } as const;
 
@@ -71,7 +159,58 @@ export class Batch {
   /** The first spelling of each reporter (CMB-5). */
   private readonly names = new Map<string, string>();
 
-  constructor(private readonly findings: Findings) {}
+  /** CMB-8: configurations by policy domain, each in the order first seen. */
+  private readonly policyMap = new Map<string, Map<string, PolicyEntry>>();
+  private revision = 0;
+  private readonly now: () => number;
+
+  /** `now`: seconds since the epoch, read once per report (CMB-7). */
+  constructor(
+    private readonly findings: Findings,
+    o: { readonly now?: () => number } = {},
+  ) {
+    this.now = o.now ?? (() => Math.floor(Date.now() / 1000));
+  }
+
+  /** Moves whenever the list of `policies()` changes (REP-11). */
+  get policyRevision(): number {
+    return this.revision;
+  }
+
+  /** CMB-8: every configuration, domains and configurations in the order first seen. */
+  policies(): PolicyConfig[] {
+    const out: PolicyConfig[] = [];
+    for (const [domain, configs] of this.policyMap) {
+      const list = [...configs.values()];
+      let best = list[0] as PolicyEntry;
+      for (const e of list) {
+        const a = e.lastDay ?? '';
+        const b = best.lastDay ?? '';
+        if (a > b || (a === b && e.reports > best.reports)) best = e;
+      }
+      for (const e of list) {
+        const p = e.policy;
+        out.push({
+          domain,
+          p: p.p,
+          sp: p.sp,
+          np: p.np,
+          adkim: p.adkim,
+          aspf: p.aspf,
+          pct: p.pct,
+          fo: p.fo,
+          testing: p.testing,
+          discoveryMethod: p.discoveryMethod,
+          reporters: [...e.reporters.values()],
+          reports: e.reports,
+          firstDay: e.firstDay,
+          lastDay: e.lastDay,
+          inEffect: e === best,
+        });
+      }
+    }
+    return out;
+  }
 
   /** Every report read, in order, whatever its status (REP-1, REP-3). */
   get reports(): readonly ReportSummary[] {
@@ -81,6 +220,11 @@ export class Batch {
   /** CMB-5: the first spelling loaded of a reporter, given any spelling. */
   reporterName(org: string): string {
     return this.names.get(org.toLowerCase()) ?? org;
+  }
+
+  /** Counted reports in the order read (REP-3). */
+  countedReports(): IterableIterator<CountedReport> {
+    return this.counted.values();
   }
 
   /** The classification of each record of a counted report, or null when the report is not counted. */
@@ -133,6 +277,7 @@ export class Batch {
     const first = this.byDigest.get(document.digest);
     const same = !first && identity !== null ? this.byIdentity.get(identity) : undefined;
     const status = first ? 'duplicate' : same ? 'conflict' : 'counted';
+    const { day, issue } = reportDay(report.begin, report.end, this.now());
     const summary: ReportSummary = {
       index,
       file,
@@ -146,6 +291,7 @@ export class Batch {
       policyDomain: report.policy.domain,
       begin: report.begin,
       end: report.end,
+      day,
       status,
       hints: report.hints,
       extensions: report.extensions,
@@ -178,10 +324,23 @@ export class Batch {
       return summary;
     }
 
+    if (issue) this.findings.add(at({ ...DAY_FINDINGS[issue], report: index }));
     this.classifyReport(summary, report, at);
     this.byDigest.set(document.digest, summary);
     if (identity !== null) this.byIdentity.set(identity, summary);
     if (!this.names.has(reporterKey)) this.names.set(reporterKey, report.reporter);
+    for (const text of report.errors) {
+      this.findings.add(
+        at({
+          id: 'aggregate.report.error',
+          severity: 'info',
+          report: index,
+          path: 'report_metadata/error',
+          message: `The reporter states an error: ${text}`,
+        }),
+      );
+    }
+    this.addPolicy(summary, report, reporterKey, at);
     this.overlaps(summary, `${reporterKey}\n${report.policy.domain}`, at);
     return summary;
   }
@@ -241,6 +400,45 @@ export class Batch {
         }),
       );
     }
+  }
+
+  /** CMB-8: adds the counted report to its configuration; `policy.changed` at a domain's second. */
+  private addPolicy(
+    s: ReportSummary,
+    report: ReadReport,
+    reporterKey: string,
+    at: (f: Omit<Finding, 'file' | 'label'>) => Finding,
+  ): void {
+    const policy = report.policy;
+    let configs = this.policyMap.get(policy.domain);
+    if (!configs) {
+      configs = new Map();
+      this.policyMap.set(policy.domain, configs);
+    }
+    const key = JSON.stringify(POLICY_KEYS.map((k) => policy[k]));
+    let e = configs.get(key);
+    if (!e) {
+      e = { policy, reporters: new Map(), reports: 0, firstDay: null, lastDay: null };
+      configs.set(key, e);
+      if (configs.size === 2) {
+        this.findings.add(
+          at({
+            id: 'aggregate.policy.changed',
+            severity: 'info',
+            report: s.index,
+            path: 'policy_published',
+            message: `The published policy of ${policy.domain} differs between reports.`,
+          }),
+        );
+      }
+    }
+    e.reports++;
+    if (!e.reporters.has(reporterKey)) e.reporters.set(reporterKey, this.reporterName(reporterKey));
+    if (s.day !== null) {
+      if (e.firstDay === null || s.day < e.firstDay) e.firstDay = s.day;
+      if (e.lastDay === null || s.day > e.lastDay) e.lastDay = s.day;
+    }
+    this.revision++;
   }
 
   /** CMB-4: one finding for the later report, naming the first counted report it overlaps. */
