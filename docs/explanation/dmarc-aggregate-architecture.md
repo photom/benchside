@@ -60,7 +60,7 @@ flowchart TD
 | `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`, the budget finding; takes a `Resolver` | RDNS-2..5, RDNS-9, PRG-2, PRG-11..13 |
 | `findings.ts` | Finding collector with the 10 000 limit | REP-7, REP-8 |
 
-In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters and focus, keeps the partial label and host names across snapshots, and keeps the shown `View` when a snapshot has none (PRG-13, PRG-15, PRG-16).
+In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters and focus, keeps the shown `View` when a snapshot has none, sets the partial label from the snapshot of the shown `View`, and keeps host names from `names` messages (PRG-13, PRG-15, PRG-16).
 
 `format/schema.ts` holds the element table of [Format](../reference/dmarc-aggregate/format.md#elements) as data. The tests and the reader both use it, so the two schemas are written down once.
 
