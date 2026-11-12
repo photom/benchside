@@ -203,7 +203,6 @@ describe('App: enforcement and tables (ENF-1..7, CMB-8, CMB-11..13)', () => {
   });
 
   it('CMB-11, CMB-12: given reports from two reporters, when shown, then reporter and format rows', async () => {
-    const { host } = jobHost();
     await loaded();
     const reporters = [...section('Reporters').querySelectorAll('tbody tr')].map(
       (r) => r.querySelector('td')?.textContent,
