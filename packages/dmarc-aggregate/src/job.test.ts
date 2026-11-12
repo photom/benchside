@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Job, type JobFile, type Snapshot } from './job.ts';
+import type { Names } from './reverse.ts';
 import { direct, NOW, on, rec, reportXml } from './test/report-xml.ts';
 import type { Filters } from './view.ts';
 
@@ -381,5 +382,105 @@ describe('Job: classification in the View (PRG-7)', () => {
     expect(last().view?.totals.byCause).toEqual([
       { cause: 'spf-broken-by-forwarding', messages: 1 },
     ]);
+  });
+});
+
+describe('Job: reverse lookup (PRG-2, RDNS-2, RDNS-9, PRG-3, PRG-13)', () => {
+  function lookupSetup() {
+    const names: Names[] = [];
+    const calls: string[] = [];
+    const providers: string[] = [];
+    const signals: AbortSignal[] = [];
+    const job = new Job({
+      send: () => {},
+      sendNames: (n) => names.push(n),
+      transport: (provider) => {
+        providers.push(provider);
+        return async (q, signal) => {
+          calls.push(`${q.type} ${q.name}`);
+          signals.push(signal);
+          return { rcode: 'NXDOMAIN', records: [], authenticated: false };
+        };
+      },
+      stepMs: 0,
+      yieldToEvents: () => Promise.resolve(),
+      now: () => NOW + 4000 * 86_400,
+      lookupFlushMs: 0,
+    });
+    return { job, names, calls, providers, signals };
+  }
+  const reports = () =>
+    file(
+      'a.xml',
+      report(0, {
+        records:
+          rec({ ip: '192.0.2.2', count: 1 }) +
+          rec({ ip: '192.0.2.1', count: 5 }) +
+          rec({ ip: 'bad-ip', count: 9 }) +
+          direct('203.0.113.7', 2),
+      }),
+    );
+
+  it('PRG-2, RDNS-2: given lookups turned on after reading, when they run, then the source table rows are looked up in its order', async () => {
+    const t = lookupSetup();
+    t.job.add([reports()]);
+    await t.job.idle;
+    t.job.lookup(true, 'google');
+    await t.job.lookupIdle;
+    expect(t.providers).toEqual(['google']);
+    // SRC-3: failing first (bad-ip is not looked up, RDNS-1), then by messages.
+    expect(t.calls).toEqual([
+      'PTR 1.2.0.192.in-addr.arpa',
+      'PTR 2.2.0.192.in-addr.arpa',
+      'PTR 7.113.0.203.in-addr.arpa',
+    ]);
+    expect(t.names[0]).toMatchObject({ type: 'names', generation: 1, session: 1 });
+    expect(t.names[t.names.length - 1]?.counts).toEqual({
+      queued: 0,
+      lookingUp: 0,
+      done: 3,
+      targets: 3,
+    });
+  });
+
+  it('RDNS-2: given a focus while lookups run, when the view is answered, then the targets follow the table as shown', async () => {
+    const t = lookupSetup();
+    t.job.add([reports()]);
+    await t.job.idle;
+    t.job.lookup(true, 'cloudflare');
+    t.job.view(1, ALL, { path: 'direct' });
+    await t.job.lookupIdle;
+    const last = t.names[t.names.length - 1];
+    expect(last?.counts.targets).toBe(1);
+  });
+
+  it('RDNS-9: given lookups off and on again, when they run, then settled sources are not queried again and the session number grows', async () => {
+    const t = lookupSetup();
+    t.job.add([reports()]);
+    await t.job.idle;
+    t.job.lookup(true, 'cloudflare');
+    await t.job.lookupIdle;
+    t.job.lookup(false, 'cloudflare');
+    const before = t.calls.length;
+    t.job.lookup(true, 'cloudflare');
+    await t.job.lookupIdle;
+    expect(t.calls.length).toBe(before);
+    expect(t.names[t.names.length - 1]?.session).toBe(2);
+  });
+
+  it('PRG-3: given lookups running, when cleared, then the session ends and the next one starts afresh in the new generation', async () => {
+    const t = lookupSetup();
+    t.job.add([reports()]);
+    await t.job.idle;
+    t.job.lookup(true, 'cloudflare');
+    t.job.clear();
+    expect(t.signals.every((s) => s.aborted)).toBe(true);
+    t.job.add([reports()]);
+    await t.job.idle;
+    const before = t.calls.length;
+    t.job.lookup(true, 'cloudflare');
+    await t.job.lookupIdle;
+    expect(t.calls.length - before).toBe(3);
+    expect(t.names[t.names.length - 1]).toMatchObject({ generation: 2, session: 2 });
   });
 });

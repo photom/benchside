@@ -1,7 +1,10 @@
 /** The reading job: queue, steps, snapshots, stop, clear (PRG-1, PRG-3..9, PRG-13..16; design: job.md). */
+
+import { createDnsCache, type DnsCache, type Transport } from '@benchside/dns';
 import { Batch, type PolicyConfig, type ReportSummary } from './batch.ts';
 import { type Finding, Findings } from './findings.ts';
 import { type Budget, type InputKind, newBudget, readInput } from './input.ts';
+import { type HostState, LookupSession, type Names } from './reverse.ts';
 import type { Focus } from './sources.ts';
 import { type Filters, type View, view } from './view.ts';
 
@@ -100,6 +103,9 @@ class Generation {
   sentRevision = 0;
   statusChanges: FileStatusChange[] = [];
   lastViewKey = '';
+  /** RDNS-6, RDNS-9: one DNS cache and one set of final host states per generation. */
+  readonly dnsCache: DnsCache = createDnsCache();
+  readonly hostStates = new Map<string, HostState>();
 
   constructor(
     readonly number: number,
@@ -110,6 +116,16 @@ class Generation {
 }
 
 const ALL: Filters = { domain: null, reporters: null, days: null };
+
+export type LookupProvider = 'cloudflare' | 'google';
+
+/** RDNS-2: the first 200 rows of the source table as shown; RDNS-1: valid IPs only. */
+const MAX_TARGETS = 200;
+const targets = (v: View) =>
+  v.sources
+    .slice(0, MAX_TARGETS)
+    .filter((r) => r.validIp)
+    .map((r) => r.sourceIp);
 
 export class Job {
   private readonly send: (s: Snapshot) => void;
@@ -126,6 +142,12 @@ export class Job {
   private focus: Focus | null = null;
   /** A view request not yet answered; a newer one replaces it. */
   private pendingView: number | null = null;
+  private readonly transport: ((provider: LookupProvider) => Transport) | null;
+  private readonly sendNames: (n: Names) => void;
+  private readonly lookupFlushMs: number | undefined;
+  private lookupSession: LookupSession | null = null;
+  /** PRG-13: grows by one each time lookups are turned on, across generations. */
+  private sessions = 0;
 
   constructor(o: {
     readonly send: (s: Snapshot) => void;
@@ -136,7 +158,16 @@ export class Job {
     readonly stepMs?: number;
     /** Time between periodic snapshots, in ms (PRG-4). */
     readonly snapshotMs?: number;
+    /** The DoH transport for a provider; the app passes it, so this package never fetches (RDNS-1). */
+    readonly transport?: (provider: LookupProvider) => Transport;
+    /** `names` messages to the UI (PRG-11, PRG-12). */
+    readonly sendNames?: (n: Names) => void;
+    /** Time between `names` messages (PRG-12); tests pass 0. */
+    readonly lookupFlushMs?: number;
   }) {
+    this.transport = o.transport ?? null;
+    this.sendNames = o.sendNames ?? (() => {});
+    this.lookupFlushMs = o.lookupFlushMs;
     this.send = o.send;
     this.clock = o.clock ?? (() => performance.now());
     this.yieldToEvents = o.yieldToEvents ?? (() => new Promise((r) => setTimeout(r, 0)));
@@ -197,6 +228,30 @@ export class Job {
     else this.send(this.snapshot(id, false));
   }
 
+  /** Settles when the current lookup session has nothing left to do. */
+  get lookupIdle(): Promise<void> {
+    return this.lookupSession?.idle ?? Promise.resolve();
+  }
+
+  /** RDNS-1, RDNS-9: on starts a session with the targets of the table as shown; off ends it. */
+  lookup(on: boolean, provider: LookupProvider): void {
+    this.lookupSession?.stop();
+    this.lookupSession = null;
+    if (!on || !this.transport) return;
+    const g = this.gen;
+    this.lookupSession = new LookupSession({
+      number: ++this.sessions,
+      generation: g.number,
+      transport: this.transport(provider),
+      source: provider,
+      cache: g.dnsCache,
+      finals: g.hostStates,
+      send: this.sendNames,
+      ...(this.lookupFlushMs === undefined ? {} : { flushMs: this.lookupFlushMs }),
+    });
+    this.lookupSession.setTargets(targets(view(g.batch, this.filters, this.focus)));
+  }
+
   /** PRG-9 */
   stop(): void {
     if (this.loop) this.stopping = true;
@@ -204,6 +259,9 @@ export class Job {
 
   /** PRG-3, PRG-13: a new, empty generation, announced by one snapshot. */
   clear(): void {
+    // PRG-3: Clear stops both jobs; lookups stay off until turned on again.
+    this.lookupSession?.stop();
+    this.lookupSession = null;
     this.gen = new Generation(this.gen.number + 1, this.now);
     this.loop = null;
     this.stopping = false;
@@ -400,13 +458,16 @@ export class Job {
     ]);
     const fresh = id !== null || !partial || key !== g.lastViewKey;
     g.lastViewKey = key;
+    const computed = fresh ? view(g.batch, this.filters, this.focus) : null;
+    // RDNS-2: every computed View gives the lookup session its targets.
+    if (computed) this.lookupSession?.setTargets(targets(computed));
     return {
       id,
       generation: g.number,
       filters: this.filters,
       focus: this.focus,
       changes,
-      view: fresh ? view(g.batch, this.filters, this.focus) : null,
+      view: computed,
       progress,
       partial,
     };

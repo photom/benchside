@@ -39,4 +39,5 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [DMARC aggregate classification design](explanation/dmarc-aggregate-design/classify.md): facts, ordered rules, forwarder IPs
 - [DMARC aggregate view design](explanation/dmarc-aggregate-design/view.md): report days, policies, filters, totals, timeline
 - [DMARC aggregate job design](explanation/dmarc-aggregate-design/job.md): the reading queue, steps, snapshots, stop, and clear
+- [DMARC aggregate reverse lookup design](explanation/dmarc-aggregate-design/reverse.md): sessions, targets, PTR and forward confirmation, names messages
 - [Decisions](explanation/decisions/) — records of design decisions and why they were made

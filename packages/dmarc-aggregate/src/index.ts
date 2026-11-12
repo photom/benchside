@@ -59,9 +59,17 @@ export {
   type FileStatusChange,
   Job,
   type JobFile,
+  type LookupProvider,
   type Progress,
   type Snapshot,
 } from './job.ts';
+export {
+  type BudgetFinding,
+  type HostState,
+  LOOKUP_BUDGET,
+  LookupSession,
+  type Names,
+} from './reverse.ts';
 export {
   type DetailRow,
   type DispositionCount,
