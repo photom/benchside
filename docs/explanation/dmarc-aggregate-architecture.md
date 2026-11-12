@@ -51,7 +51,7 @@ flowchart TD
 | `format/schema.ts` | One table of paths with the multiplicity per format; report and extension elements; missing and repeated elements | FMT-4..9 |
 | `format/values.ts` | Enumerations, integers, IPs, domains, legacy SPF values, truncation | FMT-10..15 |
 | `format/hints.ts` | Content hints and the mixed-format finding | FMT-16, FMT-17 |
-| `job.ts` | The reading queue; steps of at most 50 ms; snapshots every 250 ms; stop; generations | PRG-1, PRG-3..9, PRG-13 |
+| `job.ts` | The reading queue; steps of at most 50 ms; snapshots every 250 ms; null `View` when unchanged; stop; generations | PRG-1, PRG-3..9, PRG-13, PRG-16 |
 | `batch.ts` | Holds counted reports and records; identity, duplicates, overlaps, policies, forwarder IPs; tracks what changed since the last snapshot | CMB-1..5, CMB-8, FCT-7, PRG-14 |
 | `classify.ts` | Facts, path, cause, rule IDs | FCT-1..6, PATH-*, CAUSE-* |
 | `view.ts` | Filters, days, totals, timeline, reporters, formats, reporter errors | CMB-6, CMB-7, CMB-9..13 |
@@ -60,7 +60,7 @@ flowchart TD
 | `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`; takes a `Resolver` | RDNS-2..5, RDNS-9, PRG-2, PRG-11..13 |
 | `findings.ts` | Finding collector with the 10 000 limit | REP-7, REP-8 |
 
-In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters, and keeps the partial label and host names (PRG-13, PRG-15).
+In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters and focus, and keeps the partial label and host names (PRG-13, PRG-15).
 
 `format/schema.ts` holds the element table of [Format](../reference/dmarc-aggregate/format.md#elements) as data. The tests and the reader both use it, so the two schemas are written down once.
 
@@ -94,7 +94,7 @@ flowchart LR
 | UI → worker | `{ type: 'view', id, filters, focus }`: `focus` is a path or cause filter (SRC-5), or null |
 | UI → worker | `{ type: 'lookup', id, on: boolean, provider }` |
 | worker → UI | `{ type: 'snapshot', id, generation, changes, view, progress, partial, filters, focus }`: periodic while reading (PRG-4), and the answer to every `view` (PRG-8); `id` is the request it answers, or null |
-| worker → UI | `{ type: 'names', generation, session, changes, counts, log }`: changed lookup states (PRG-11, PRG-12) and new query log entries |
+| worker → UI | `{ type: 'names', generation, session, changes, counts, log, findings }`: changed lookup states (PRG-11, PRG-12), new query log entries, and `dns.budget-exhausted` once |
 | worker → UI | `{ type: 'failed', id, message }` |
 
 ```mermaid
@@ -113,10 +113,10 @@ sequenceDiagram
 ```
 
 - `File` objects pass by reference. The worker reads them.
-- Snapshots carry the filters they were computed for and the batch generation (PRG-13). The UI drops snapshots from an older generation. From every other snapshot it takes the batch changes, progress, and `partial`; it shows the `View` only when the filters and focus match (PRG-14, PRG-15).
-- `names` messages of the current generation apply in full from the newest session; from an older session only final states that nothing newer replaced (PRG-13). Host names never change a view (RDNS-8). The UI merges them into its host name map by IP.
+- Snapshots carry the filters and focus they were computed for and the batch generation (PRG-13). The UI drops snapshots from an older generation. From every other snapshot it takes the batch changes, progress, and `partial`; it shows the `View` only when there is one and the filters and focus match (PRG-14 to PRG-16).
+- `names` messages of the current generation apply in full from the active session; from an ended session (including one just turned off) only final states that nothing newer replaced (PRG-13). Host names never change a view (RDNS-8). The UI merges them into its host name map by IP.
 - The UI keeps expanded rows by source IP and keeps its scroll position across snapshots (REQ-DMARC-010).
-- `lookup` with `on: true` starts a session. After each snapshot, and after each `view`, the worker recomputes the targets from the table as shown, focus included, and queues new ones (RDNS-2). `on: false` aborts the session's signal (RDNS-9).
+- `lookup` with `on: true` starts a session and computes the first targets from the table as shown, focus included. After that the worker recomputes them whenever it computes a snapshot (RDNS-2); a `view` always produces one, so filter and focus changes are covered. `on: false` aborts the session's signal (RDNS-9).
 
 ## Build order
 

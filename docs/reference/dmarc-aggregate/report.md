@@ -14,7 +14,7 @@ classDiagram
     filters Filters
     focus Focus or null
     changes BatchChanges
-    view View
+    view View or null
     progress Progress
     partial boolean
   }
@@ -34,6 +34,7 @@ classDiagram
   }
   class ReportSummary {
     index number
+    file number
     label string
     format rfc9990, rfc7489, or unknown
     namespace string or null
@@ -149,28 +150,28 @@ classDiagram
 
 | Type | Holds | Rules |
 |---|---|---|
-| `Totals` | CMB-9 | |
+| `Totals` | CMB-9; the period is null when no report in the filtered set is dated | |
 | `Day` | Date, messages by path, pass rate | CMB-10 |
 | `ReporterRow` | CMB-11 | |
 | `FormatCount` | Format, namespace, reports, mixed | CMB-12 |
 | `PolicyConfig` | One configuration of a policy domain, its reporters and days; not filtered, so it rides on the batch changes, not the `View` | CMB-8 |
 | `Focus` | A delivery path or a cause | SRC-5 |
-| `FileStatusChange` | A file `index` and its new `status` | PRG-14, REP-1 |
+| `FileStatusChange` | A file `index`, its new `status`, and, once the status is final, the file's `reports` and `findings` counts | PRG-14, REP-1 |
 | `DomainEnforcement` | ENF-1 to ENF-7 for one policy domain | |
 | `ReporterError` | CMB-13 | |
 | `ResultCount` | One raw result with its domain (and selector for DKIM) and messages | SRC-2 |
 
 | ID | Rule |
 |---|---|
-| REP-1 | Files keep the order of INP-1; `index` numbers them from 0. A file's `name` is its relative path when it came from a folder (INP-11). Its `status` is `queued` until read; `skipped` for INP-11 skips; `stopped` by PRG-9; `failed` when it gave an error finding and no report. Reports are numbered in the order they were read; `index` is stable until "Clear". |
+| REP-1 | Files keep the order of INP-1; `index` numbers them from 0. A file's `name` is its relative path when it came from a folder (INP-11). Its `status` is `queued` until read; `skipped` for INP-11 skips; `stopped` by PRG-9; `failed` when it gave an error finding and no report. Reports are numbered in the order they were read; `index` is stable until "Clear". A report's `file` is the `index` of the top-level file it came from. A file's status is final when it is `read`, `skipped`, `stopped`, or `failed`; its counts are the reports read from it and the findings kept (REP-8) whose file it is (REP-7). |
 | REP-2 | `format`, `namespace`, and `prefix` come from FMT-2. `version` is the text as written. `hints` come from FMT-16, `extensions` from FMT-5, `filename` from INP-8. |
 | REP-3 | `status` is `counted`, `duplicate` (CMB-2), or `conflict` (CMB-3). Only counted reports contribute records to a `View`. |
 | REP-4 | `day` is the UTC day of CMB-7 as `YYYY-MM-DD`, or null when undated. `begin` and `end` are seconds since the epoch, as in the report. |
 | REP-5 | A record's `spf` keeps every SPF result in order (FMT-9). The one used by FCT-4 is marked. Each `DkimResult` has `domain`, `selector`, `result`, and `humanResult`; each `SpfResult` has `domain`, `scope`, `result`, `original` (FMT-15), and `humanResult`. |
 | REP-6 | A `View` is computed for one set of filters (CMB-6) and one path or cause filter (SRC-5). Its parts follow CMB-9 to CMB-13, ENF-1 to ENF-7, and SRC-1 to SRC-4. Rows not yet shown (SRC-6) are still in the `View`, so "Show more" needs no new request. |
-| REP-7 | Findings carry the file label and, when they have one, the report index, the record index within the report, the element path, and the XML line. |
+| REP-7 | A finding carries the `index` and label of the file it belongs to: the file it is about when it is raised at `add` (INP-11 skips); otherwise the top-level file being read when it was found, even when it is about an earlier report (CMB-4). Findings that belong to no single file carry null: `aggregate.input.too-many-files` (INP-2) and `dns.budget-exhausted`. When they have one, findings also carry the report index, the record index within the report, the element path, and the XML line. |
 | REP-8 | Findings keep the order in which they were found. After 10 000, one `aggregate.too-many-findings` (warning) is added and later ones are dropped. |
-| REP-9 | `changes`, `partial`, `Progress`, and the timing of snapshots follow PRG-4 to PRG-6, PRG-14, and PRG-15. Host name states arrive only in `names` messages, keyed by source IP; `SourceRow` carries none (RDNS-8, PRG-11 to PRG-13). |
+| REP-9 | `changes`, `view`, `partial`, `Progress`, and the timing of snapshots follow PRG-4 to PRG-6 and PRG-14 to PRG-16. Host name states arrive only in `names` messages, keyed by source IP; `SourceRow` carries none (RDNS-8, PRG-11 to PRG-13). |
 | REP-10 | `Record` and `Classification` stay in the worker. The UI sees records only through `SourceRow` and `DetailRow`, which group them (SRC-1, SRC-4). |
 | REP-11 | `id` is the `view` request a snapshot answers (PRG-8), or null for a periodic one. `policies` in the batch changes is the full list of CMB-8 when it changed since the previous snapshot, else null. |
 
@@ -218,4 +219,4 @@ classDiagram
 | `aggregate.policy.changed` | info | CMB-8 |
 | `aggregate.too-many-records` | error | Limits |
 | `aggregate.too-many-findings` | warning | REP-8 |
-| `dns.budget-exhausted` | error | RDNS-6, DNS-13 |
+| `dns.budget-exhausted` | error | RDNS-6, DNS-13; sent in `names` (PRG-12) |
