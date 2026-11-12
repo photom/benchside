@@ -229,3 +229,188 @@ caption {
   font-weight: 600;
   text-align: left;
 }
+
+/* Charts (ui.md, Charts in code). Two across above 48 rem, one column below. */
+.charts {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 48rem) {
+  .charts {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.chart {
+  margin: 0;
+}
+
+.chart figcaption {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.chart svg {
+  display: block;
+  height: auto;
+  overflow: visible;
+  width: 100%;
+}
+
+.chart svg text {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.chart svg text.label,
+.chart svg text.value,
+.chart svg text.group {
+  fill: var(--ink);
+}
+
+.chart svg text.group {
+  font-weight: 600;
+}
+
+.grid line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.path-direct {
+  fill: var(--path-direct);
+}
+
+.path-forwarded {
+  fill: var(--path-forwarded);
+}
+
+.path-other {
+  fill: var(--path-other);
+}
+
+.bar.neutral {
+  fill: var(--muted);
+}
+
+/* A label inside a fill is white or near-black by the fill's luminance (dataviz, Labels). */
+.chart svg text.inside {
+  font-weight: 600;
+}
+
+.chart svg text.on-direct {
+  fill: #ffffff;
+}
+
+.chart svg text.on-forwarded,
+.chart svg text.on-other {
+  fill: #0b0b0b;
+}
+
+.line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.end {
+  fill: var(--ink);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.hit {
+  fill: transparent;
+}
+
+g[tabindex]:focus {
+  outline: none;
+}
+
+g[tabindex]:focus-visible .hit,
+g[tabindex]:focus-visible .block {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+g[role="button"] {
+  cursor: pointer;
+}
+
+.tooltip rect {
+  fill: var(--surface);
+  stroke: var(--line);
+}
+
+.chart svg .tooltip text {
+  fill: var(--ink);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.swatch {
+  border-radius: 2px;
+  display: inline-block;
+  height: 0.75rem;
+  margin-right: 0.375rem;
+  vertical-align: middle;
+  width: 0.75rem;
+}
+
+.swatch.path-direct {
+  background: var(--path-direct);
+}
+
+.swatch.path-forwarded {
+  background: var(--path-forwarded);
+}
+
+.swatch.path-other {
+  background: var(--path-other);
+}
+
+.table-toggle {
+  font-size: 0.85em;
+  margin-left: 0.5rem;
+}
+
+.defs {
+  height: 0;
+  position: absolute;
+  width: 0;
+}
+
+/* Identity without hue: 45° and 135° hatches (ui.md, Accessibility). */
+@media (forced-colors: active) {
+  .path-direct {
+    fill: url(#hatch-direct);
+  }
+
+  .path-forwarded {
+    fill: url(#hatch-forwarded);
+  }
+
+  .path-other {
+    fill: url(#hatch-other);
+  }
+
+  .hatch line {
+    stroke: CanvasText;
+  }
+}
