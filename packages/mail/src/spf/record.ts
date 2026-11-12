@@ -1,5 +1,5 @@
 /** SPF record syntax (RFC 7208 §4.6, §12; SPF-8, SPF-9). */
-import { type Ip, parseIp } from '../shared/ip.ts';
+import { type Ip, parseIp } from '@benchside/dns';
 import { type MacroString, parseMacroString } from './macro.ts';
 
 export type Qualifier = '+' | '-' | '~' | '?';

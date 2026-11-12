@@ -1,6 +1,6 @@
+import { parseIp } from '@benchside/dns';
 import type { HeaderField } from '../message/headers.ts';
 import type { Finding } from '../shared/findings.ts';
-import { parseIp } from '../shared/ip.ts';
 import { isAtom, type Token, tokenize } from '../shared/rfc5322-tokens.ts';
 import { parseDateTime } from './date.ts';
 

@@ -11,7 +11,8 @@ flowchart LR
     rec["record.ts<br/>text → Term[]"] --> ev["evaluate.ts<br/>evaluateSpf, check_host"]
     mac["macro.ts<br/>parse + expand + classify"] --> rec & ev
   end
-  ip["shared/ip.ts<br/>parseIp, inCidr"] --> ev
+  ip["@benchside/dns<br/>parseIp, reverseName"] --> ev
+  cidr["shared/ip.ts<br/>inCidr"] --> ev
   ev --> dns[(Resolver)]
 ```
 

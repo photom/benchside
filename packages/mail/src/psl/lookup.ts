@@ -1,5 +1,5 @@
 /** Public Suffix List (DMARC-7, DMARC-26; https://github.com/publicsuffix/list/wiki/Format). */
-import { toALabels } from '../shared/domain.ts';
+import { toALabels } from '@benchside/dns';
 
 export interface PublicSuffixList {
   /** The `// VERSION:` header, or null without one. */

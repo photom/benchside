@@ -70,7 +70,7 @@ flowchart LR
 
 Each heuristic is a pure function `(tokens) → Partial<ParsedReceived> | null`. They are tried in order. Tests have one synthetic sample per MTA.
 
-## IP handling (`shared/ip.ts`)
+## IP handling (`parseIp` in `@benchside/dns`, `isPublic` in `shared/ip.ts`)
 
 | Input | Result |
 |---|---|

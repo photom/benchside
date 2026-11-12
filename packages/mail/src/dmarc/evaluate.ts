@@ -2,8 +2,9 @@
  * DMARC evaluation (docs/reference/mail/dmarc.md; design: mail-design/dmarc.md).
  * Modes rfc9989 and rfc7489, each on its own (DMARC-27). Never throws on input.
  */
+
+import type { DnsAnswer, DnsQuery } from '@benchside/dns';
 import type { DkimNotEvaluatedReason, DkimSignatureResult } from '../dkim/verify.ts';
-import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
 import type { HeaderField } from '../message/headers.ts';
 import { organizationalDomain, type PublicSuffixList } from '../psl/lookup.ts';
 import { guard } from '../shared/abort.ts';

@@ -1,15 +1,33 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "includes": ["**", "!**/dist", "!site", "!**/*.md"] },
-  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
-  "javascript": { "formatter": { "quoteStyle": "single" } },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": ["**", "!**/dist", "!site", "!**/*.md"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
   "linter": {
     "enabled": true,
     "rules": {
       "preset": "recommended",
-      "suspicious": { "noExplicitAny": "error" },
-      "security": { "noDangerouslySetInnerHtml": "error" }
+      "suspicious": {
+        "noExplicitAny": "error"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "error"
+      }
     }
   },
   "overrides": [
@@ -25,6 +43,46 @@
                   "window": "Packages must not touch the DOM",
                   "document": "Packages must not touch the DOM",
                   "fetch": "Use the injected Resolver"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/dns/src/**",
+        "!packages/dns/src/doh.ts",
+        "!packages/dns/src/doh.test.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "window": "Packages must not touch the DOM",
+                  "document": "Packages must not touch the DOM",
+                  "fetch": "Only doh.ts calls fetch (0014)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/*/src/**", "!packages/dns/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@benchside/dns/doh": "Only app workers import the DoH transport (0014)"
                 }
               }
             }

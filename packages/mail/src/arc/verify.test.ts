@@ -1,10 +1,13 @@
+import type { Lookup, Transport } from '@benchside/dns';
+import {
+  composeResolver,
+  createDnsCache,
+  type ManualRecord,
+  offlineTransport,
+} from '@benchside/dns';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type Hop, messageText, seal, type TestMessage } from '../../test/support/arc-sealer.ts';
 import { ed25519Key, rsaKey, type TestKey } from '../../test/support/keys.ts';
-import { createDnsCache } from '../dns/cache.ts';
-import { composeResolver } from '../dns/compose.ts';
-import { type ManualRecord, offlineTransport } from '../dns/offline.ts';
-import type { Lookup, Transport } from '../dns/types.ts';
 import { splitHeaders } from '../message/headers.ts';
 import { type ArcReport, verifyArc } from './verify.ts';
 

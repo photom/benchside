@@ -1,5 +1,5 @@
+import { type Ip, parseIp } from '@benchside/dns';
 import { describe, expect, it } from 'vitest';
-import { type Ip, parseIp } from '../shared/ip.ts';
 import { expandMacro, type MacroEnv, parseMacroString } from './macro.ts';
 
 const env = (ip = '192.0.2.3', o: Partial<MacroEnv> = {}): MacroEnv => ({

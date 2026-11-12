@@ -2,18 +2,13 @@
  * SPF evaluation (docs/reference/mail/spf.md; design: mail-design/spf.md).
  * One result per identity (MAIL FROM, HELO). Never throws on input.
  */
-import type { DnsAnswer, DnsQuery, DnsType } from '../dns/types.ts';
+import type { DnsAnswer, DnsQuery, DnsType } from '@benchside/dns';
+import { type Ip, parseIp, reverseName } from '@benchside/dns';
 import type { Envelope, EnvelopeValue } from '../envelope/values.ts';
 import { guard } from '../shared/abort.ts';
 import type { Evidence, Finding, Severity } from '../shared/findings.ts';
-import { type Ip, inCidr, parseIp } from '../shared/ip.ts';
-import {
-  expandMacro,
-  type MacroEnv,
-  type MacroString,
-  nibbles,
-  parseMacroString,
-} from './macro.ts';
+import { inCidr } from '../shared/ip.ts';
+import { expandMacro, type MacroEnv, type MacroString, parseMacroString } from './macro.ts';
 import { isSpfDomain, parseRecord, type Qualifier, type Term } from './record.ts';
 
 export type SpfResult =
@@ -559,10 +554,7 @@ function validatedNames(run: Run): Promise<PtrNames> {
 
 async function lookUpValidatedNames(run: Run): Promise<PtrNames> {
   const queryIds: string[] = [];
-  const reverse =
-    run.ip.version === 4
-      ? `${[...run.ip.bytes].reverse().join('.')}.in-addr.arpa`
-      : `${nibbles(run.ip.bytes).split('.').reverse().join('.')}.ip6.arpa`;
+  const reverse = reverseName(run.ip);
   const a = await query(
     run,
     { name: reverse, sensitive: true },

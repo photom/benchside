@@ -27,7 +27,7 @@ flowchart TD
     ppdf[pdf<br/>no DOM]
     core[core<br/>no DOM<br/>byte reading, inflate]
     pdmarc["dmarc-aggregate<br/>no DOM<br/><i>planned</i>"]
-    pdns["dns<br/>resolver, DoH<br/><i>planned, 0014</i>"]
+    pdns["dns<br/>resolver, DoH, IP"]
     ui[ui<br/>Preact<br/><i>when 2+ apps share</i>]
   end
 

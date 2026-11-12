@@ -2,7 +2,7 @@
  * DKIM verification (docs/reference/mail/dkim.md; design: mail-design/dkim.md).
  * One result per DKIM-Signature field, top to bottom. Never throws on input.
  */
-import type { DnsAnswer, DnsQuery } from '../dns/types.ts';
+import type { DnsAnswer, DnsQuery } from '@benchside/dns';
 import type { HeaderField } from '../message/headers.ts';
 import { guard } from '../shared/abort.ts';
 import { decodeBase64 } from '../shared/base64.ts';

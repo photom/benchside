@@ -1,5 +1,5 @@
-import { toALabels } from '../shared/domain.ts';
 import { cacheKey } from './cache.ts';
+import { toALabels } from './idna.ts';
 import type { DnsType, Transport } from './types.ts';
 
 export interface ManualRecord {

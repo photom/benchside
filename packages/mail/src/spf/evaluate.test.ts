@@ -1,7 +1,6 @@
+import type { DnsType, Lookup, Transport } from '@benchside/dns';
+import { composeResolver, createDnsCache } from '@benchside/dns';
 import { describe, expect, it } from 'vitest';
-import { createDnsCache } from '../dns/cache.ts';
-import { composeResolver } from '../dns/compose.ts';
-import type { DnsType, Lookup, Transport } from '../dns/types.ts';
 import type { Envelope } from '../envelope/values.ts';
 import { evaluateSpf, type SpfIdentityResult } from './evaluate.ts';
 

@@ -7,6 +7,7 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@benchside/dns": "*",
     "@benchside/mail": "*",
     "@benchside/ui": "*",
     "preact": "11.0.2"

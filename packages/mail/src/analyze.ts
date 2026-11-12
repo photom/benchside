@@ -1,3 +1,5 @@
+import type { DnsCache, DnsLogEntry, Transport } from '@benchside/dns';
+import { composeResolver } from '@benchside/dns';
 import { type ArcReport, verifyArc } from './arc/verify.ts';
 import { type AuthResult, listReceiverResults } from './authres/list.ts';
 import { type DkimSignatureResult, verifyDkim } from './dkim/verify.ts';
@@ -7,9 +9,7 @@ import {
   type DmarcResults,
   evaluateDmarc,
 } from './dmarc/evaluate.ts';
-import type { DnsCache } from './dns/cache.ts';
-import { composeResolver, dnsFindings } from './dns/compose.ts';
-import type { DnsLogEntry, Transport } from './dns/types.ts';
+import { dnsFindings } from './dns/findings.ts';
 import { chooseBoundary } from './envelope/boundary.ts';
 import { type ParsedReceived, readReceived } from './envelope/received.ts';
 import { type ReferenceTimeMode, referenceTime } from './envelope/reference-time.ts';

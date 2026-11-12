@@ -1,8 +1,7 @@
+import type { DnsType, Lookup, Transport } from '@benchside/dns';
+import { composeResolver, createDnsCache } from '@benchside/dns';
 import { describe, expect, it } from 'vitest';
 import type { DkimSignatureResult } from '../dkim/verify.ts';
-import { createDnsCache } from '../dns/cache.ts';
-import { composeResolver } from '../dns/compose.ts';
-import type { DnsType, Lookup, Transport } from '../dns/types.ts';
 import { splitHeaders } from '../message/headers.ts';
 import type { SpfIdentityResult, SpfResults } from '../spf/evaluate.ts';
 import { type DmarcModeResult, evaluateDmarc } from './evaluate.ts';

@@ -6,23 +6,26 @@ Spec: [DNS](../../reference/mail/dns.md). Layer order: [detailed design §6](../
 
 ```mermaid
 flowchart LR
-  subgraph pkg ["packages/mail/src/dns/"]
+  subgraph pkg ["@benchside/dns (0014)"]
     types[types.ts] --> compose["compose.ts<br/>log, budget, policy, in-flight"]
     cache["cache.ts<br/>finished answers, shared"] --> compose
-    domain["shared/domain.ts<br/>toALabels, DNS-18"] --> compose
+    idna["idna.ts<br/>toALabels, DNS-18"] --> compose
     offline[offline.ts]
     txt["txt.ts<br/>DNS-7"]
-  end
-  subgraph app ["apps/mail/src/dns/"]
     doh["doh.ts<br/>DNS-5, 6, 8, 16, 17"]
+  end
+  subgraph mail ["packages/mail/src/dns/"]
+    findings["findings.ts<br/>dnsFindings"]
   end
   doh --> txt
   doh -. "Transport" .-> compose
   offline -. "Transport" .-> compose
+  compose -- log --> findings
 ```
 
-- The package never calls `fetch` (DNS-1). `doh.ts` lives in the app and is passed in as a `Transport`.
+- Checks never call `fetch` (DNS-1). `doh.ts` is the only code that does; the app's worker passes it in as a `Transport` ([0014](../decisions/0014-shared-dns-package.md)).
 - `doh.ts` takes `fetch` as a parameter, so tests replace it without a network.
+- The findings drawn from the log are mail rules, so `dnsFindings` stays in the mail package.
 
 ## Types
 

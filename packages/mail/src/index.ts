@@ -25,19 +25,6 @@ export type {
   DmarcResults,
   WeightedDisposition,
 } from './dmarc/evaluate.ts';
-export { createDnsCache, type DnsCache } from './dns/cache.ts';
-export { type ComposedResolver, composeResolver, dnsFindings } from './dns/compose.ts';
-export { type ManualRecord, offlineTransport } from './dns/offline.ts';
-export { joinTxtData } from './dns/txt.ts';
-export type {
-  DnsAnswer,
-  DnsLogEntry,
-  DnsQuery,
-  DnsType,
-  Lookup,
-  Rcode,
-  Transport,
-} from './dns/types.ts';
 export type { ParsedReceived } from './envelope/received.ts';
 export type { ReferenceTimeMode } from './envelope/reference-time.ts';
 export type { Envelope, EnvelopeValue, FieldSource } from './envelope/values.ts';

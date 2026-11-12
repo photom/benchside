@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toALabels } from './domain.ts';
+import { toALabels } from './idna.ts';
 
 describe('domain names', () => {
   it('DNS-18: given an ASCII name, when converted, then it is unchanged', () => {
