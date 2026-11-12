@@ -18,7 +18,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Mail analyzer specification](reference/mail/) — exact behavior, rules, findings, and data model
 - [ZIP analyzer specification](reference/zip/) — structure, ZIP64, fields, nested archives, findings, hex view
 - [PDF analyzer specification](reference/pdf/) — syntax, file structure, streams, document, actions, scripts, findings
-- [DMARC aggregate report analyzer specification](reference/dmarc-aggregate/) (planned): input, XML, both aggregate report formats, combining, classification, enforcement, sources, reverse DNS, progress
+- [DMARC aggregate report analyzer specification](reference/dmarc-aggregate/): input, XML, both aggregate report formats, combining, classification, enforcement, sources, reverse DNS, progress
 
 ## Explanation
 
@@ -31,8 +31,8 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Mail analyzer module design](explanation/mail-design/) — internals of each module
 - [ZIP analyzer architecture](explanation/zip-architecture.md) — modules, worker protocol, UI
 - [PDF analyzer architecture](explanation/pdf-architecture.md) — modules, worker protocol, UI
-- [DMARC aggregate report analyzer architecture](explanation/dmarc-aggregate-architecture.md) (planned): modules, worker protocol, build order, tests
-- [DMARC aggregate report UI design](explanation/dmarc-aggregate-design/ui.md) (planned): layout, chart forms, color, interaction
+- [DMARC aggregate report analyzer architecture](explanation/dmarc-aggregate-architecture.md): modules, worker protocol, build order, tests
+- [DMARC aggregate report UI design](explanation/dmarc-aggregate-design/ui.md): layout, chart forms, color, interaction
 - [DMARC aggregate XML reader design](explanation/dmarc-aggregate-design/xml.md): byte scanning, chunks, UTF-16 transcoding
 - [DMARC aggregate input design](explanation/dmarc-aggregate-design/input.md): sniffing, nested layers as generators, tar
 - [DMARC aggregate batch design](explanation/dmarc-aggregate-design/batch.md): digests, duplicates, conflicts, overlaps, the finding collector
