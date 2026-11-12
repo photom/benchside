@@ -289,7 +289,7 @@ describe('Format: review cases', () => {
     const auth = `<auth_results><spf><domain>a.example</domain><result>pass</result></spf>
       <spf><domain>b.example</domain><scope>mfrom</scope><result>fail</result></spf></auth_results>`;
     const r = report(bis(record(row(), auth)));
-    expect(r.records[0]?.spfResults.map((s) => s.used)).toEqual([true, false]);
+    expect(r.records[0]?.spfResults.map((s) => [s.domain, s.used])).toEqual([['a.example', true]]);
     expect(ids(r)).toContain('aggregate.schema.repeated');
   });
 
@@ -308,6 +308,65 @@ describe('Format: review cases', () => {
     );
     expect(r.records[0]?.headerFrom?.length).toBe(4096);
     expect(r.truncated).toEqual([{ path: 'record/identifiers/header_from', record: 0 }]);
+  });
+});
+
+describe('Format: post-merge review cases', () => {
+  it('FMT-18: given a skipped record before a kept one, when read, then the kept record and its findings share the element index', () => {
+    const skipped = '<record><row><count>1</count></row></record>';
+    const r = report(
+      bis(
+        skipped +
+          record(row(), AUTH).replace(
+            '<header_from>example.com',
+            `<header_from>${'a'.repeat(5000)}`,
+          ),
+      ),
+    );
+    expect(r.records.map((x) => x.index)).toEqual([1]);
+    expect(r.truncated).toEqual([{ path: 'record/identifiers/header_from', record: 1 }]);
+  });
+
+  it('FMT-5: given an extension element inside row, when read, then it counts at record level', () => {
+    const r = report(bis(record(row().replace('</row>', '<x:e xmlns:x="urn:x"/></row>'))));
+    expect(r.extensions).toEqual([{ namespace: 'urn:x', position: 'record', count: 1 }]);
+  });
+
+  it('FMT-13: given version 1. and a count of -0, when read, then no version finding and a count of 0', () => {
+    const r = report(
+      bis(record(row().replace('<count>3</count>', '<count>-0</count>'))).replace(
+        '<version>1.0</version>',
+        '<version>1.</version>',
+      ),
+    );
+    expect(ids(r)).not.toContain('aggregate.format.version');
+    expect(Object.is(r.records[0]?.count, 0)).toBe(true);
+  });
+
+  it('FMT-11: given text whose cut point splits a surrogate pair, when read, then no lone surrogate remains', () => {
+    const r = report(
+      bis(record()).replace(
+        'Example Receiver',
+        `${'x'.repeat(4095)}${String.fromCodePoint(0x1f600)}yy`,
+      ),
+    );
+    const last = r.reporter.charCodeAt(r.reporter.length - 1);
+    expect(last >= 0xd800 && last <= 0xdbff).toBe(false);
+  });
+
+  it('FMT-8: given an RFC 9990 dkim result without domain and selector, when read, then both are reported missing', () => {
+    const r = report(
+      bis(record(row(), AUTH.replace('<domain>example.com</domain><selector>s1</selector>', ''))),
+    );
+    const missing = r.findings
+      .filter((f) => f.id === 'aggregate.schema.missing')
+      .map((f) => f.path);
+    expect(missing).toEqual(
+      expect.arrayContaining([
+        'record/auth_results/dkim/domain',
+        'record/auth_results/dkim/selector',
+      ]),
+    );
   });
 });
 

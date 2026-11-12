@@ -64,6 +64,8 @@ export interface Reason {
 }
 
 export interface ReadRecord {
+  /** Position among the report's `record` elements, skipped ones included; findings use it too. */
+  readonly index: number;
   readonly line: number;
   /** Normalized by FMT-12, or the text as written when not a valid address. */
   readonly sourceIp: string;
@@ -174,16 +176,14 @@ class Reader {
     const versionText = this.text(top, '', 'version');
     if (
       versionText !== null &&
-      !(/^[+-]?\d+(\.\d+)?$/.test(versionText) && Number(versionText) === 1)
+      !(/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(versionText) && Number(versionText) === 1)
     ) {
       this.add('aggregate.format.version', 'info', `Version ${versionText} is not 1.0`, 'version');
     }
     const meta = this.one(top, '', 'report_metadata');
-    const m = meta ? this.children(meta, 'report_metadata') : new Map<string, XmlElement[]>();
+    const m = this.children(meta, 'report_metadata');
     const range = this.one(m, 'report_metadata', 'date_range');
-    const d = range
-      ? this.children(range, 'report_metadata/date_range')
-      : new Map<string, XmlElement[]>();
+    const d = this.children(range, 'report_metadata/date_range');
     const errors = this.all(m, 'report_metadata', 'error').map((e) =>
       this.cut(e.text, 'report_metadata/error'),
     );
@@ -192,7 +192,7 @@ class Reader {
     if (generator !== null) this.hint('rfc9990', 'generator', 'report_metadata/generator');
 
     const pub = this.one(top, '', 'policy_published');
-    const pp = pub ? this.children(pub, 'policy_published') : new Map<string, XmlElement[]>();
+    const pp = this.children(pub, 'policy_published');
     const policy = this.policy(pp);
 
     const extension = this.one(top, '', 'extension');
@@ -203,7 +203,7 @@ class Reader {
 
     const records = this.all(top, '', 'record').flatMap((el, i) => {
       this.record = i;
-      const rec = this.readRecord(el);
+      const rec = this.readRecord(el, i);
       this.record = undefined;
       return rec ? [rec] : [];
     });
@@ -273,15 +273,13 @@ class Reader {
     };
   }
 
-  private readRecord(el: XmlElement): ReadRecord | null {
+  private readRecord(el: XmlElement, index: number): ReadRecord | null {
     const base = 'record';
     const rec = this.children(el, base, true);
     const rowEl = this.one(rec, base, 'row');
-    const row = rowEl ? this.children(rowEl, `${base}/row`) : new Map<string, XmlElement[]>();
+    const row = this.children(rowEl, `${base}/row`, true);
     const peEl = this.one(row, `${base}/row`, 'policy_evaluated', true);
-    const pe = peEl
-      ? this.children(peEl, `${base}/row/policy_evaluated`)
-      : new Map<string, XmlElement[]>();
+    const pe = this.children(peEl, `${base}/row/policy_evaluated`, true);
 
     // FMT-18: the elements whose absence skips the record.
     const skip: string[] = [];
@@ -319,7 +317,7 @@ class Reader {
     const reasons: Reason[] = this.all(pe, `${base}/row/policy_evaluated`, 'reason').flatMap(
       (r) => {
         const at = `${base}/row/policy_evaluated/reason`;
-        const c = this.children(r, at);
+        const c = this.children(r, at, true);
         const type = this.enumerated(c, at, 'type');
         if (type === null) return [];
         if (type === 'forwarded' || type === 'sampled_out')
@@ -333,33 +331,27 @@ class Reader {
       this.hint('rfc9990', 'disposition pass', `${base}/row/policy_evaluated/disposition`);
 
     const idsEl = this.one(rec, base, 'identifiers');
-    const ids = idsEl
-      ? this.children(idsEl, `${base}/identifiers`)
-      : new Map<string, XmlElement[]>();
+    const ids = this.children(idsEl, `${base}/identifiers`, true);
     const arEl = this.one(rec, base, 'auth_results');
-    const ar = arEl ? this.children(arEl, `${base}/auth_results`) : new Map<string, XmlElement[]>();
+    const ar = this.children(arEl, `${base}/auth_results`, true);
 
     const dkimResults = this.all(ar, `${base}/auth_results`, 'dkim').flatMap((dk): DkimAuth[] => {
       const at = `${base}/auth_results/dkim`;
-      const c = this.children(dk, at);
+      const c = this.children(dk, at, true);
+      // Every child is read first, so FMT-8 reports each missing one, whatever else is missing.
       const domain = this.domain(c, at, 'domain');
       const result = this.enumerated(c, at, 'result');
+      const selector = this.text(c, at, 'selector');
+      const humanResult = this.text(c, at, 'human_result');
       if (domain === null || result === null) return [];
-      return [
-        {
-          domain,
-          selector: this.text(c, at, 'selector'),
-          result,
-          humanResult: this.text(c, at, 'human_result'),
-        },
-      ];
+      return [{ domain, selector, result, humanResult }];
     });
 
     const spfEls = this.all(ar, `${base}/auth_results`, 'spf');
     if (spfEls.length > 1) this.hint('rfc7489', 'more than one spf', `${base}/auth_results/spf`);
     const spfRead = spfEls.flatMap((sp) => {
       const at = `${base}/auth_results/spf`;
-      const c = this.children(sp, at);
+      const c = this.children(sp, at, true);
       const domain = this.domain(c, at, 'domain');
       const original = this.text(c, at, 'result');
       const scope = this.enumerated(c, at, 'scope');
@@ -386,13 +378,15 @@ class Reader {
             spfRead.findIndex((s) => s.scope === 'mfrom'),
           )
         : 0;
-    const spfResults: SpfAuth[] = spfRead.map((s, i) => ({ ...s, used: i === usedAt }));
+    const kept = this.column === 'rfc7489' ? spfRead : spfRead.slice(0, 1);
+    const spfResults: SpfAuth[] = kept.map((s, i) => ({ ...s, used: i === usedAt }));
 
     return {
+      index,
       line: el.line,
       sourceIp: ip ? ip.text : ipText,
       validIp: ip !== null,
-      count: countValue,
+      count: countValue === 0 ? 0 : countValue, // `-0` is 0
       disposition,
       dkim: this.enumerated(pe, `${base}/row/policy_evaluated`, 'dkim') as string,
       spf: this.enumerated(pe, `${base}/row/policy_evaluated`, 'spf') as string,
@@ -426,13 +420,19 @@ class Reader {
    * FMT-4..6: the report elements of `el` by local name. Extension elements are counted (FMT-5);
    * unknown report elements are reported and dropped (FMT-6).
    */
-  private children(el: XmlElement, path: string, recordLevel = false): Map<string, XmlElement[]> {
+  private children(
+    el: XmlElement | null,
+    path: string,
+    inRecord = false,
+  ): Map<string, XmlElement[]> {
     const out = new Map<string, XmlElement[]>();
+    if (el === null) return out;
     for (const child of el.children) {
       const childPath = path ? `${path}/${child.local}` : child.local;
       if (child.ns !== this.root.ns && child.ns !== null) {
-        this.countExtension(child.ns, recordLevel ? 'record' : 'extension');
-        if (recordLevel) this.hint('rfc9990', 'record-level extension', childPath);
+        // FMT-5: anywhere inside a record counts as record level.
+        this.countExtension(child.ns, inRecord ? 'record' : 'extension');
+        if (inRecord) this.hint('rfc9990', 'record-level extension', childPath);
         continue;
       }
       if (!BY_PATH.has(childPath)) {
@@ -508,7 +508,7 @@ class Reader {
   private cut(text: string, path: string): string {
     if (text.length <= MAX_TEXT) return text;
     this.truncated.push(this.record === undefined ? { path } : { path, record: this.record });
-    return text.slice(0, MAX_TEXT);
+    return safeSlice(text, MAX_TEXT);
   }
 
   /** FMT-14 */
@@ -525,7 +525,7 @@ class Reader {
   private enumerated(map: Map<string, XmlElement[]>, at: string, name: string): string | null {
     const el = this.one(map, at, name);
     if (!el) return null;
-    return this.checkEnum(`${at}/${name}`, el.text);
+    return this.checkEnum(pathOf(at, name), el.text);
   }
 
   private checkEnum(path: string, raw: string): string {
@@ -554,7 +554,7 @@ class Reader {
     if (!el) return null;
     const n = /^[+-]?\d+$/.test(el.text) ? Number(el.text) : Number.NaN;
     if (n >= min && n <= max) return n;
-    const path = `${at}/${name}`;
+    const path = pathOf(at, name);
     this.add(
       'aggregate.value.invalid',
       'warning',
@@ -593,5 +593,15 @@ class Reader {
 
 /** A value shortened for a finding message. */
 function brief(text: string): string {
-  return text.length > 80 ? `${text.slice(0, 80)}…` : text;
+  return text.length > 80 ? `${safeSlice(text, 80)}…` : text;
+}
+
+/** The first `n` UTF-16 units, without splitting a surrogate pair. */
+function safeSlice(text: string, n: number): string {
+  const code = text.charCodeAt(n - 1);
+  return text.slice(0, code >= 0xd800 && code <= 0xdbff ? n - 1 : n);
+}
+
+function pathOf(at: string, name: string): string {
+  return at ? `${at}/${name}` : name;
 }
