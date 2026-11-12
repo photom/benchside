@@ -156,3 +156,76 @@ tr[data-severity="error"] td:first-child {
   white-space: nowrap;
   width: 1px;
 }
+
+/* One row of filters above everything they change (ui.md, Layout). */
+.filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.filters fieldset {
+  border: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 0.125rem 0.5rem;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
+/* A path keeps its color everywhere; the name is always in text beside it (ui.md, Color). */
+tr[data-path] td:first-child {
+  border-left: 4px solid var(--line);
+}
+
+tr[data-path="direct"] td:first-child {
+  border-left-color: var(--path-direct);
+}
+
+tr[data-path="forwarded"] td:first-child {
+  border-left-color: var(--path-forwarded);
+}
+
+tr[data-path="other"] td:first-child {
+  border-left-color: var(--path-other);
+}
+
+/* Status colors always come with an icon and words. */
+.status-line[data-tone="good"] span {
+  color: var(--good);
+}
+
+.status-line[data-tone="warning"] span {
+  color: var(--warning);
+}
+
+.status-line[data-tone="critical"] span {
+  color: var(--critical);
+}
+
+tr.detail td {
+  color: var(--muted);
+  padding-left: 2rem;
+}
+
+caption {
+  font-weight: 600;
+  text-align: left;
+}
