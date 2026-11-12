@@ -142,3 +142,25 @@ Days with no reports show a gap in the columns and the line, never a zero (CMB-1
 - Bars and segments can take keyboard focus and announce the tooltip text.
 - Under `forced-colors`, paths use the 45° and 135° line textures and direct labels instead of fills.
 - Text from reports (reporter names, domains, comments, error texts) renders as text, never as HTML.
+
+## App structure
+
+```mermaid
+flowchart LR
+  drop["Input<br/>input/collect.ts"] -->|"files, paths"| host["worker/host.ts"]
+  host <-->|postMessage| worker["worker/worker.ts<br/>Job"]
+  host -->|snapshots| state["state.ts<br/>applySnapshot"]
+  state --> views["views/*"]
+  views -->|"filters, focus, stop, clear"| host
+```
+
+| Module | Does | Rules |
+|---|---|---|
+| `input/collect.ts` | Picked files in order; folder files by relative path in code point order; dropped files first, then each dropped folder walked with `webkitGetAsEntry` | INP-1, INP-11 |
+| `worker/worker.ts` | Wraps each `File` as a `JobFile` and drives one `Job`; an unexpected error becomes a `failed` message | PRG-1..9 |
+| `worker/host.ts` | Starts the worker from a blob URL (0004), sends requests with ids, passes snapshots on | |
+| `state.ts` | Pure: drops older generations, merges batch changes, keeps the shown `View` and its partial label | PRG-13..16 |
+| `views/*` | Status bar, headline numbers, reports, findings, files not read; filters, tables, and charts in later steps | |
+
+- The folder walk stays in the app. It moves to `@benchside/ui` when a second app needs folders.
+- The CSP starts with `connect-src 'none'`. Reverse lookup (RDNS-*) widens it to the DoH endpoints, as 0013 records.
