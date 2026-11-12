@@ -23,12 +23,49 @@ export function* gunzip(
   input: Uint8Array,
   o: { readonly limit: number; readonly chunkSize?: number },
 ): Generator<Uint8Array, GunzipResult, void> {
+  const d = new Decoder(input, chunkSize(o), false);
+  const r = yield* drive(d, o.limit);
+  return r.kind === 'ok' ? { kind: 'ok', members: d.members } : r;
+}
+
+/** How `inflateRawStream` ended. Chunks yielded before an error or `exceeded` stay valid. */
+export type InflateStreamResult =
+  | { readonly kind: 'ok' }
+  | { readonly kind: 'exceeded' }
+  | { readonly kind: 'error'; readonly reason: 'data' | 'truncated'; readonly offset: number };
+
+/**
+ * Decodes bare deflate data (RFC 1951), such as a ZIP entry (method 8), in chunks with the decoder
+ * of `gunzip`; the limit, the pause points, and the error handling are the same. Bytes after the
+ * final block are ignored. Never throws on bad input.
+ */
+export function* inflateRawStream(
+  input: Uint8Array,
+  o: { readonly limit: number; readonly chunkSize?: number },
+): Generator<Uint8Array, InflateStreamResult, void> {
+  const r = yield* drive(new Decoder(input, chunkSize(o), true), o.limit);
+  if (r.kind !== 'error') return r;
+  // Raw data has no header, trailer, or members, so only these two can happen.
+  return { kind: 'error', reason: r.reason === 'data' ? 'data' : 'truncated', offset: r.offset };
+}
+
+function chunkSize(o: { readonly limit: number; readonly chunkSize?: number }): number {
   const size = o.chunkSize ?? 65536;
-  const limit = Number.isNaN(o.limit) || o.limit < 0 ? 0 : o.limit;
+  const limit = clampLimit(o.limit);
   // No bigger than the limit allows: a small limit never needs a large buffer.
   const wanted = Number.isFinite(size) ? Math.floor(size) : 65536;
-  const chunkSize = Math.max(1024, Math.min(wanted, 1 << 24, limit + 1));
-  const d = new Decoder(input, chunkSize);
+  return Math.max(1024, Math.min(wanted, 1 << 24, limit + 1));
+}
+
+const clampLimit = (limit: number) => (Number.isNaN(limit) || limit < 0 ? 0 : limit);
+
+type DriveResult =
+  | { readonly kind: 'ok' }
+  | { readonly kind: 'exceeded' }
+  | { readonly kind: 'error'; readonly reason: Stop['reason']; readonly offset: number };
+
+function* drive(d: Decoder, rawLimit: number): Generator<Uint8Array, DriveResult, void> {
+  const limit = clampLimit(rawLimit);
   let total = 0;
   try {
     while (!d.done) {
@@ -38,7 +75,7 @@ export function* gunzip(
       if (total > limit) return { kind: 'exceeded' };
       if (chunk.length > 0 || !d.done) yield chunk;
     }
-    return { kind: 'ok', members: d.members };
+    return { kind: 'ok' };
   } catch (e) {
     if (!(e instanceof Stop)) throw e;
     // Output decoded before the problem is still the caller's (INP-4: completed reports stay).
@@ -161,16 +198,20 @@ class Decoder {
   constructor(
     private readonly input: Uint8Array,
     chunkSize: number,
+    /** Bare deflate data: no member header or trailer. */
+    private readonly raw: boolean,
   ) {
     this.out = new Uint8Array(WINDOW + chunkSize);
     this.dv = view(input);
+    if (raw) this.state = State.Block;
   }
 
   /** Pending output; afterwards only the last 32 KiB stay, as history for back references. */
   take(): Uint8Array {
     const chunk = this.out.slice(this.flushFrom, this.op);
     if (this.op > WINDOW) {
-      this.syncCrc();
+      // Raw data has no trailer to check a CRC against.
+      if (!this.raw) this.syncCrc();
       this.out.copyWithin(0, this.op - WINDOW, this.op);
       this.op = WINDOW;
       this.crcFrom = WINDOW;
@@ -282,7 +323,12 @@ class Decoder {
   /** RFC 1951 §3.2.3: a block header, or the trailer after the final block. */
   private block(): void {
     if (this.final) {
-      this.state = State.Trailer;
+      if (this.raw) {
+        this.state = State.Done;
+        this.done = true;
+      } else {
+        this.state = State.Trailer;
+      }
       return;
     }
     this.final = this.bits(1) === 1;
