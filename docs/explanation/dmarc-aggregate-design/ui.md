@@ -96,7 +96,7 @@ Days with no reports show a gap in the columns and the line, never a zero (CMB-1
 | Primary ink | `#0b0b0b` | `#f0efec` | Pass rate line, text |
 | Chart surface | `#fcfcfb` | `#1a1a19` | Chart background |
 
-- The three path colors passed the palette validator in both modes, all pairs (worst CVD ΔE 9.2 light, 9.4 dark).
+- The three path colors passed the palette validator in both modes, all pairs (worst CVD ΔE 9.2 light, 9.4 dark). In dark mode the worst tritan pair is ΔE 4.0 (aqua and orange), so the legend, the direct labels, and the 2 px gaps carry identity too.
 - Aqua is below 3:1 on the light surface. The rule that follows: every path also has a direct label or a legend entry in text, and every chart has a table view.
 - A path keeps its color in every chart. A cause bar takes the color of its path. Filtering never repaints a path.
 - Status colors always come with an icon and a word ("Pass", "Fail", "Fix direct sources first"). Color never carries a state alone.
@@ -138,7 +138,7 @@ Days with no reports show a gap in the columns and the line, never a zero (CMB-1
 
 ## Accessibility
 
-- Each chart is an `svg` with `role="img"` and a text summary such as "Messages per day, 7 days, mostly direct". The table view is the full alternative.
+- Each chart is an `svg` with `role="graphics-document"` (WAI-ARIA Graphics), labeled by a text summary such as "Messages per day, 7 days, mostly direct". Not `role="img"`: that would hide its focusable parts from assistive technology. Parts that only show a tooltip are `graphics-symbol`; parts that set the focus are buttons. The table view is the full alternative.
 - Bars and segments can take keyboard focus and announce the tooltip text.
 - Under `forced-colors`, paths use the 45° and 135° line textures and direct labels instead of fills.
 - Text from reports (reporter names, domains, comments, error texts) renders as text, never as HTML.
@@ -166,3 +166,25 @@ flowchart LR
 - Source rows keep their open state and "Show more details" count by IP, so snapshots never close them (REQ-DMARC-010).
 - The folder walk stays in the app. It moves to `@benchside/ui` when a second app needs folders.
 - The CSP starts with `connect-src 'none'`. Reverse lookup (RDNS-*) widens it to the DoH endpoints, as 0013 records.
+
+## Charts in code
+
+```mermaid
+flowchart LR
+  view[View] --> fig["ChartFigure<br/>title, summary, legend, Table toggle"]
+  fig --> svg["SVG, graphics-document<br/>viewBox 640 wide"]
+  fig --> table[HTML table]
+  svg --> parts["parts: g role button<br/>hover, focus, click"]
+  parts --> tip["tooltip inside the SVG"]
+  parts -->|click or Enter| focus["focus chip, SRC-5"]
+```
+
+| Choice | Why |
+|---|---|
+| Hand-written SVG in Preact, no chart library | Five simple forms; CLAUDE.md keeps runtime dependencies to a minimum |
+| A fixed `viewBox` 640 units wide, scaled by CSS | One coordinate system; the page lays out in one column under 48 rem (Layout) |
+| The tooltip is an SVG group placed with `x` and `y` attributes | The CSP forbids `style` attributes; positions need none |
+| Clickable parts are `g` elements with `role="button"`, `tabindex="0"`, and an accessible name | Keyboard and screen reader users reach every part (Accessibility) |
+| Columns: at most 24 units wide, a 2 unit surface gap between stacked segments, rounded 4 units at the top only | dataviz mark specs |
+| A day without reports draws nothing, and breaks the rate line | CMB-10: no value, not zero |
+| Under `forced-colors`, paths fill with 45° and 135° hatches defined once in the page | Identity without hue |
