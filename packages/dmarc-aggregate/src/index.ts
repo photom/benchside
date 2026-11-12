@@ -16,6 +16,13 @@ export {
   recordFacts,
 } from './classify.ts';
 export {
+  appliedPolicy,
+  type DomainEnforcement,
+  domainEnforcement,
+  type EnforcementStatus,
+  weakerThanPolicy,
+} from './enforcement.ts';
+export {
   compareFilename,
   type FilenamePart,
   type ParsedFilename,
@@ -45,6 +52,14 @@ export {
   newBudget,
   readInput,
 } from './input.ts';
+export {
+  type DetailRow,
+  type DispositionCount,
+  type Focus,
+  type ResultCount,
+  type SourceRow,
+  sourceRows,
+} from './sources.ts';
 export {
   type Day,
   type Filters,

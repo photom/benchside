@@ -1,32 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { Batch } from './batch.ts';
-import { Findings } from './findings.ts';
 import {
+  batchOf,
   D14,
   DAY,
   direct,
   failing,
   forwarded,
-  NOW,
+  on,
   parse,
-  type ReportOpts,
   rec,
   reportXml,
 } from './test/report-xml.ts';
 import { type Filters, view } from './view.ts';
 
 const ALL: Filters = { domain: null, reporters: null, days: null };
-const on = (n: number) => ({ begin: D14 + n * DAY, end: D14 + (n + 1) * DAY - 1 });
-
-/** A batch of the given reports, each with a distinct report_id unless set. */
-function batch(...reports: ReportOpts[]): Batch {
-  const b = new Batch(new Findings(), { now: () => NOW + 4000 * DAY });
-  reports.forEach((o, i) => {
-    const document = parse(reportXml({ id: `id${i}`, ...o }));
-    b.addDocument({ label: `r${i}`, filename: null, document }, 0);
-  });
-  return b;
-}
+const batch = batchOf;
 
 describe('View: filters (CMB-6)', () => {
   const b = batch(

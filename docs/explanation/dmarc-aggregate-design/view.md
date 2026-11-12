@@ -61,3 +61,26 @@ flowchart TD
 | Report-level filters first: a report outside the filters is skipped whole | CMB-6 filters reports, not records |
 | Timeline days are made from the first to the last day, then cut to the latest 1 000 | CMB-10. Days without reports carry `null`, not zero |
 | Reporter rows are keyed by the lowercased name and shown with the first spelling | CMB-5 |
+
+## Sources and enforcement
+
+```ts
+type Focus = { path: Path } | { cause: Cause };                  // SRC-5
+function view(batch: Batch, filters: Filters, focus?: Focus | null): View;
+// View.sources: SourceRow[] (SRC-1..5), View.domains: DomainEnforcement[] (ENF-1..7)
+```
+
+```mermaid
+flowchart LR
+  recs[(records of the<br/>filtered set)] --> f{"focus?<br/>SRC-5"} --> rows["group by source IP<br/>SRC-1, SRC-2"] --> sort[SRC-3] --> det["detail rows<br/>SRC-4"]
+  recs --> dom["group by policy domain"] --> enf["ENF-1..7"]
+```
+
+| Choice | Why |
+|---|---|
+| The focus filters source rows only | SRC-5 names rows and detail rows; enforcement answers for the whole domain |
+| Rows are sorted by `parseIp` bytes: IPv4, then IPv6, then invalid text | SRC-3 |
+| A detail row takes the classification of its first record | Path and cause are part of its key, so they agree |
+| SPF and DKIM result counts take every raw result of a record | REP-5 keeps them all; a legacy `helo` result is worth seeing |
+| ENF-6 compares with the policy of the record's own report under ENF-2; a policy not stated counts as `none` | The receiver applied that report's policy, not the one in effect today |
+| `aggregate.record.no-reason` is raised when a report is counted | It depends only on the record and its report, so it is fixed once read (PRG-14) |
