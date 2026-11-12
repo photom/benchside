@@ -62,7 +62,7 @@ stateDiagram-v2
 | Partial label | The headline numbers and every chart title carry "Partial: 120 of 400 files", counted by the snapshot the shown `View` came from, while that snapshot is partial. It goes away when a `View` from a non-partial snapshot is shown | PRG-5, PRG-15 |
 | Host name cells | `queued` shows "Waiting", `looking-up` shows "Looking up". Final states follow RDNS-5. Cells update in place; the row order does not change for host names | PRG-11, RDNS-8 |
 | Stable place | Snapshots keep expanded source rows (by IP), the "Show more" count, the scroll position, and keyboard focus | REQ-DMARC-010 |
-| Redraw | The UI merges the batch changes of every snapshot. It renders at most one `View` per animation frame, the newest that matches the filters and focus, and skips older `View`s | PRG-4, PRG-14, PRG-15 |
+| Redraw | The UI merges the batch changes of every snapshot. It renders at most one `View` per animation frame, the newest that matches the filters and focus, and skips older `View`s. A snapshot without a `View` keeps the one shown | PRG-4, PRG-14 to PRG-16 |
 
 The bars use `role="progressbar"` with `aria-valuenow` and `aria-valuemax`. A polite live region announces the start, each quarter, and the end, so screen reader users are not flooded every 250 ms. Under `prefers-reduced-motion`, the bars change without animation.
 
