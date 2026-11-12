@@ -1,0 +1,158 @@
+/* Colors per theme (ui.md, Color). SVG gets classes, never style attributes (CSP). */
+:root {
+  --ink: #0b0b0b;
+  --muted: #5c5c58;
+  --surface: #fcfcfb;
+  --line: #d8d8d4;
+  --path-direct: #2a78d6;
+  --path-forwarded: #eb6834;
+  --path-other: #1baf7a;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #f0efec;
+    --muted: #a8a8a3;
+    --surface: #1a1a19;
+    --line: #3a3a37;
+    --path-direct: #3987e5;
+    --path-forwarded: #d95926;
+    --path-other: #199e70;
+  }
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+}
+
+main {
+  max-width: 72rem;
+}
+
+.note,
+.partial {
+  color: var(--muted);
+}
+
+.drop {
+  border: 2px dashed var(--line);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 1rem;
+}
+
+.drop[data-active="true"] {
+  border-color: var(--path-direct);
+}
+
+.drop p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.button {
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  padding: 0.25rem 0.75rem;
+}
+
+.button input {
+  display: none;
+}
+
+/* Sticky while a job runs, so users far down the page see that results are partial. */
+.status {
+  align-items: center;
+  background: var(--surface);
+  display: flex;
+  gap: 0.75rem;
+  min-height: 2rem;
+  padding: 0.5rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.bar {
+  background: var(--line);
+  border-radius: 0.25rem;
+  height: 0.5rem;
+  overflow: hidden;
+  width: 12rem;
+}
+
+.bar .fill {
+  background: var(--path-direct);
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar .fill {
+    transition: width 0.2s;
+  }
+}
+
+.error {
+  color: var(--critical);
+}
+
+.tiles {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+}
+
+.tiles dt {
+  color: var(--muted);
+}
+
+.tiles dd {
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+td {
+  overflow-wrap: anywhere;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+tr[data-severity="error"] td:first-child {
+  color: var(--critical);
+}
+
+.visually-hidden {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

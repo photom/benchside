@@ -1,0 +1,14 @@
+{
+  "name": "@benchside/dmarc-aggregate-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@benchside/dmarc-aggregate": "*",
+    "@benchside/ui": "*",
+    "preact": "11.0.2"
+  }
+}

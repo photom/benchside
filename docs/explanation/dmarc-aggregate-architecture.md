@@ -10,7 +10,8 @@ flowchart TD
     App[App.tsx] --> views["views/*<br/>tables, charts"]
     App --> host[worker/host.ts]
     host <-- postMessage --> worker[worker/worker.ts]
-    App --> ui["@benchside/ui<br/>DropZone with folders, Paged"]
+    App --> input["input/collect.ts<br/>files and folders"]
+    App --> ui["@benchside/ui<br/>Paged"]
   end
   subgraph pkg ["@benchside/dmarc-aggregate, no DOM"]
     job["job.ts<br/>queue, steps, snapshots"] --> batch[batch.ts]
@@ -88,7 +89,7 @@ flowchart LR
 
 | Direction | Message |
 |---|---|
-| UI → worker | `{ type: 'add', id, files: { file: File, path: string }[] }` |
+| UI → worker | `{ type: 'add', id, files: { file: File, path: string, fromFolder: boolean }[] }` |
 | UI → worker | `{ type: 'stop', id }`: stops reading (PRG-9) |
 | UI → worker | `{ type: 'clear', id }` |
 | UI → worker | `{ type: 'view', id, filters, focus }`: `focus` is a path or cause filter (SRC-5), or null |

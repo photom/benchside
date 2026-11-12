@@ -9,6 +9,12 @@ const apps = [
   { name: 'mail', dir: 'site/mail', base: '/benchside/mail/', connect: DOH_ORIGINS },
   { name: 'zip', dir: 'site/zip', base: '/benchside/zip/', connect: [] as string[] },
   { name: 'pdf', dir: 'site/pdf', base: '/benchside/pdf/', connect: [] as string[] },
+  {
+    name: 'dmarc-aggregate',
+    dir: 'site/dmarc-aggregate',
+    base: '/benchside/dmarc-aggregate/',
+    connect: [] as string[],
+  },
 ];
 
 const decode = (s: string) =>
@@ -40,7 +46,7 @@ describe.each(apps)('$name app build', ({ dir, base, connect }) => {
   });
 });
 
-describe.each(['mail', 'zip', 'pdf'])('%s app worker', (app) => {
+describe.each(['mail', 'zip', 'pdf', 'dmarc-aggregate'])('%s app worker', (app) => {
   const assets = () => readdirSync(`site/${app}/assets`);
 
   it('0004: the worker is inlined, not emitted as its own script', () => {
