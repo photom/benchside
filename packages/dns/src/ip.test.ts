@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseIp, reverseName } from './ip.ts';
+import { nibbles, parseIp, reverseName } from './ip.ts';
 
 describe('IP addresses', () => {
   it('given a dotted quad, when parsed, then it is an IPv4 address', () => {
@@ -22,6 +22,12 @@ describe('IP addresses', () => {
     expect(parseIp('[IPv6:2001:db8::1]')).toMatchObject(expected);
     expect(parseIp('[2001:db8::1]')).toMatchObject(expected);
     expect(parseIp('2001:db8::1')).toMatchObject(expected);
+  });
+
+  it('ENV-6: given the IPv6: tag outside brackets or before an IPv4 address, when parsed, then it is not an IP', () => {
+    expect(parseIp('[IPv6:192.0.2.1]')).toBeNull();
+    expect(parseIp('IPv6:192.0.2.1')).toBeNull();
+    expect(parseIp('IPv6:2001:db8::1')).toBeNull();
   });
 
   it('given [IPv4] with brackets, when parsed, then it is an IPv4 address', () => {
@@ -83,5 +89,14 @@ describe('reverse names', () => {
 
   it('RDNS-3: given an IPv4-mapped IPv6 address, when its reverse name is built, then it is the IPv4 reverse name', () => {
     expect(reverseName(ip('::ffff:198.51.100.7'))).toBe('7.100.51.198.in-addr.arpa');
+  });
+});
+
+describe('nibbles', () => {
+  it('RFC 3596 §2.5: given IPv6 bytes, when expanded, then they are 32 hex nibbles in address order', () => {
+    const ip = parseIp('2001:db8::1');
+    expect(ip && nibbles(ip.bytes)).toBe(
+      '2.0.0.1.0.d.b.8.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1',
+    );
   });
 });

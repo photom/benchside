@@ -65,7 +65,13 @@
                 "deniedGlobals": {
                   "window": "Packages must not touch the DOM",
                   "document": "Packages must not touch the DOM",
-                  "fetch": "Only doh.ts calls fetch (0014)"
+                  "fetch": "Only doh.ts makes requests (0014)",
+                  "XMLHttpRequest": "Only doh.ts makes requests (0014)",
+                  "WebSocket": "Only doh.ts makes requests (0014)",
+                  "EventSource": "Only doh.ts makes requests (0014)",
+                  "navigator": "Only doh.ts makes requests (0014)",
+                  "globalThis": "Only doh.ts makes requests (0014)",
+                  "self": "Only doh.ts makes requests (0014)"
                 }
               }
             }
@@ -74,7 +80,12 @@
       }
     },
     {
-      "includes": ["packages/*/src/**", "!packages/dns/**"],
+      "includes": [
+        "packages/*/src/**",
+        "!packages/dns/**",
+        "apps/*/src/**",
+        "!apps/*/src/worker/**"
+      ],
       "linter": {
         "rules": {
           "style": {
