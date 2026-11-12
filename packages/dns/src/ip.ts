@@ -37,12 +37,16 @@ export function parseIp(text: string): Ip | null {
  */
 export function reverseName(ip: Ip): string {
   if (ip.version === 4) return `${[...ip.bytes].reverse().join('.')}.in-addr.arpa`;
-  return `${nibbles(ip.bytes).split('.').reverse().join('.')}.ip6.arpa`;
+  return `${nibbleList(ip.bytes).reverse().join('.')}.ip6.arpa`;
 }
 
 /** Each byte as two lower-case hex nibbles, dot-separated, in address order (RFC 3596 §2.5, RFC 7208 §7.3). */
 export function nibbles(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => `${(b >> 4).toString(16)}.${(b & 15).toString(16)}`).join('.');
+  return nibbleList(bytes).join('.');
+}
+
+function nibbleList(bytes: Uint8Array): string[] {
+  return Array.from(bytes).flatMap((b) => [(b >> 4).toString(16), (b & 15).toString(16)]);
 }
 
 function ipv4(bytes: Uint8Array): Ip {
