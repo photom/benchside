@@ -17,3 +17,6 @@ export function formatBadge(r: Pick<ReportSummary, 'format' | 'namespace'>): str
   if (r.format === 'rfc7489') return r.namespace === null ? 'RFC 7489, no namespace' : 'RFC 7489';
   return 'Unknown namespace';
 }
+
+/** A policy value as published, or "not stated" (CMB-8, ENF-1). */
+export const stated = (v: string | number | null) => (v === null ? 'not stated' : String(v));
