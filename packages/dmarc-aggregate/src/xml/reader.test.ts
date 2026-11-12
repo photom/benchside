@@ -268,6 +268,44 @@ describe('XML reader: review cases', () => {
   });
 });
 
+describe('XML reader: post-merge review cases', () => {
+  it('XML-10: given two identical UTF-16 documents with BOMs and declarations, when read, then both are read', () => {
+    const doc = bytes([0xff, 0xfe], utf16le('<?xml version="1.0"?><a/>'));
+    expect(read(bytes(doc, doc)).documents.length).toBe(2);
+  });
+
+  it('XML-10: given a declared UTF-16 without a BOM, twice, when read, then both are read as UTF-8', () => {
+    const doc = '<?xml version="1.0" encoding="UTF-16"?><a/>';
+    expect(read(bytes(doc, doc)).documents.length).toBe(2);
+  });
+
+  it('XML-8: given a value that starts with U+FEFF, when read, then the character stays', () => {
+    expect(root(bytes('<a>', [0xef, 0xbb, 0xbf], 'x</a>')).text.length).toBe(2);
+  });
+
+  it('XML-10: given two BOMs, or a BOM after the declaration, before a later document, when read, then malformed', () => {
+    const bom = [0xef, 0xbb, 0xbf];
+    expect(read(bytes('<a/>', bom, bom, '<b/>')).stop).toMatchObject({
+      id: 'aggregate.xml.malformed',
+    });
+    expect(read(bytes('<a/><?xml version="1.0"?>', bom, '<b/>')).stop).toMatchObject({
+      id: 'aggregate.xml.malformed',
+    });
+  });
+
+  it('INP-6: given a document whose closing tag crosses the size limit, when read, then too-large', () => {
+    const reader = new XmlReader({ maxDocument: 20 });
+    const out = reader.push(bytes('<feedback>12</feedback>'));
+    expect(out.documents).toEqual([]);
+    expect(out.stop).toMatchObject({ id: 'aggregate.input.too-large' });
+  });
+
+  it('XML-1, XML-6: given an XML declaration longer than 1024 bytes, when read, then malformed', () => {
+    const decl = `<?xml version="1.0"${' '.repeat(1100)}encoding="windows-1252"?><a/>`;
+    expect(read(bytes(decl)).stop).toMatchObject({ id: 'aggregate.xml.malformed' });
+  });
+});
+
 describe('XML reader: chunks and broken input', () => {
   const samples = [
     bytes(

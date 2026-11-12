@@ -172,6 +172,7 @@ export class XmlReader {
         break;
       }
       let next: number;
+      const kept = documents.length;
       try {
         next = this.token(b, p, final, documents);
       } catch (e) {
@@ -185,8 +186,12 @@ export class XmlReader {
       const docs = this.docs;
       this.advance(b, p, next);
       // Bytes count toward the document they belong to; a finished document starts the count again.
+      if (this.docBytes > this.maxDocument) {
+        // A document that ended in the token that crossed the limit is too large too.
+        documents.length = kept;
+        throw this.tooLarge();
+      }
       if (this.docs !== docs) this.docBytes = 0;
-      else if (this.docBytes > this.maxDocument) throw this.tooLarge();
       p = next;
     }
     this.lo += p;
@@ -244,6 +249,9 @@ export class XmlReader {
   /** XML-10: a BOM before a later document must name the first document's encoding. */
   private laterBom(b: Uint8Array, p: number): number {
     const enc = this.encoding as Encoding;
+    if (this.sawBom || this.sawDeclaration) {
+      throw this.stop('aggregate.xml.malformed', 'A BOM may only open a document, once');
+    }
     if (this.utf16) {
       // Transcoded: U+FEFF (EF BB BF) is the same byte order; U+FFFE (EF BF BE) is the other one.
       if (b[p] === 0xef && b[p + 1] === 0xbb && b[p + 2] === 0xbf) {
@@ -268,6 +276,9 @@ export class XmlReader {
   private instruction(b: Uint8Array, p: number, final: boolean): number {
     const decl = declaration(b, p, final);
     if (decl === 'more') throw MORE;
+    if (decl === 'long') {
+      throw this.stop('aggregate.xml.malformed', 'An XML declaration runs past 1024 bytes');
+    }
     if (decl !== null) {
       if (this.stack.length > 0)
         throw this.stop('aggregate.xml.malformed', 'XML declaration inside an element');
@@ -282,17 +293,20 @@ export class XmlReader {
       }
       if (this.docs > 0) {
         this.sawDeclaration = true;
-        this.checkLater(decl.encoding);
+        // With a BOM, the BOM named the encoding and the declaration is not checked (XML-10).
+        if (!this.sawBom) this.checkLater(decl.encoding);
       }
       return decl.end;
     }
-    return find(b, p + 2, '?>') + 2;
+    return find(b, p + Math.max(2, p === 0 ? this.hint : 0), '?>') + 2;
   }
 
   /** XML-10: a later document's declared encoding, or UTF-8 when none, must be the first one's. */
   private checkLater(label: string | null): void {
     const enc = this.encoding as Encoding;
-    const name = label === null ? 'utf-8' : resolve(label);
+    let name = label === null ? 'utf-8' : resolve(label);
+    // As in XML-1: a declaration read as ASCII that names UTF-16 means UTF-8.
+    if (name !== null && !this.utf16 && name.startsWith('utf-16')) name = 'utf-8';
     if (name === null)
       throw this.stop(
         'aggregate.xml.encoding',
@@ -340,7 +354,7 @@ export class XmlReader {
       if (quote !== 0x22 && quote !== 0x27) {
         throw this.stop('aggregate.xml.malformed', `Attribute ${attr} is not quoted`);
       }
-      const close = b.indexOf(quote, q + 1);
+      const close = b.indexOf(quote, Math.max(q + 1, p === 0 ? this.hint : 0));
       if (close < 0) throw MORE;
       const raw = b.subarray(q + 1, close);
       if (raw.includes(0x3c))

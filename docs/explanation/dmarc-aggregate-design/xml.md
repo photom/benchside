@@ -43,7 +43,7 @@ Double-byte legacy encodings (Shift_JIS, GBK) have trail bytes from `0x40`, so `
 ## Chunks and steps
 
 - `push` keeps only the bytes of the token being read, in a buffer that grows geometrically. A token cut by a chunk end waits for the next chunk, and the search resumes where it stopped, so a long token costs linear time.
-- Bytes are counted per document. Past 32 MiB (INP-6), the reader stops with `aggregate.input.too-large`.
+- Bytes are counted per document. Past 32 MiB (INP-6), the reader stops with `aggregate.input.too-large`, and a document that ended in the token that crossed the limit is dropped too. For UTF-16 input the count is of the transcoded UTF-8 bytes.
 - Each call does work in proportion to its bytes, so the caller's chunk size bounds the step (PRG-8); `gunzip` already yields bounded chunks (0017).
 - `end` turns an unfinished document into `aggregate.xml.malformed` (XML-6: an element left open at the end).
 
