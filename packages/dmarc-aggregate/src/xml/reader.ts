@@ -1,4 +1,6 @@
-/** The XML reader: tokens, names, tree, several documents (XML-1 to XML-10). */
+/** The XML reader: tokens, names, tree, several documents, digests (XML-1 to XML-11). */
+
+import { Sha256 } from '../sha256.ts';
 import {
   bomAt,
   declaration,
@@ -8,7 +10,6 @@ import {
   Utf16ToUtf8,
   ValueDecoder,
 } from './decode.ts';
-
 export interface XmlFinding {
   readonly id:
     | 'aggregate.xml.encoding'
@@ -37,6 +38,8 @@ export interface XmlDocument {
   readonly root: XmlElement;
   /** Warnings about this document (XML-2). */
   readonly findings: readonly XmlFinding[];
+  /** SHA-256 of the bytes read for this document, as lowercase hex (XML-11). */
+  readonly digest: string;
 }
 
 export interface XmlOutput {
@@ -80,6 +83,10 @@ export class XmlReader {
   /** Scan bytes consumed so far, and since the current document began (INP-6). */
   private streamPos = 0;
   private docBytes = 0;
+  /** Digest of the current document's bytes so far (XML-11). */
+  private hash = new Sha256();
+  /** The current document's declaration or root start tag was read; its digest runs from there. */
+  private begun = false;
   private readonly maxDocument: number;
   private encoding: Encoding | null = null;
   private utf16: Utf16ToUtf8 | null = null;
@@ -166,6 +173,8 @@ export class XmlReader {
   private scan(final: boolean, documents: XmlDocument[]): void {
     const b = this.data.subarray(this.lo, this.hi);
     let p = 0;
+    /** Start of the bytes of `b` not yet hashed. */
+    let hashed = 0;
     for (;;) {
       if (p >= b.length) {
         this.hint = 0;
@@ -173,6 +182,8 @@ export class XmlReader {
       }
       let next: number;
       const kept = documents.length;
+      const docs = this.docs;
+      const begun = this.begun;
       try {
         next = this.token(b, p, final, documents);
       } catch (e) {
@@ -183,7 +194,6 @@ export class XmlReader {
         break;
       }
       this.hint = 0;
-      const docs = this.docs;
       this.advance(b, p, next);
       // Bytes count toward the document they belong to; a finished document starts the count again.
       if (this.docBytes > this.maxDocument) {
@@ -191,9 +201,26 @@ export class XmlReader {
         documents.length = kept;
         throw this.tooLarge();
       }
-      if (this.docs !== docs) this.docBytes = 0;
+      if (!begun) {
+        // White space, comments, PIs, and a BOM before the document are not part of its digest.
+        if (this.begun || this.stack.length > 0 || this.docs !== docs) {
+          this.begun = true;
+          hashed = p;
+        } else {
+          hashed = next;
+        }
+      }
+      if (this.docs !== docs) {
+        this.begun = false;
+        this.docBytes = 0;
+        this.hash.update(b.subarray(hashed, next));
+        (documents[documents.length - 1] as { digest: string }).digest = this.hash.digest();
+        this.hash = new Sha256();
+        hashed = next;
+      }
       p = next;
     }
+    this.hash.update(b.subarray(hashed, p));
     this.lo += p;
     if (this.docBytes + (b.length - p) > this.maxDocument) throw this.tooLarge();
     if (final && this.stack.length > 0) {
@@ -282,6 +309,7 @@ export class XmlReader {
     if (decl !== null) {
       if (this.stack.length > 0)
         throw this.stop('aggregate.xml.malformed', 'XML declaration inside an element');
+      this.begun = true;
       // XML 1.0: the declaration opens a document. The first one must be at the very start;
       // a later one may follow white space, comments, and PIs, once (XML-10).
       const misplaced = this.docs === 0 ? this.streamPos !== 0 : this.sawDeclaration;
@@ -448,7 +476,7 @@ export class XmlReader {
         message: 'Bytes invalid in the encoding were replaced with U+FFFD',
       });
     }
-    documents.push({ root: element, findings });
+    documents.push({ root: element, findings, digest: '' });
     this.docs++;
     this.replaced = false;
     this.sawBom = false;

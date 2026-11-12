@@ -1,9 +1,11 @@
+export { Batch, type DocumentInput, type ReportSummary } from './batch.ts';
 export {
   compareFilename,
   type FilenamePart,
   type ParsedFilename,
   parseFilename,
 } from './filename.ts';
+export { type Finding, type FindingId, Findings } from './findings.ts';
 export {
   type ContentHint,
   type DkimAuth,
