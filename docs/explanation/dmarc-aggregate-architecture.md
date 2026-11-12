@@ -1,6 +1,6 @@
 # DMARC aggregate report analyzer architecture
 
-Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md). XML reader: [design](dmarc-aggregate-design/xml.md). Input: [design](dmarc-aggregate-design/input.md). Batch: [design](dmarc-aggregate-design/batch.md). Classification: [design](dmarc-aggregate-design/classify.md). View: [design](dmarc-aggregate-design/view.md). Job: [design](dmarc-aggregate-design/job.md).
+Spec: [DMARC aggregate report analyzer specification](../reference/dmarc-aggregate/README.md). Requirements: REQ-DMARC-001 to 011 ([list](requirements/README.md#dmarc-aggregate-report-analyzer)). Decisions: [0013](decisions/0013-dmarc-aggregate-app.md), [0014](decisions/0014-shared-dns-package.md), [0015](decisions/0015-dmarc-aggregate-xml-reader.md), [0016](decisions/0016-dmarc-aggregate-classify.md), [0017](decisions/0017-gzip-members-in-house-inflate.md). UI: [DMARC aggregate report UI design](dmarc-aggregate-design/ui.md). XML reader: [design](dmarc-aggregate-design/xml.md). Input: [design](dmarc-aggregate-design/input.md). Batch: [design](dmarc-aggregate-design/batch.md). Classification: [design](dmarc-aggregate-design/classify.md). View: [design](dmarc-aggregate-design/view.md). Job: [design](dmarc-aggregate-design/job.md). Reverse lookup: [design](dmarc-aggregate-design/reverse.md).
 
 ## Modules
 
@@ -58,7 +58,7 @@ flowchart TD
 | `view.ts` | Filters, totals, timeline, reporters, formats, reporter errors | CMB-6, CMB-9..13 |
 | `enforcement.ts` | Policy in effect, failing messages, direct sources, SPF-only passes, overrides, status | ENF-* |
 | `sources.ts` | Source rows, detail rows, path and cause filters | SRC-1..5 |
-| `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`, the budget finding; takes a `Resolver` | RDNS-2..5, RDNS-9, PRG-2, PRG-11..13 |
+| `reverse.ts` | Sessions, targets, PTR, forward confirmation, states, batched `names`, the budget finding; takes a `Transport` per provider and composes its own resolver | RDNS-2..6, RDNS-9, PRG-2, PRG-11..13 |
 | `findings.ts` | Finding collector with the 10 000 limit | REP-7, REP-8 |
 
 In the app, `state.ts` applies snapshots on the main thread: it drops older generations, merges batch changes, picks the `View` that matches the filters and focus, keeps the shown `View` when a snapshot has none, sets the partial label from the snapshot of the shown `View`, and keeps host names from `names` messages (PRG-13, PRG-15, PRG-16).
@@ -147,7 +147,7 @@ flowchart LR
 | `batch.ts`, `view.ts` | Duplicates, conflicts, overlaps, days, filters, totals | Synthetic reports from two reporters and two domains |
 | `input.ts`, `tar.ts` | gzip with several members, ZIP, tar, tar.gz, nesting, bombs, unknown types | Fixtures built in tests with `CompressionStream`, the ZIP test writer, and a small tar writer |
 | `job.ts` | Snapshot timing, partial flag, stop, add while reading | A fake clock |
-| `reverse.ts` | Order, confirmation, states, budget | A fake `Resolver` |
+| `reverse.ts` | Order, confirmation, states, budget | A fake `Transport` |
 | App | Views render a `View`; filters send `view`; the indicator follows `progress`; expanded rows survive snapshots | happy-dom |
 | Browser | CSP blocks other hosts; no request while lookups are off | Chromium in CI |
 
