@@ -16,14 +16,14 @@ flowchart LR
   app --> dns["@benchside/dns<br/>0014"]
   app --> ui["@benchside/ui"]
   pkg --> zip["@benchside/zip<br/>ZIP entries"]
-  pkg --> core["@benchside/core<br/>inflateStream added"]
+  pkg --> core["@benchside/core<br/>gunzip added (0017)"]
   pkg --> dns
   zip --> core
 ```
 
 - A new app, `apps/dmarc-aggregate`, deployed to `/benchside/dmarc-aggregate/`, and a new package, `@benchside/dmarc-aggregate`.
 - The package reads ZIP files through `@benchside/zip` (`analyzeZip` and its entry data).
-- `@benchside/core` gains `inflateStream`: a `DecompressionStream` (`'gzip'`, `'deflate'`, or `'deflate-raw'`) over a byte stream, yielding chunks. Callers count bytes against their own limits: 32 MiB per XML document, 1 GiB per batch. No archive is held whole in memory. The existing whole-buffer `inflate` stays for ZIP entries and PDF streams. Core stays free of report knowledge.
+- `@benchside/core` gains `gunzip`: gzip members decoded in chunks by an in-house inflate ([0017](0017-gzip-members-in-house-inflate.md)). Callers count bytes against their own limits: 32 MiB per XML document, 1 GiB per batch. No archive is held whole in memory. The existing whole-buffer `inflate` stays for ZIP entries and PDF streams. Core stays free of report knowledge.
 - The worker holds the batch. The UI sends files, filters, and lookup settings. The worker answers with snapshots: the batch changes since the last snapshot, a `View` for the current filters, and progress ([Report](../../reference/dmarc-aggregate/report.md), [Progress](../../reference/dmarc-aggregate/progress.md)). Records never cross to the main thread in bulk.
 - The worker reads in short steps and sends a snapshot every 250 ms, so results show while a large batch is read (REQ-DMARC-010). Reverse lookups report in batches the same way.
 - Folders are walked on the main thread. `DropZone` in `@benchside/ui` gains folder drops and a folder picker; the other apps keep their single-file use.
@@ -37,4 +37,4 @@ flowchart LR
 - Each filter change costs one pass over the records in the worker. The implementation must measure this at the 1 000 000-record limit. The UI keeps the previous view until the new one arrives.
 - Charts written in-house must keep to the CSP rules: no string `style` attributes; colors come from CSS classes.
 - A snapshot recomputes the `View` from all counted reports. If that grows too slow on large batches, the view can be updated incrementally later; the protocol does not change.
-- RFC 1952 allows several members in one gzip file (INP-4). Step 2 of the build order must check that `DecompressionStream('gzip')` reads past the first member in Chromium and Node. If one stops after the first member, or fails on the bytes after it, step 2 chooses a fallback and records it here. Splitting members needs the end of each deflate stream, which `DecompressionStream` does not report, so the fallback is not obvious.
+- RFC 1952 allows several members in one gzip file (INP-4). Step 2 checked `DecompressionStream('gzip')`: it fails on the bytes after the first member and does not report where the member ended. gzip input is therefore decoded by an in-house inflate ([0017](0017-gzip-members-in-house-inflate.md)).
