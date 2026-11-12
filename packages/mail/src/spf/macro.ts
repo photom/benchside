@@ -1,5 +1,5 @@
 /** SPF macros (RFC 7208 §7; SPF-12, SPF-26, SPF-27). */
-import type { Ip } from '@benchside/dns';
+import { type Ip, nibbles } from '@benchside/dns';
 
 export interface Macro {
   readonly letter: string;
@@ -128,11 +128,6 @@ async function letterValue(letter: string, env: MacroEnv): Promise<string> {
     default:
       return String(env.time);
   }
-}
-
-/** RFC 7208 §7.3: an IPv6 `i` is 32 dot-separated hex nibbles. */
-function nibbles(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => `${(b >> 4).toString(16)}.${(b & 15).toString(16)}`).join('.');
 }
 
 /** RFC 3986 §2.3: everything but unreserved characters is percent-encoded. */

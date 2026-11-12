@@ -1,3 +1,4 @@
+import { DOH_ENDPOINTS } from '@benchside/dns/doh';
 import { describe, expect, it } from 'vitest';
 import { cspPolicy, DOH_ORIGINS, defineApp } from './vite.shared.ts';
 
@@ -10,6 +11,11 @@ describe('cspPolicy', () => {
     expect(cspPolicy(DOH_ORIGINS)).toContain(
       'connect-src https://cloudflare-dns.com https://dns.google;',
     );
+  });
+
+  it('DNS-5: given the DoH transport endpoints, when compared, then their origins are exactly DOH_ORIGINS', () => {
+    const origins = Object.values(DOH_ENDPOINTS).map((url) => new URL(url).origin);
+    expect([...new Set(origins)].sort()).toEqual([...DOH_ORIGINS].sort());
   });
 
   it('0004: given any app, when built, then workers may start only from blob: URLs', () => {

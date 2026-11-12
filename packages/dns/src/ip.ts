@@ -13,11 +13,16 @@ export interface Ip {
  */
 export function parseIp(text: string): Ip | null {
   let s = text;
-  if (s.startsWith('[') && s.endsWith(']')) s = s.slice(1, -1);
-  if (/^ipv6:/i.test(s)) s = s.slice(5);
+  let tagged = false;
+  if (s.startsWith('[') && s.endsWith(']')) {
+    s = s.slice(1, -1);
+    // RFC 5321 §4.1.3: the tag exists only inside a literal and must be followed by IPv6 syntax.
+    tagged = /^ipv6:/i.test(s);
+    if (tagged) s = s.slice(5);
+  }
 
   const v4 = parseV4(s);
-  if (v4) return ipv4(v4);
+  if (v4) return tagged ? null : ipv4(v4);
   const v6 = parseV6(s);
   if (!v6) return null;
   // RFC 4291 §2.5.5.2: ::ffff:0:0/96
@@ -32,9 +37,12 @@ export function parseIp(text: string): Ip | null {
  */
 export function reverseName(ip: Ip): string {
   if (ip.version === 4) return `${[...ip.bytes].reverse().join('.')}.in-addr.arpa`;
-  const nibbles: string[] = [];
-  for (const b of ip.bytes) nibbles.push((b >> 4).toString(16), (b & 15).toString(16));
-  return `${nibbles.reverse().join('.')}.ip6.arpa`;
+  return `${nibbles(ip.bytes).split('.').reverse().join('.')}.ip6.arpa`;
+}
+
+/** Each byte as two lower-case hex nibbles, dot-separated, in address order (RFC 3596 §2.5, RFC 7208 §7.3). */
+export function nibbles(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => `${(b >> 4).toString(16)}.${(b & 15).toString(16)}`).join('.');
 }
 
 function ipv4(bytes: Uint8Array): Ip {

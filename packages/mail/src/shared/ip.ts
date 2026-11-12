@@ -1,7 +1,5 @@
 import type { Ip } from '@benchside/dns';
 
-export type { Ip };
-
 /**
  * False for addresses that cannot be a real client on the Internet (ENV-8).
  * Documentation ranges stay public, so synthetic test data behaves like real traffic.
