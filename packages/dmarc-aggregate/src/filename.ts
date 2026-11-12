@@ -46,6 +46,7 @@ export function parseFilename(path: string): ParsedFilename | null {
   };
 }
 
+/** A domain for comparison: case-insensitive, trailing dot ignored (INP-9). */
 const domainKey = (d: string) => d.toLowerCase().replace(/\.$/, '');
 
 /** INP-9: the parts of the name that differ from the content; a part the content lacks is not compared. */
