@@ -24,6 +24,12 @@ Each rule has an ID (for example `SITE-3`). Test scenarios cite these IDs.
 |---|---|
 | SITE-3 | Home lists every tool as a card: the tool's name as a link to the tool, then one sentence on what it does. |
 
+## Text size
+
+| ID | Rule |
+|---|---|
+| SITE-11 | At page widths of 320 px and up, no text is drawn smaller than 12 px, chart labels included. A chart lays itself out for the width it gets, up to 640 px. A label too long for that width wraps onto more lines, and no label reaches past the chart's edge. |
+
 ## Color and contrast
 
 | ID | Rule |
