@@ -226,7 +226,12 @@ describe('DMARC: incomplete inputs', () => {
       dkim: [dkimSig('esp.example.net', 'pass'), dkimSig('other.example.org', 'fail')],
     });
     expect(r.result).toBe('fail');
-    expect(asked.filter((n) => n.includes('example.net') || n.includes('example.org'))).toEqual([]);
+    // A name at or under the domain, compared as DNS does (case-insensitive), not as a substring.
+    const under = (name: string, domain: string) => {
+      const n = name.toLowerCase().replace(/\.$/, '');
+      return n === domain || n.endsWith(`.${domain}`);
+    };
+    expect(asked.filter((n) => under(n, 'example.net') || under(n, 'example.org'))).toEqual([]);
   });
 
   it('REP-8: given a lookup that never answers, when the deadline passes, then the queries made so far are kept', async () => {
