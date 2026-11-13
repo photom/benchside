@@ -34,8 +34,9 @@ describe.each(apps)('$name app build', ({ dir, base, connect }) => {
   });
 
   it('0002: has no inline scripts', () => {
-    const scripts = html().match(/<script\b[^>]*>/g) ?? [];
-    for (const tag of scripts) expect(tag).toMatch(/\bsrc=/);
+    // Tag names are case-insensitive in HTML: <SCRIPT> is a script too.
+    const scripts = html().match(/<script\b[^>]*>/gi) ?? [];
+    for (const tag of scripts) expect(tag).toMatch(/\bsrc\s*=/i);
   });
 
   it('0002: loads assets from its own base path', () => {
