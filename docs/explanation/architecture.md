@@ -117,7 +117,17 @@ flowchart LR
   end
   collect -- "main only" --> pages[(GitHub Pages)]
   cron[Weekly schedule] --> psl[Update Public<br/>Suffix List] --> pr2[Pull request]
+  bot[Dependabot, weekly<br/>npm, GitHub Actions] --> pr3[Pull requests]
 ```
+
+Dependabot (`.github/dependabot.yml`) proposes updates; CI checks each pull request like any other.
+
+| Setting | Why |
+|---|---|
+| One npm entry at `/` | The root `package-lock.json` covers every workspace |
+| Wait 7 days after a release | A compromised or broken version is usually pulled within days. Security updates skip the wait |
+| Minor and patch in one pull request; each major alone | Fewer pull requests; a major update may need code changes |
+| Actions stay pinned by SHA | Dependabot rewrites the SHA and its version comment |
 
 ## URLs
 
