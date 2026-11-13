@@ -14,8 +14,9 @@ const DOCUMENT: Record<string, string> = { role: 'graphics-document' };
 
 /** Widest drawing; a figure lays out at its own width up to this, so one unit is one pixel (SITE-11). */
 const MAX_W = 640;
-/** Below this the figure is not laid out yet; keep the last width. */
-const MIN_W = 80;
+/** Narrowest layout. A 320 px page (SITE-11) leaves 288 px; below 240 the drawing scales down,
+    because a bar plus its value text needs about that much. */
+const MIN_W = 240;
 /** A figure must grow this much before the chart lays out again, so a page scrollbar that comes
     and goes with the chart's height cannot make the layout flip back and forth. */
 const GROW = 24;
@@ -31,8 +32,9 @@ function useChartWidth() {
     if (!el || typeof ResizeObserver === 'undefined') return;
     // ResizeObserver reports once on observe, so no first call is needed.
     const observer = new ResizeObserver(() => {
-      const w = Math.min(MAX_W, Math.floor(el.clientWidth));
-      if (w < MIN_W) return;
+      // A figure not laid out yet (or mid-transition) reports a tiny width: ignore it.
+      if (el.clientWidth < 80) return;
+      const w = Math.min(MAX_W, Math.max(MIN_W, Math.floor(el.clientWidth)));
       // Shrink at once, so nothing spills; grow only by a clear step (GROW).
       setWidth((now) => (w < now || w >= now + GROW ? w : now));
     });
@@ -42,32 +44,120 @@ function useChartWidth() {
   return [ref, width] as const;
 }
 
-/** Words of `text` in lines of at most `chars` characters. A longer word, such as a domain, is cut
-    into pieces of `chars` (SITE-11). */
-function wrap(text: string, chars: number): string[] {
-  const n = Math.max(chars, 1);
-  const words = text
+/** A wrapped line. `cut`: the line ends inside a word, so it joins the next with no space. */
+interface Line {
+  text: string;
+  cut: boolean;
+}
+
+/** Canvas measuring and SVG drawing differ slightly (hinting, kerning): wrap 2% short of the width. */
+const SLACK = 0.98;
+
+const segmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+/** User-perceived characters, so a cut never splits an emoji sequence or an accent from its letter. */
+const graphemes = (word: string) =>
+  segmenter ? Array.from(segmenter.segment(word), (g) => g.segment) : Array.from(word);
+
+/** Lines of `text` no wider than `max` units, broken at spaces (a no-break space never breaks). A
+    word wider than a line, such as a domain, is cut between user-perceived characters (SITE-11).
+    Each line leaves room for the trailing space it is drawn with. Empty text is one empty line. */
+function wrap(text: string, max: number): Line[] {
+  family = pageFont();
+  const limit = max * SLACK - textWidth(' ');
+  const fits = (t: string) => textWidth(t) <= limit;
+  const words: Line[] = text
     .split(' ')
-    .flatMap((w) => (w.length <= n ? [w] : (w.match(new RegExp(`.{1,${n}}`, 'g')) ?? [w])));
-  const lines: string[] = [];
-  let line = '';
+    .filter(Boolean)
+    .flatMap((word) => {
+      if (fits(word)) return [{ text: word, cut: false }];
+      // Binary search for the longest piece that fits: O(log n) measurements per piece.
+      const g = graphemes(word);
+      const pieces: Line[] = [];
+      let start = 0;
+      while (start < g.length) {
+        let lo = start + 1;
+        let hi = g.length;
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi) / 2);
+          if (fits(g.slice(start, mid).join(''))) lo = mid;
+          else hi = mid - 1;
+        }
+        pieces.push({ text: g.slice(start, lo).join(''), cut: lo < g.length });
+        start = lo;
+      }
+      return pieces;
+    });
+  const lines: Line[] = [];
+  let line: Line | null = null;
   for (const word of words) {
-    if (line && line.length + 1 + word.length > chars) {
-      lines.push(line);
-      line = word;
+    if (line && !line.cut && fits(`${line.text} ${word.text}`)) {
+      line = { text: `${line.text} ${word.text}`, cut: word.cut };
     } else {
-      line = line ? `${line} ${word}` : word;
+      if (line) lines.push(line);
+      line = word;
     }
   }
-  if (line) lines.push(line);
+  lines.push(line ?? { text: '', cut: false });
   return lines;
 }
 
 /** Line height of a wrapped label, in units (= px). */
 const LINE = 14;
-/** Upper estimate of a 12 px character's width, for every fit, wrap, and tooltip size; the browser
-    test (SITE-11) checks it against real fonts. */
+/** Estimated width of a 12 px character where text cannot be measured (tests without canvas). */
 const CHAR = 7.5;
+/** Code point ranges drawn about one em wide: Hangul Jamo, CJK and its punctuation, Hangul,
+    compatibility ideographs, vertical and full-width forms, emoji, CJK Extension B and later. */
+const WIDE_RANGES: readonly (readonly [number, number])[] = [
+  [0x1100, 0x115f],
+  [0x2e80, 0xa4cf],
+  [0xac00, 0xd7a3],
+  [0xf900, 0xfaff],
+  [0xfe30, 0xfe4f],
+  [0xff00, 0xff60],
+  [0xffe0, 0xffe6],
+  [0x1f300, 0x1faff],
+  [0x20000, 0x3ffff],
+];
+const isWide = (cp: number) => WIDE_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi);
+
+let measurer: CanvasRenderingContext2D | null | undefined;
+let family = 'system-ui, sans-serif';
+/** The page font, read again for each label: a stylesheet applied late, or a theme, changes it. */
+const pageFont = () =>
+  (typeof document !== 'undefined' &&
+    document.body &&
+    getComputedStyle(document.body).fontFamily) ||
+  family;
+/** Measured widths by weight and text: wrapping asks for many prefixes of the same labels. */
+const widths = new Map<string, number>();
+/** Width of `s` drawn as 12 px chart text, bold for labels drawn at weight 600: measured with a
+    canvas in the page font when there is one, estimated otherwise (SITE-11). */
+function textWidth(s: string, bold = false): number {
+  if (measurer === undefined) {
+    try {
+      measurer = document.createElement('canvas').getContext('2d');
+      family = pageFont();
+    } catch {
+      measurer = null;
+    }
+  }
+  if (!measurer) {
+    let w = 0;
+    for (const ch of s) w += isWide(ch.codePointAt(0) ?? 0) ? 12 : CHAR;
+    return bold ? w * 1.08 : w;
+  }
+  const key = `${bold ? 'b' : 'n'}|${family}|${s}`;
+  const hit = widths.get(key);
+  if (hit !== undefined) return hit;
+  measurer.font = `${bold ? 600 : 400} 12px ${family}`;
+  const w = measurer.measureText(s).width;
+  if (widths.size > 20_000) widths.clear();
+  widths.set(key, w);
+  return w;
+}
 const GAP = 2;
 const MAX_BAR = 24;
 const RADIUS = 4;
@@ -137,9 +227,8 @@ function Tooltip({
   below?: boolean;
 }) {
   const W = useContext(ChartWidth);
-  const fit = Math.floor((W - 16) / CHAR);
-  const shown = lines.flatMap((l) => wrap(l, fit));
-  const w = Math.min(Math.max(...shown.map((l) => l.length)) * CHAR + 16, W);
+  const shown = lines.flatMap((l) => wrap(l, W - 16).map((x) => x.text));
+  const w = Math.min(Math.max(...shown.map((l) => textWidth(l))) + 16, W);
   const h = shown.length * 16 + 8;
   const left = Math.max(Math.min(x - w / 2, W - w), 0);
   const top = below ? y + 8 : Math.max(y - h - 8, 0);
@@ -473,9 +562,6 @@ export function PassRate({ days }: { days: readonly Day[] }) {
   );
 }
 
-/** Rough text width in viewBox units, for "does the label fit" (dataviz: measure first). */
-const textWidth = (s: string) => s.length * CHAR;
-
 /** CMB-9: one whole, three parts, the share printed inside each block that fits. */
 export function PathBar({ totals, onFocus }: { totals: Totals; onFocus: (f: Focus) => void }) {
   const [measure, W] = useChartWidth();
@@ -538,7 +624,7 @@ export function PathBar({ totals, onFocus }: { totals: Totals; onFocus: (f: Focu
               {...hoverable(i, setHover)}
             >
               <rect class={`block path-${b.p}`} x={b.x} y={0} width={b.w} height={H} rx={RADIUS} />
-              {textWidth(label) + 12 <= b.w && (
+              {textWidth(label, true) + 12 <= b.w && (
                 <text class={`inside on-${b.p}`} x={b.x + 6} y={H / 2 + 5}>
                   {label}
                 </text>
@@ -575,7 +661,7 @@ function stackRows<T>(
   let y = 0;
   const rows = items.map((item) => {
     y += before(item);
-    const lines = wrap(label(item), Math.floor(W / CHAR));
+    const lines = wrap(label(item), W);
     const extra = (lines.length - 1) * LINE;
     const row = { item, top: y, lines, extra };
     y += ROW + extra;
@@ -584,14 +670,14 @@ function stackRows<T>(
   return { rows, height: y };
 }
 
-/** A label above a bar, wrapped to the chart width. Each line but the last keeps its trailing space,
-    so the text reads as the unwrapped label. */
-function BarLabel({ lines, top }: { lines: readonly string[]; top: number }) {
+/** A label above a bar, wrapped to the chart width. A line that ends between words keeps its
+    trailing space and a line cut inside a word does not, so the text reads as the unwrapped label. */
+function BarLabel({ lines, top }: { lines: readonly Line[]; top: number }) {
   return (
     <text class="label" x={0} y={top + 10}>
       {lines.map((l, k) => (
         <tspan key={k} x={0} dy={k === 0 ? 0 : LINE}>
-          {k < lines.length - 1 ? `${l} ` : l}
+          {k < lines.length - 1 && !l.cut ? `${l.text} ` : l.text}
         </tspan>
       ))}
     </text>
