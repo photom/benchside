@@ -1,4 +1,5 @@
-// Parses every ```mermaid block in Markdown files with Mermaid's own parser (0006).
+// Parses every ```mermaid block in Markdown files with Mermaid's own parser,
+// and rejects syntax GitHub's older renderer cannot draw (0006).
 // Usage: node scripts/check-mermaid.ts [files...]  (default: all tracked *.md)
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -31,11 +32,27 @@ function loadMermaid(): Promise<Mermaid> {
   return mermaid;
 }
 
+/**
+ * Syntax that GitHub's renderer rejects even when the Mermaid on npm accepts it
+ * (GitHub's version lags). Checked by pattern so a Mermaid update cannot hide it.
+ */
+const GITHUB_REJECTS: { pattern: RegExp; message: string }[] = [
+  {
+    pattern: /<-[-.=](?!>)\s+.+?\s+[-.=]->/,
+    message: 'labeled two-way edge: GitHub rejects `a <-- label --> b`; write `a <-->|label| b`',
+  },
+];
+
 export async function checkMarkdown(file: string, text: string): Promise<MermaidError[]> {
   const errors: MermaidError[] = [];
   const fence = /^```mermaid\n([\s\S]*?)^```/gm;
   for (const match of text.matchAll(fence)) {
     const line = text.slice(0, match.index).split('\n').length;
+    const rejected = GITHUB_REJECTS.find((r) => r.pattern.test(match[1] ?? ''));
+    if (rejected) {
+      errors.push({ file, line, message: rejected.message });
+      continue;
+    }
     try {
       await (await loadMermaid()).parse(match[1] ?? '');
     } catch (error) {

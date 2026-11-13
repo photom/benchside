@@ -9,7 +9,7 @@ flowchart TD
   subgraph app ["apps/pdf"]
     App[App.tsx] --> views[views/*]
     App --> host[worker/host.ts]
-    host <-- postMessage --> worker[worker/worker.ts]
+    host <-->|postMessage| worker[worker/worker.ts]
     App --> ui["@benchside/ui<br/>DropZone"]
   end
   subgraph pkg ["@benchside/pdf — no DOM"]

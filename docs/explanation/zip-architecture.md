@@ -9,7 +9,7 @@ flowchart TD
   subgraph app ["apps/zip"]
     App[App.tsx] --> views[views/*]
     App --> host[worker/host.ts]
-    host <-- postMessage --> worker[worker/worker.ts]
+    host <-->|postMessage| worker[worker/worker.ts]
     worker --> chain["worker/chain.ts<br/>open file + nested chain"]
     App --> ui["@benchside/ui<br/>DropZone"]
   end

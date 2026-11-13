@@ -9,7 +9,7 @@ flowchart TD
   subgraph app ["apps/dmarc-aggregate"]
     App[App.tsx] --> views["views/*<br/>tables, charts"]
     App --> host[worker/host.ts]
-    host <-- postMessage --> worker[worker/worker.ts]
+    host <-->|postMessage| worker[worker/worker.ts]
     App --> input["input/collect.ts<br/>files and folders"]
     App --> ui["@benchside/ui<br/>Paged"]
   end

@@ -66,7 +66,7 @@ flowchart LR
       entry --> edge[edge adapters<br/>e.g. DoH resolver]
       pkg -. injected .-> edge
     end
-    host <-- "postMessage<br/>(plain data)" --> entry
+    host <-->|"postMessage<br/>(plain data)"| entry
   end
   file[/File/] --> view
   edge --> net[(Allowed hosts only)]
