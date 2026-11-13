@@ -265,6 +265,45 @@ describe('Charts: layout seen in renders', () => {
   });
 });
 
+describe('Charts: wrapped labels (SITE-11)', () => {
+  const reporter = (name: string, messages: number): ReporterRow => ({
+    reporter: name,
+    reports: 1,
+    messages,
+    passing: messages,
+    passRate: 1,
+    days: 1,
+    firstDay: null,
+    lastDay: null,
+    formats: [],
+  });
+
+  it('SITE-11: given a domain wider than the chart, when wrapped, then it is cut over lines but its text is unchanged', () => {
+    const long = `${'reports.'.repeat(12)}example.com`;
+    show(<ReporterBars rows={[reporter(long, 5)]} />);
+    const label = root.querySelector('text.label') as SVGTextElement;
+    expect(label.querySelectorAll('tspan').length).toBeGreaterThan(1);
+    expect(label.textContent).toBe(long);
+  });
+
+  it('SITE-11: given a name joined by no-break spaces, when wrapped, then it never breaks there and its text is unchanged', () => {
+    const nbsp = String.fromCharCode(0xa0);
+    const name = Array.from({ length: 30 }, (_, i) => `Word${i}`).join(nbsp);
+    show(<ReporterBars rows={[reporter(name, 5)]} />);
+    const label = root.querySelector('text.label') as SVGTextElement;
+    expect(label.textContent).toBe(name);
+    // Cut as one long word: no line ends at a space.
+    for (const t of label.querySelectorAll('tspan'))
+      expect(t.textContent?.endsWith(' ')).toBe(false);
+  });
+
+  it('SITE-11: given a reporter with no name, when drawn, then its row keeps its full height', () => {
+    show(<ReporterBars rows={[reporter('', 5), reporter('Next', 3)]} />);
+    const ys = [...root.querySelectorAll('text.label')].map((t) => Number(t.getAttribute('y')));
+    expect((ys[1] as number) - (ys[0] as number)).toBe(40);
+  });
+});
+
 describe('Charts: reporters (CMB-11)', () => {
   it('CMB-11: given reporters, when drawn, then bars by messages with the pass rate as text', () => {
     const row = (reporter: string, messages: number, passRate: number): ReporterRow => ({

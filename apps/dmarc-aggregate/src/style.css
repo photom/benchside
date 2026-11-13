@@ -157,7 +157,7 @@ tr.detail td {
   }
 }
 
-/* Never drawn larger than the 640-unit viewBox, so chart text stays at 12 px (ui.md, Charts in code). */
+/* A chart lays out at its own width up to 640 px, one unit per pixel, so its text stays 12 px (ui.md, Charts in code, SITE-11). */
 .chart {
   margin: 0;
   max-width: 40rem;

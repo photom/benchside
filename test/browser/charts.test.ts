@@ -52,6 +52,7 @@ afterEach(() => {
   if (!root) return;
   render(null, root);
   root.remove();
+  root = undefined;
 });
 
 const charts: [string, ComponentChild][] = [
@@ -66,6 +67,10 @@ const charts: [string, ComponentChild][] = [
         row('Outlook.com', 2363),
         // One long token, no spaces: must still wrap inside the chart.
         row('dmarc-aggregate-reports.enterprise-mail-protection.example-provider.com', 1918),
+        // Wide glyphs: capitals and full-width CJK draw wider than an average Latin letter.
+        row('WWW.MAILRU-MX.COM DMARC REPORTING SERVICE MAILBOX', 900),
+        row('WWW.MMM-WWW.MMM-WWW.MMM-WWW.MMM-WWW.MMM-WWW', 700),
+        row('株式会社サンプル通信事業者向け集計レポート配信システム', 400),
       ],
     }),
   ],
@@ -107,3 +112,18 @@ function inside(texts: Element[], box: DOMRect, scale: number) {
     expect(r.left).toBeGreaterThanOrEqual(box.left - 1);
   }
 }
+
+describe('Chart below its narrowest layout (MIN_W)', () => {
+  it('ui.md: given a page too narrow for a 240-unit chart, when laid out, then the drawing scales down and the page does not scroll sideways', async () => {
+    await page.viewport(250, 900);
+    const main = document.createElement('main');
+    root = main;
+    document.body.append(main);
+    render(h(CauseBars, { totals, onFocus: () => {} }), main);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const svg = main.querySelector('svg[role="graphics-document"]') as SVGSVGElement;
+    expect(svg.viewBox.baseVal.width).toBe(240);
+    expect(svg.getBoundingClientRect().width).toBeLessThan(240);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+  });
+});
