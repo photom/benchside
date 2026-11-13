@@ -1,4 +1,5 @@
 import type { Envelope, EnvelopeValue } from '@benchside/mail';
+import { TableScroll } from '@benchside/ui';
 import { HowChecked } from './HowChecked.tsx';
 import { SourceLinks } from './SourceLinks.tsx';
 
@@ -7,13 +8,15 @@ export function DeliveryDetails({ envelope }: { envelope: Envelope }) {
   return (
     <section aria-label="Delivery details">
       <h2>Delivery details</h2>
-      <table>
-        <tbody>
-          <Row label="Client IP" value={envelope.clientIp} />
-          <Row label="HELO" value={envelope.helo} />
-          <Row label="MAIL FROM" value={envelope.mailFrom} />
-        </tbody>
-      </table>
+      <TableScroll label="Delivery details">
+        <table>
+          <tbody>
+            <Row label="Client IP" value={envelope.clientIp} />
+            <Row label="HELO" value={envelope.helo} />
+            <Row label="MAIL FROM" value={envelope.mailFrom} />
+          </tbody>
+        </table>
+      </TableScroll>
       <HowChecked method="delivery" />
     </section>
   );

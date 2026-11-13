@@ -44,6 +44,11 @@ describe('App: page and input (INP-1, REQ-DMARC-011)', () => {
     expect(tiles).toContain('DMARC pass rate100%');
     expect(tiles).toContain('Reports2');
     expect(tiles).toContain('2023-11-14 to 2023-11-15');
+    // SITE-9 spirit for tiles: a date never breaks at its hyphens.
+    expect([...section('Summary').querySelectorAll('.nowrap')].map((n) => n.textContent)).toEqual([
+      '2023-11-14',
+      '2023-11-15',
+    ]);
     expect(root.textContent).toContain('Read 2 files, 2 reports');
   });
 

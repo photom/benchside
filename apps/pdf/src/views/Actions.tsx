@@ -1,5 +1,5 @@
 import type { Action, ActionSource } from '@benchside/pdf';
-import { usePage } from '@benchside/ui';
+import { TableScroll, usePage } from '@benchside/ui';
 import { ScriptText } from './ScriptText.tsx';
 import { shown } from './text.ts';
 
@@ -68,33 +68,35 @@ export function Actions({ actions }: { actions: readonly Action[] }) {
       {actions.length === 0 ? (
         <p>No actions.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Where</th>
-              <th>When</th>
-              <th>Target</th>
-            </tr>
-          </thead>
-          <tbody>
-            {actions.slice(0, count).map((a, i) => (
-              <tr key={i} data-automatic={a.automatic}>
-                <td>
-                  {a.type || '(no type)'}
-                  {a.depth > 0 && ` (Next, step ${a.depth})`}
-                  {a.object !== undefined && ` · object ${a.object}`}
-                </td>
-                <td>{where(a)}</td>
-                <td>{when(a)}</td>
-                <td>
-                  {shown(a.target)}
-                  {a.script && <ScriptText script={a.script} />}
-                </td>
+        <TableScroll label="Actions">
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Where</th>
+                <th>When</th>
+                <th>Target</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {actions.slice(0, count).map((a, i) => (
+                <tr key={i} data-automatic={a.automatic}>
+                  <td>
+                    {a.type || '(no type)'}
+                    {a.depth > 0 && ` (Next, step ${a.depth})`}
+                    {a.object !== undefined && ` · object ${a.object}`}
+                  </td>
+                  <td>{where(a)}</td>
+                  <td>{when(a)}</td>
+                  <td class="long">
+                    {shown(a.target)}
+                    {a.script && <ScriptText script={a.script} />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {more}
     </section>

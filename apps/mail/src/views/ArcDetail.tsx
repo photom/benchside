@@ -1,4 +1,5 @@
 import type { ArcReport, ArcSetTrace, ArcSignatureTrace } from '@benchside/mail';
+import { TableScroll } from '@benchside/ui';
 import { FindingList } from './Findings.tsx';
 import { HowChecked } from './HowChecked.tsx';
 import { entryText, resultText } from './labels.ts';
@@ -21,24 +22,26 @@ export function ArcDetail({ arc }: { arc: ArcReport }) {
       )}
       <FindingList findings={arc.findings} />
       {arc.sets.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Hop</th>
-              <th>Sealed by</th>
-              <th>Time</th>
-              <th>cv</th>
-              <th>Message signature</th>
-              <th>Seal</th>
-              <th>Results at this hop</th>
-            </tr>
-          </thead>
-          <tbody>
-            {arc.sets.map((set) => (
-              <Hop key={set.instance} set={set} />
-            ))}
-          </tbody>
-        </table>
+        <TableScroll label="ARC sets">
+          <table>
+            <thead>
+              <tr>
+                <th>Hop</th>
+                <th>Sealed by</th>
+                <th>Time</th>
+                <th>cv</th>
+                <th>Message signature</th>
+                <th>Seal</th>
+                <th>Results at this hop</th>
+              </tr>
+            </thead>
+            <tbody>
+              {arc.sets.map((set) => (
+                <Hop key={set.instance} set={set} />
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       <HowChecked method="arc" />
     </section>

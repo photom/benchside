@@ -1,4 +1,5 @@
 import type { DetailRow, SourceRow } from '@benchside/dmarc-aggregate';
+import { TableScroll } from '@benchside/ui';
 import { useState } from 'preact/hooks';
 import { count } from './format.ts';
 import { causeLabel, PATH_NAME } from './labels.ts';
@@ -35,35 +36,37 @@ export function Sources({
   return (
     <section>
       <h2>Sources</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Source IP</th>
-            <th>Host name</th>
-            <th>Messages</th>
-            <th>Failing</th>
-            <th>Direct / Forwarded / Other</th>
-            <th>Main cause</th>
-            <th>SPF</th>
-            <th>DKIM</th>
-            <th>Aligned SPF / DKIM</th>
-            <th>Dispositions</th>
-            <th>Author domains</th>
-            <th>Reporters</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.slice(0, shown).map((r) => (
-            <SourceRows
-              key={r.sourceIp}
-              row={r}
-              open={open.has(r.sourceIp)}
-              onToggle={() => toggle(r.sourceIp)}
-              host={host(r.sourceIp)}
-            />
-          ))}
-        </tbody>
-      </table>
+      <TableScroll label="Sources">
+        <table>
+          <thead>
+            <tr>
+              <th>Source IP</th>
+              <th>Host name</th>
+              <th>Messages</th>
+              <th>Failing</th>
+              <th>Direct / Forwarded / Other</th>
+              <th>Main cause</th>
+              <th>SPF</th>
+              <th>DKIM</th>
+              <th>Aligned SPF / DKIM</th>
+              <th>Dispositions</th>
+              <th>Author domains</th>
+              <th>Reporters</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.slice(0, shown).map((r) => (
+              <SourceRows
+                key={r.sourceIp}
+                row={r}
+                open={open.has(r.sourceIp)}
+                onToggle={() => toggle(r.sourceIp)}
+                host={host(r.sourceIp)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
       {shown < rows.length && (
         <button type="button" onClick={() => setShown(shown + ROWS)}>
           Show more
@@ -88,7 +91,7 @@ function SourceRows({
   return (
     <>
       <tr class="source">
-        <td>
+        <td class="long">
           <button type="button" class="link" aria-expanded={open} onClick={onToggle}>
             {r.sourceIp}
           </button>
@@ -99,7 +102,7 @@ function SourceRows({
         <td class="num">
           {count(r.byPath.direct)} / {count(r.byPath.forwarded)} / {count(r.byPath.other)}
         </td>
-        <td>{r.mainCause ? causeLabel(r.mainCause) : '—'}</td>
+        <td class="cause">{r.mainCause ? causeLabel(r.mainCause) : '—'}</td>
         <td>{results(r.spf)}</td>
         <td>{results(r.dkim)}</td>
         <td class="num">
