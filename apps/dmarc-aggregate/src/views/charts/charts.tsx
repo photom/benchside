@@ -2,7 +2,8 @@
 import type { Day, Focus, Path, ReporterRow, Totals } from '@benchside/dmarc-aggregate';
 import { TableScroll } from '@benchside/ui';
 import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
+import { createContext } from 'preact';
+import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { count, percent } from '../format.ts';
 import { CAUSES, PATH_NAME, PATHS } from '../labels.ts';
 
@@ -11,7 +12,62 @@ const SYMBOL: Record<string, string> = { role: 'graphics-symbol' };
 /** WAI-ARIA Graphics: the chart itself; unlike `img`, it keeps its parts reachable. */
 const DOCUMENT: Record<string, string> = { role: 'graphics-document' };
 
-const W = 640;
+/** Widest drawing; a figure lays out at its own width up to this, so one unit is one pixel (SITE-11). */
+const MAX_W = 640;
+/** Below this the figure is not laid out yet; keep the last width. */
+const MIN_W = 80;
+/** A figure must grow this much before the chart lays out again, so a page scrollbar that comes
+    and goes with the chart's height cannot make the layout flip back and forth. */
+const GROW = 24;
+/** The width the current chart lays out at; 640 without layout (tests). */
+const ChartWidth = createContext(MAX_W);
+
+/** Measures the figure and returns the width to draw at (ui.md, Charts in code). */
+function useChartWidth() {
+  const ref = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(MAX_W);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    // ResizeObserver reports once on observe, so no first call is needed.
+    const observer = new ResizeObserver(() => {
+      const w = Math.min(MAX_W, Math.floor(el.clientWidth));
+      if (w < MIN_W) return;
+      // Shrink at once, so nothing spills; grow only by a clear step (GROW).
+      setWidth((now) => (w < now || w >= now + GROW ? w : now));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/** Words of `text` in lines of at most `chars` characters. A longer word, such as a domain, is cut
+    into pieces of `chars` (SITE-11). */
+function wrap(text: string, chars: number): string[] {
+  const n = Math.max(chars, 1);
+  const words = text
+    .split(' ')
+    .flatMap((w) => (w.length <= n ? [w] : (w.match(new RegExp(`.{1,${n}}`, 'g')) ?? [w])));
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (line && line.length + 1 + word.length > chars) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/** Line height of a wrapped label, in units (= px). */
+const LINE = 14;
+/** Upper estimate of a 12 px character's width, for every fit, wrap, and tooltip size; the browser
+    test (SITE-11) checks it against real fonts. */
+const CHAR = 7.5;
 const GAP = 2;
 const MAX_BAR = 24;
 const RADIUS = 4;
@@ -80,14 +136,17 @@ function Tooltip({
   /** Open under `y` instead of above it. */
   below?: boolean;
 }) {
-  const w = Math.max(...lines.map((l) => l.length)) * 7 + 16;
-  const h = lines.length * 16 + 8;
-  const left = Math.min(Math.max(x - w / 2, 0), W - w);
+  const W = useContext(ChartWidth);
+  const fit = Math.floor((W - 16) / CHAR);
+  const shown = lines.flatMap((l) => wrap(l, fit));
+  const w = Math.min(Math.max(...shown.map((l) => l.length)) * CHAR + 16, W);
+  const h = shown.length * 16 + 8;
+  const left = Math.max(Math.min(x - w / 2, W - w), 0);
   const top = below ? y + 8 : Math.max(y - h - 8, 0);
   return (
     <g class="tooltip" pointer-events="none">
       <rect x={left} y={top} width={w} height={h} rx={4} />
-      {lines.map((l, i) => (
+      {shown.map((l, i) => (
         <text key={i} x={left + 8} y={top + 18 + i * 16}>
           {l}
         </text>
@@ -115,17 +174,22 @@ function ChartFigure({
   table,
   legend,
   notes,
+  measure,
+  width,
   children,
 }: {
   title: string;
   table: ComponentChildren;
   legend?: ComponentChildren;
   notes?: ComponentChildren;
+  /** From useChartWidth: the figure is what gets measured. */
+  measure: preact.Ref<HTMLElement>;
+  width: number;
   children: ComponentChildren;
 }) {
   const [asTable, setAsTable] = useState(false);
   return (
-    <figure class="chart">
+    <figure class="chart" ref={measure}>
       <figcaption>
         {title}{' '}
         <button
@@ -137,7 +201,7 @@ function ChartFigure({
           {asTable ? 'Chart' : 'Table'}
         </button>
       </figcaption>
-      {asTable ? table : children}
+      {asTable ? table : <ChartWidth.Provider value={width}>{children}</ChartWidth.Provider>}
       {!asTable && legend}
       {notes}
     </figure>
@@ -156,6 +220,7 @@ function YGrid({
   height: number;
   format: (n: number) => string;
 }) {
+  const W = useContext(ChartWidth);
   const plotH = height - PLOT.top - PLOT.bottom;
   return (
     <g class="grid">
@@ -175,6 +240,7 @@ function YGrid({
 }
 
 function XLabels({ days, height }: { days: readonly Day[]; height: number }) {
+  const W = useContext(ChartWidth);
   const first = days[0];
   const last = days[days.length - 1];
   if (!first || !last) return null;
@@ -205,6 +271,7 @@ export function DailyColumns({
   undated: number;
   earlier: number;
 }) {
+  const [measure, W] = useChartWidth();
   const [hover, setHover] = useState<number | null>(null);
   const H = 220;
   const plotW = W - PLOT.left - PLOT.right;
@@ -221,6 +288,8 @@ export function DailyColumns({
   const hovered = hover === null ? null : days[hover];
   return (
     <ChartFigure
+      measure={measure}
+      width={W}
       title="Messages per day by path"
       legend={<Legend />}
       notes={
@@ -310,6 +379,7 @@ export function DailyColumns({
 
 /** CMB-10: the DMARC pass rate per day on the same time axis, a second chart, never a second y-axis. */
 export function PassRate({ days }: { days: readonly Day[] }) {
+  const [measure, W] = useChartWidth();
   const [hover, setHover] = useState<number | null>(null);
   const H = 160;
   const plotW = W - PLOT.left - PLOT.right;
@@ -337,6 +407,8 @@ export function PassRate({ days }: { days: readonly Day[] }) {
   const hovered = hover === null ? null : days[hover];
   return (
     <ChartFigure
+      measure={measure}
+      width={W}
       title="DMARC pass rate per day"
       table={
         <TableScroll label="DMARC pass rate per day">
@@ -402,10 +474,11 @@ export function PassRate({ days }: { days: readonly Day[] }) {
 }
 
 /** Rough text width in viewBox units, for "does the label fit" (dataviz: measure first). */
-const textWidth = (s: string) => s.length * 7.5;
+const textWidth = (s: string) => s.length * CHAR;
 
 /** CMB-9: one whole, three parts, the share printed inside each block that fits. */
 export function PathBar({ totals, onFocus }: { totals: Totals; onFocus: (f: Focus) => void }) {
+  const [measure, W] = useChartWidth();
   const [hover, setHover] = useState<number | null>(null);
   const H = 28;
   const shown = PATHS.filter((p) => totals.byPath[p] > 0);
@@ -423,6 +496,8 @@ export function PathBar({ totals, onFocus }: { totals: Totals; onFocus: (f: Focu
   const hovered = hover === null ? null : blocks[hover];
   return (
     <ChartFigure
+      measure={measure}
+      width={W}
       title="Delivery path"
       legend={<Legend paths={shown} />}
       table={
@@ -489,9 +564,43 @@ export function PathBar({ totals, onFocus }: { totals: Totals; onFocus: (f: Focu
 const ROW = 40;
 const LABEL_W = 0;
 
+/** Rows of wrapped labels stacked down the chart: each row's top, its lines, and the height its
+    extra lines add. `before` is space above a row (a group heading). */
+function stackRows<T>(
+  items: readonly T[],
+  label: (t: T) => string,
+  W: number,
+  before: (t: T) => number = () => 0,
+) {
+  let y = 0;
+  const rows = items.map((item) => {
+    y += before(item);
+    const lines = wrap(label(item), Math.floor(W / CHAR));
+    const extra = (lines.length - 1) * LINE;
+    const row = { item, top: y, lines, extra };
+    y += ROW + extra;
+    return row;
+  });
+  return { rows, height: y };
+}
+
+/** A label above a bar, wrapped to the chart width. Each line but the last keeps its trailing space,
+    so the text reads as the unwrapped label. */
+function BarLabel({ lines, top }: { lines: readonly string[]; top: number }) {
+  return (
+    <text class="label" x={0} y={top + 10}>
+      {lines.map((l, k) => (
+        <tspan key={k} x={0} dy={k === 0 ? 0 : LINE}>
+          {k < lines.length - 1 ? `${l} ` : l}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 /** Horizontal bars, label above, value at the tip (dataviz: bars -> value at the tip). */
 /** `room`: width kept free at the right for the longest value at a tip, so no text is clipped. */
-function barRow(y: number, value: number, max: number, cls: string, room: number) {
+function barRow(y: number, value: number, max: number, cls: string, room: number, W: number) {
   const plotW = W - room;
   const w = max > 0 ? Math.max((value / max) * plotW, 1) : 0;
   return {
@@ -502,23 +611,24 @@ function barRow(y: number, value: number, max: number, cls: string, room: number
 
 /** CAUSE-1..9: ranked within each path group, rule order; a click sets the focus (SRC-5). */
 export function CauseBars({ totals, onFocus }: { totals: Totals; onFocus: (f: Focus) => void }) {
+  const [measure, W] = useChartWidth();
   const byCause = new Map(totals.byCause.map((c) => [c.cause, c.messages]));
   const list = CAUSES.filter((c) => byCause.has(c.cause));
   const max = Math.max(0, ...list.map((c) => byCause.get(c.cause) ?? 0));
   const room = Math.max(0, ...list.map((c) => textWidth(count(byCause.get(c.cause) ?? 0)))) + 12;
-  let y = 0;
-  let group: Path | null = null;
-  const rows = list.map((c) => {
-    const heading = c.path !== group;
-    group = c.path;
-    if (heading) y += 24;
-    const row = { c, y, heading };
-    y += ROW;
-    return row;
-  });
-  const H = Math.max(y, 24);
+  // A group heading (the path name) goes above the first cause of each path.
+  const headed = new Set(PATHS.map((p) => list.find((c) => c.path === p)).filter(Boolean));
+  const { rows, height } = stackRows(
+    list,
+    (c) => c.label,
+    W,
+    (c) => (headed.has(c) ? 24 : 0),
+  );
+  const H = Math.max(height, 24);
   return (
     <ChartFigure
+      measure={measure}
+      width={W}
       title="Causes of failure"
       legend={<Legend paths={PATHS.filter((p) => list.some((c) => c.path === p))} />}
       table={
@@ -553,9 +663,10 @@ export function CauseBars({ totals, onFocus }: { totals: Totals; onFocus: (f: Fo
         {...DOCUMENT}
         aria-label={`Causes of failure: ${list.length} causes, most ${list.length ? list.reduce((a, b) => ((byCause.get(b.cause) ?? 0) > (byCause.get(a.cause) ?? 0) ? b : a)).label : 'none'}`}
       >
-        {rows.map(({ c, y: top, heading }) => {
+        {rows.map(({ item: c, top, lines, extra }) => {
+          const heading = headed.has(c);
           const n = byCause.get(c.cause) ?? 0;
-          const bar = barRow(top + 14, n, max, `bar path-${c.path}`, room);
+          const bar = barRow(top + 14 + extra, n, max, `bar path-${c.path}`, room, W);
           return (
             <g key={c.cause}>
               {heading && (
@@ -568,12 +679,10 @@ export function CauseBars({ totals, onFocus }: { totals: Totals; onFocus: (f: Fo
                 aria-label={`${c.label}: ${count(n)} failing messages`}
                 {...pressable(() => onFocus({ cause: c.cause }))}
               >
-                <rect class="hit" x={0} y={top} width={W} height={ROW - 4} />
-                <text class="label" x={0} y={top + 10}>
-                  {c.label}
-                </text>
+                <rect class="hit" x={0} y={top} width={W} height={ROW - 4 + extra} />
+                <BarLabel lines={lines} top={top} />
                 {bar.path}
-                <text class="value" x={bar.w + 6} y={top + 25}>
+                <text class="value" x={bar.w + 6} y={top + 25 + extra}>
                   {count(n)}
                 </text>
               </g>
@@ -587,12 +696,16 @@ export function CauseBars({ totals, onFocus }: { totals: Totals; onFocus: (f: Fo
 
 /** CMB-11: reporters by messages, the pass rate as text at the tip. */
 export function ReporterBars({ rows }: { rows: readonly ReporterRow[] }) {
+  const [measure, W] = useChartWidth();
   const max = Math.max(0, ...rows.map((r) => r.messages));
   const tip = (r: ReporterRow) => `${count(r.messages)}, ${percent(r.passRate)} pass`;
   const room = Math.max(0, ...rows.map((r) => textWidth(tip(r)))) + 12;
-  const H = Math.max(rows.length * ROW, ROW);
+  const { rows: laid, height } = stackRows(rows, (r) => r.reporter, W);
+  const H = Math.max(height, ROW);
   return (
     <ChartFigure
+      measure={measure}
+      width={W}
       title="Messages by reporter"
       table={
         <TableScroll label="Messages by reporter">
@@ -622,9 +735,8 @@ export function ReporterBars({ rows }: { rows: readonly ReporterRow[] }) {
         {...DOCUMENT}
         aria-label={`Messages by reporter, ${rows.length} reporters`}
       >
-        {rows.map((r, i) => {
-          const top = i * ROW;
-          const bar = barRow(top + 14, r.messages, max, 'bar neutral', room);
+        {laid.map(({ item: r, top, lines, extra }) => {
+          const bar = barRow(top + 14 + extra, r.messages, max, 'bar neutral', room, W);
           return (
             <g
               key={r.reporter}
@@ -632,11 +744,9 @@ export function ReporterBars({ rows }: { rows: readonly ReporterRow[] }) {
               {...SYMBOL}
               aria-label={`${r.reporter}: ${count(r.messages)} messages, ${percent(r.passRate)} pass`}
             >
-              <text class="label" x={0} y={top + 10}>
-                {r.reporter}
-              </text>
+              <BarLabel lines={lines} top={top} />
               {bar.path}
-              <text class="value" x={bar.w + 6} y={top + 25}>
+              <text class="value" x={bar.w + 6} y={top + 25 + extra}>
                 {tip(r)}
               </text>
             </g>
