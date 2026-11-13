@@ -1,6 +1,7 @@
 import type { PartialReport } from '@benchside/mail';
 import { h, render } from 'preact';
 import { describe, expect, it } from 'vitest';
+import '@benchside/ui/theme.css';
 import { App } from '../../apps/mail/src/App.tsx';
 import '../../apps/mail/src/style.css';
 import { App as PdfApp } from '../../apps/pdf/src/App.tsx';

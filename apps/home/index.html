@@ -4,17 +4,34 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>benchside</title>
+    <link rel="stylesheet" href="@benchside/ui/theme.css" />
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <main>
-      <h1>benchside</h1>
-      <p>Browser-only tools for taking apart emails, ZIPs, PDFs and more. Your files never leave your machine.</p>
-      <ul>
-        <li><a href="mail/">Mail analyzer</a></li>
-        <li><a href="zip/">ZIP analyzer</a></li>
-        <li><a href="pdf/">PDF analyzer</a></li>
-        <li><a href="dmarc-aggregate/">DMARC aggregate report analyzer</a></li>
+      <header class="app-header">
+        <h1>benchside</h1>
+        <p class="privacy">Browser-only tools for taking apart emails, ZIPs, PDFs and more. Your files never leave your machine.</p>
+      </header>
+      <ul class="tools">
+        <li>
+          <a href="mail/">Mail analyzer</a>
+          <p>Checks SPF, DKIM, DMARC, and ARC for one message and shows the header fields each check read.</p>
+        </li>
+        <li>
+          <a href="zip/">ZIP analyzer</a>
+          <p>Lists entries, compares local and central headers, opens nested archives, and shows the bytes.</p>
+        </li>
+        <li>
+          <a href="pdf/">PDF analyzer</a>
+          <p>Shows revisions, objects, pages, and every action and script, without running any of them.</p>
+        </li>
+        <li>
+          <a href="dmarc-aggregate/">DMARC aggregate report analyzer</a>
+          <p>Reads a folder of rua reports and shows who sends mail as your domain and whether it is ready for reject.</p>
+        </li>
       </ul>
+      <p class="note">Open source: <a href="https://github.com/photom/benchside">github.com/photom/benchside</a></p>
     </main>
   </body>
 </html>

@@ -1,4 +1,5 @@
 import type { Filters as FilterSet, Focus, LookupProvider } from '@benchside/dmarc-aggregate';
+import { AppHeader } from '@benchside/ui';
 import { useEffect, useState } from 'preact/hooks';
 import type { Picked } from './input/collect.ts';
 import {
@@ -94,9 +95,12 @@ export function App({ host }: { host: DmarcHost }) {
           </pattern>
         </defs>
       </svg>
-      <h1>DMARC aggregate report analyzer</h1>
-      <p>Reads aggregate reports (rua). Failure reports (ruf) are not read.</p>
-      <p class="note">Your files never leave this browser. They are read here and sent nowhere.</p>
+      <AppHeader
+        title="DMARC aggregate report analyzer"
+        privacy="Your files never leave this browser. If you turn on host-name lookup, source IP addresses go to the DNS provider you pick."
+      >
+        <p>Reads aggregate reports (rua). Failure reports (ruf) are not read.</p>
+      </AppHeader>
       <Input onAdd={add} onClear={() => host.clear()} onError={setFailure} />
       <StatusBar
         progress={state.progress}

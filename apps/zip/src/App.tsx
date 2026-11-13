@@ -1,4 +1,4 @@
-import { DropZone } from '@benchside/ui';
+import { AppHeader, DropZone } from '@benchside/ui';
 import type { Finding, ParameterInput, Region, ZipReport } from '@benchside/zip';
 import { useRef, useState } from 'preact/hooks';
 import { ByteMap } from './views/ByteMap.tsx';
@@ -116,7 +116,10 @@ export function App({ host }: { host: ZipHost }) {
 
   return (
     <main>
-      <h1>ZIP analyzer</h1>
+      <AppHeader
+        title="ZIP analyzer"
+        privacy="Your file stays in this browser. This page cannot connect anywhere."
+      />
       <DropZone
         label="Drop a ZIP file here, or choose one:"
         accept=".zip,.jar,.war,.ear,.aar,.apk,.xpi,.epub,.docx,.xlsx,.pptx,.odt,.ods,.odp,.whl,.nupkg,.vsix,application/zip"

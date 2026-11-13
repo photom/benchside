@@ -18,6 +18,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Mail analyzer specification](reference/mail/) — exact behavior, rules, findings, and data model
 - [ZIP analyzer specification](reference/zip/) — structure, ZIP64, fields, nested archives, findings, hex view
 - [PDF analyzer specification](reference/pdf/) — syntax, file structure, streams, document, actions, scripts, findings
+- [Site-wide UI specification](reference/site/): header, privacy lines, home, color and contrast, keyboard
 - [DMARC aggregate report analyzer specification](reference/dmarc-aggregate/): input, XML, both aggregate report formats, combining, classification, enforcement, sources, reverse DNS, progress
 
 ## Explanation
@@ -26,6 +27,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 
 - [Privacy model](explanation/privacy-model.md) — what stays on your machine, and what does not
 - [Architecture](explanation/architecture.md) — apps, packages, build, deploy, and tests
+- [UI design system](explanation/ui-design-system.md) — tokens, shared parts, the app header, and the home page
 - [Mail analyzer architecture](explanation/mail-architecture.md) — modules, data flow, and key types
 - [Mail analyzer detailed design](explanation/mail-detailed-design.md) — files, interfaces, worker protocol, DNS composition
 - [Mail analyzer module design](explanation/mail-design/) — internals of each module

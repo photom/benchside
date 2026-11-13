@@ -81,6 +81,15 @@ const simple = (): FixtureEntry[] => [
 ];
 
 describe('ZIP app', () => {
+  it('SITE-1, SITE-2: given the page, when opened, then the home link, one h1, and the offline privacy line', () => {
+    mount();
+    expect(root.querySelector('header a.home')?.getAttribute('href')).toBe('../');
+    expect([...root.querySelectorAll('h1')].map((h) => h.textContent)).toEqual(['ZIP analyzer']);
+    expect(root.querySelector('header .privacy')?.textContent).toBe(
+      'Your file stays in this browser. This page cannot connect anywhere.',
+    );
+  });
+
   it('REQ-ZIP-002: given an archive, when chosen, then the summary and entries show its contents', async () => {
     mount();
     await choose(buildZip(simple()).bytes);
