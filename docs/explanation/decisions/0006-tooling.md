@@ -22,18 +22,11 @@ flowchart LR
 | Node | 24 or later (`engines`); CI uses 26 | — |
 | Package manager | npm workspaces, `npm ci` | pnpm: extra tool |
 
-CI actions are pinned by commit SHA:
-
-| Action | Version | SHA |
-|---|---|---|
-| `actions/checkout` | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `actions/setup-node` | v7.1.0 | `949feb2413d6458794dcd2491c4babbbce0c15c1` |
-| `actions/cache` | v6.1.0 | `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` |
-| `actions/upload-pages-artifact` | v5.0.0 | `fc324d3547104276b827a68afc52ff2a11cc49c9` |
-| `actions/deploy-pages` | v5.0.1 | `368f82528645a54fb793d4d04e342629a3f51346` |
+CI actions are pinned by commit SHA in `.github/workflows/`. Dependabot keeps the pins and their version comments current ([architecture](../architecture.md#build-and-deploy)).
 
 ## Consequences
 
 - No Preact fast refresh in dev (preset-only). Full reload is acceptable for small apps.
 - Without the preset, Preact DevTools integration needs a manual `import 'preact/debug'` in dev.
 - mermaid and jsdom add many transitive dev dependencies, but none reach the bundle.
+- GitHub renders Mermaid with its own version, which can lag behind npm. A newer Mermaid may accept syntax GitHub rejects, so `check-mermaid.ts` also rejects known cases by pattern (labeled two-way edges).
