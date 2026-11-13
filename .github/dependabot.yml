@@ -1,0 +1,38 @@
+# Weekly update pull requests for npm packages and GitHub Actions.
+# CI runs on each one; nothing merges without review.
+# Why the settings below: docs/explanation/architecture.md#build-and-deploy
+
+version: 2
+updates:
+  # One lockfile at the root covers every workspace in apps/ and packages/.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    # Wait a week after a release, so a compromised or broken version is
+    # usually pulled before it reaches a pull request.
+    cooldown:
+      default-days: 7
+    # Minor and patch updates share one pull request; each major update gets its own.
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  # Actions stay pinned by commit SHA; Dependabot updates the SHA and the version comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Etc/UTC
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 5
