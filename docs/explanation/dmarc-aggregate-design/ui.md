@@ -200,11 +200,11 @@ flowchart LR
 | Choice | Why |
 |---|---|
 | Hand-written SVG in Preact, no chart library | Five simple forms; CLAUDE.md keeps runtime dependencies to a minimum |
-| The `viewBox` is as wide as the figure, up to 640 units, so one unit is one pixel | SITE-11: text stays 12 px on a phone instead of shrinking with a 640-unit drawing scaled down. Without layout (tests), the width is 640 |
+| The `viewBox` is as wide as the figure, from 240 to 640 units, so one unit is one pixel; a figure under 240 px (a page under about 272 px) scales the drawing down | SITE-11: text stays 12 px on a phone instead of shrinking with a 640-unit drawing scaled down. Without layout (tests), the width is 640 |
 | The chart lays out again at once when its figure narrows, but only after it widens by 24 px | A page scrollbar that comes and goes with the chart's height cannot make the layout flip back and forth |
 | A figure is never wider than 40 rem (640 px) | Scaled up, 12-unit text would grow past body text (seen on the full-width reporter chart) |
-| Cause and reporter labels and tooltip lines wrap to the width; a word longer than a line, such as a domain, is cut into pieces; rows grow to fit | SITE-11: no label reaches past the chart's edge |
-| One width estimate per character (7.5 units) for every fit, wrap, and tooltip | One number to check against real fonts; the browser test does |
+| Cause and reporter labels and tooltip lines wrap to the width at ordinary spaces (never at a no-break space); a word wider than a line, such as a domain, is cut between user-perceived characters and its pieces join with no space; rows grow to fit | SITE-11: no label reaches past the chart's edge |
+| Text widths are measured with a canvas in the page font, bold where the label is drawn bold, and cached; without a canvas (tests), 7.5 units per character, 12 for CJK, full-width forms, and emoji | Capitals and CJK draw wider than an average letter; an estimate let them spill past the edge |
 | Each table view sits in a `TableScroll` | SITE-9: a wide table scrolls in its own area |
 | The tooltip is an SVG group placed with `x` and `y` attributes | The CSP forbids `style` attributes; positions need none |
 | Clickable parts are `g` elements with `role="button"`, `tabindex="0"`, and an accessible name | Keyboard and screen reader users reach every part (Accessibility) |
