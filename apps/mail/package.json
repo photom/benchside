@@ -10,6 +10,6 @@
     "@benchside/dns": "*",
     "@benchside/mail": "*",
     "@benchside/ui": "*",
-    "preact": "11.0.2"
+    "preact": "11.2.0"
   }
 }

@@ -13,6 +13,15 @@ describe('checkMarkdown', () => {
     expect(errors).toEqual([expect.objectContaining({ file: 'a.md', line: 3 })]);
   });
 
+  it('given a labeled two-way edge with a quoted label, when checked, then it is reported too', async () => {
+    const errors = await checkMarkdown('a.md', fence('flowchart LR\n  a <-- "x<br/>y" --> b'));
+    expect(errors).toEqual([expect.objectContaining({ file: 'a.md', line: 3 })]);
+  });
+
+  it('given the two-way edge with the label in pipes, when checked, then there are no errors', async () => {
+    expect(await checkMarkdown('a.md', fence('flowchart LR\n  a <-->|label| b --> c'))).toEqual([]);
+  });
+
   it('given markdown without diagrams, when checked, then there are no errors', async () => {
     expect(await checkMarkdown('a.md', '# Nothing\n\n```ts\nconst x = 1;\n```\n')).toEqual([]);
   });
