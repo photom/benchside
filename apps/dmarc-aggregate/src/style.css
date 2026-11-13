@@ -1,58 +1,22 @@
-/* Colors per theme (ui.md, Color). SVG gets classes, never style attributes (CSP). */
+/* DMARC-only styles. Shared look: @benchside/ui/theme.css (0018). */
+
+/* Path colors per theme (ui.md, Color). SVG gets classes, never style attributes (CSP). */
 :root {
-  --ink: #0b0b0b;
-  --muted: #5c5c58;
-  --surface: #fcfcfb;
-  --line: #d8d8d4;
   --path-direct: #2a78d6;
   --path-forwarded: #eb6834;
   --path-other: #1baf7a;
-  --good: #0ca30c;
-  --warning: #fab219;
-  --critical: #d03b3b;
-  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ink: #f0efec;
-    --muted: #a8a8a3;
-    --surface: #1a1a19;
-    --line: #3a3a37;
     --path-direct: #3987e5;
     --path-forwarded: #d95926;
     --path-other: #199e70;
   }
 }
 
-body {
-  background: var(--surface);
-  color: var(--ink);
-  font-family: system-ui, sans-serif;
-  margin: 2rem;
-}
-
-main {
-  max-width: 72rem;
-}
-
-.note,
 .partial {
   color: var(--muted);
-}
-
-.drop {
-  border: 2px dashed var(--line);
-  border-radius: 0.5rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  padding: 1rem;
-}
-
-.drop[data-active="true"] {
-  border-color: var(--path-direct);
 }
 
 .drop p {
@@ -60,25 +24,14 @@ main {
   margin: 0;
 }
 
-.button {
-  border: 1px solid var(--line);
-  border-radius: 0.25rem;
-  cursor: pointer;
-  padding: 0.25rem 0.75rem;
-}
-
-.button input {
-  display: none;
-}
-
 /* Sticky while a job runs, so users far down the page see that results are partial. */
 .status {
   align-items: center;
   background: var(--surface);
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   min-height: 2rem;
-  padding: 0.5rem 0;
+  padding: var(--space-2) 0;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -86,7 +39,7 @@ main {
 
 .bar {
   background: var(--line);
-  border-radius: 0.25rem;
+  border-radius: var(--radius-s);
   height: 0.5rem;
   overflow: hidden;
   width: 12rem;
@@ -103,13 +56,9 @@ main {
   }
 }
 
-.error {
-  color: var(--critical);
-}
-
 .tiles {
   display: grid;
-  gap: 1rem;
+  gap: var(--space-4);
   grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
 }
 
@@ -123,18 +72,6 @@ main {
   margin: 0;
 }
 
-table {
-  border-collapse: collapse;
-}
-
-th,
-td {
-  border-bottom: 1px solid var(--line);
-  padding: 0.25rem 0.5rem;
-  text-align: left;
-  vertical-align: top;
-}
-
 td {
   overflow-wrap: anywhere;
 }
@@ -145,16 +82,7 @@ td {
 }
 
 tr[data-severity="error"] td:first-child {
-  color: var(--critical);
-}
-
-.visually-hidden {
-  clip-path: inset(50%);
-  height: 1px;
-  overflow: hidden;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
+  color: var(--critical-ink);
 }
 
 /* One row of filters above everything they change (ui.md, Layout). */
@@ -162,32 +90,21 @@ tr[data-severity="error"] td:first-child {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin: 1rem 0;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
 }
 
 .filters fieldset {
   border: 1px solid var(--line);
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .chip {
   border: 1px solid var(--line);
   border-radius: 1rem;
-  padding: 0.125rem 0.5rem;
-}
-
-button.link {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-  text-align: left;
-  text-decoration: underline;
+  padding: calc(var(--space-1) / 2) var(--space-2);
 }
 
 /* A path keeps its color everywhere; the name is always in text beside it (ui.md, Color). */
@@ -209,31 +126,26 @@ tr[data-path="other"] td:first-child {
 
 /* Status colors always come with an icon and words. */
 .status-line[data-tone="good"] span {
-  color: var(--good);
+  color: var(--good-ink);
 }
 
 .status-line[data-tone="warning"] span {
-  color: var(--warning);
+  color: var(--warning-ink);
 }
 
 .status-line[data-tone="critical"] span {
-  color: var(--critical);
+  color: var(--critical-ink);
 }
 
 tr.detail td {
   color: var(--muted);
-  padding-left: 2rem;
-}
-
-caption {
-  font-weight: 600;
-  text-align: left;
+  padding-left: var(--space-6);
 }
 
 /* Charts (ui.md, Charts in code). Two across above 48 rem, one column below. */
 .charts {
   display: grid;
-  gap: 1.5rem;
+  gap: var(--space-5);
   grid-template-columns: 1fr;
 }
 
@@ -249,7 +161,7 @@ caption {
 
 .chart figcaption {
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--space-1);
 }
 
 .chart svg {
@@ -358,9 +270,9 @@ g[role="button"] {
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: var(--space-4);
   list-style: none;
-  margin: 0.25rem 0 0;
+  margin: var(--space-1) 0 0;
   padding: 0;
 }
 
@@ -368,7 +280,7 @@ g[role="button"] {
   border-radius: 2px;
   display: inline-block;
   height: 0.75rem;
-  margin-right: 0.375rem;
+  margin-right: var(--space-2);
   vertical-align: middle;
   width: 0.75rem;
 }
@@ -387,7 +299,7 @@ g[role="button"] {
 
 .table-toggle {
   font-size: 0.85em;
-  margin-left: 0.5rem;
+  margin-left: var(--space-2);
 }
 
 .defs {

@@ -1,5 +1,4 @@
 import { useState } from 'preact/hooks';
-import './drop-zone.css';
 
 /** Accepts one file by drag and drop or the file picker. */
 export function DropZone({

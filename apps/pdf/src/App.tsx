@@ -1,5 +1,5 @@
 import type { PdfReport } from '@benchside/pdf';
-import { DropZone } from '@benchside/ui';
+import { AppHeader, DropZone } from '@benchside/ui';
 import { useState } from 'preact/hooks';
 import { Actions } from './views/Actions.tsx';
 import { ByteMap } from './views/ByteMap.tsx';
@@ -39,7 +39,10 @@ export function App({ host }: { host: PdfHost }) {
 
   return (
     <main>
-      <h1>PDF analyzer</h1>
+      <AppHeader
+        title="PDF analyzer"
+        privacy="Your file stays in this browser. This page cannot connect anywhere."
+      />
       <DropZone
         label="Drop a PDF here, or choose one:"
         accept=".pdf,application/pdf"
