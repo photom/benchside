@@ -155,7 +155,7 @@ samples/private/
 .devcontainer/
 
 # GitHub Pages output (scripts/collect-pages.mjs)
-site/
+/site/
 
 # Screenshots vitest browser mode saves on failure
 .vitest/

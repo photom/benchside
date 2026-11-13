@@ -52,6 +52,15 @@ async function choose(container: HTMLElement, content: string) {
 }
 
 describe('App', () => {
+  it('SITE-1, SITE-2: given the page, when opened, then the home link, one h1, and the mail privacy line', () => {
+    mount({ analyze: async () => emptyReport });
+    expect(root.querySelector('header a.home')?.getAttribute('href')).toBe('../');
+    expect([...root.querySelectorAll('h1')].map((h) => h.textContent)).toEqual(['Mail analyzer']);
+    expect(root.querySelector('header .privacy')?.textContent).toBe(
+      'Your message stays in this browser. Only DNS lookups of domain names go out, over DNS-over-HTTPS.',
+    );
+  });
+
   it('REQ-MAIL-001: given a chosen file, when analyzed, then its bytes go to the worker host', async () => {
     let received: Uint8Array | undefined;
     const host: WorkerHost = {

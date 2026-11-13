@@ -101,7 +101,8 @@ Days with no reports show a gap in the columns and the line, never a zero (CMB-1
 - A path keeps its color in every chart. A cause bar takes the color of its path. Filtering never repaints a path.
 - Status colors always come with an icon and a word ("Pass", "Fail", "Fix direct sources first"). Color never carries a state alone.
 - The pass rate line is drawn in primary ink, because it is not a path.
-- Colors live in CSS custom properties in `style.css`, set per theme with `prefers-color-scheme`. SVG elements get classes, never string `style` attributes (CSP).
+- The path colors live in CSS custom properties in the app's `style.css`. Ink, surface, line, and status colors come from the shared theme ([UI design system](../ui-design-system.md)). Both are set per theme with `prefers-color-scheme`. SVG elements get classes, never string `style` attributes (CSP).
+- Status words and icons use the status ink tokens (`--warning-ink` and the others), which reach 4.5:1 on the surface. The fills above are for marks beside words.
 
 ## Marks
 
