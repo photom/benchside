@@ -1,4 +1,5 @@
 import type { PdfDocument } from '@benchside/pdf';
+import { TableScroll } from '@benchside/ui';
 import { shown } from './text.ts';
 
 /** REQ-PDF-004: catalog and document information. */
@@ -32,22 +33,24 @@ export function Document({ document }: { document: PdfDocument }) {
       <section aria-label="Document information">
         <h3>Document information</h3>
         {document.info ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Key</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {document.info.entries.map((e) => (
-                <tr key={e.key}>
-                  <td>{e.key}</td>
-                  <td>{shown(e.value)}</td>
+          <TableScroll label="Document information">
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Value</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {document.info.entries.map((e) => (
+                  <tr key={e.key}>
+                    <td>{e.key}</td>
+                    <td>{shown(e.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         ) : (
           <p>None.</p>
         )}
