@@ -22,6 +22,7 @@ flowchart LR
 - All pages must follow the system's light or dark setting.
 - Text must stay readable and controls visible in both settings, at WCAG 2.2 AA.
 - Every control must be reachable and visibly focused with the keyboard.
+- Tables must stay readable on a phone: words whole, and the page never scrolls sideways.
 - The look must not add any request to another host.
 
 ## Rationale
@@ -42,6 +43,7 @@ flowchart LR
 - Each tool page has a link home, one `h1`, and its privacy line from the spec.
 - Theme color pairs meet the spec's contrast rules, checked by a test that reads `theme.css`.
 - In a real browser, Tab reaches the DMARC file pickers and shows a focus ring.
+- In a real browser at 390 px, a wide table keeps its words whole and scrolls in its own area, which Tab can reach; the page does not scroll sideways.
 
 ## Specified in
 

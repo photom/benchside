@@ -38,6 +38,12 @@ Each rule has an ID (for example `SITE-3`). Test scenarios cite these IDs.
 | SITE-6 | Every control is reachable with Tab and shows a 2 px focus ring in the accent color while it has keyboard focus (WCAG 2.1.1, 2.4.7). A label styled as a button shows the ring while its file input has focus. |
 | SITE-7 | Buttons and fields are at least 24 px tall. Link-like buttons inside table rows or sentences, and check boxes inside their label, use the inline and label exceptions of WCAG 2.5.8. |
 
+## Tables
+
+| ID | Rule |
+|---|---|
+| SITE-9 | A table cell wraps between words and never splits a word, except a cell that holds one long token (a file name, a domain name, a finding ID), which may break anywhere. Dates and times never break. A table wider than the page scrolls sideways inside its own area; the page itself never scrolls sideways. While the table is wider than that area, the area takes keyboard focus and is a region named after the table; when the table fits, it is neither (WCAG 1.4.10, 2.1.1). |
+
 ## Resources
 
 | ID | Rule |

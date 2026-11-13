@@ -1,3 +1,4 @@
+import { TableScroll } from '@benchside/ui';
 import {
   type DecodedExtra,
   decodeCp437,
@@ -73,93 +74,96 @@ export function EntryDetail({
         Name read as {NAME_SOURCES[entry.name.source]}. Raw bytes:{' '}
         <code>{bytesHex(entry.name.bytes)}</code>
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Central directory</th>
-            <th>Local header</th>
-            <th>Compared</th>
-          </tr>
-        </thead>
-        <tbody>
-          <Row
-            name="File name"
-            central={entry.name.text}
-            local={localName}
-            differs={differs('name')}
-          />
-          <Row
-            name="Version needed"
-            central={c.versionNeeded.spec}
-            local={l?.versionNeeded.spec}
-            differs={differs('versionNeeded')}
-          />
-          <Row
-            name="Flags"
-            central={flagText(c.flags.raw, c.flags.bits)}
-            local={l && flagText(l.flags.raw, l.flags.bits)}
-            differs={differs('flags')}
-          />
-          <Row
-            name="Method"
-            central={`${c.method.code} ${c.method.name}`}
-            local={l && `${l.method.code} ${l.method.name}`}
-            differs={differs('method')}
-          />
-          <Row
-            name="Modified"
-            central={
-              c.modified.text ?? `invalid (${hex(c.modified.date, 4)} ${hex(c.modified.time, 4)})`
-            }
-            local={
-              l &&
-              (l.modified.text ?? `invalid (${hex(l.modified.date, 4)} ${hex(l.modified.time, 4)})`)
-            }
-            differs={differs('time', 'date')}
-          />
-          <Row
-            name="CRC-32"
-            central={crc(c.crc32)}
-            local={l && crc(l.crc32)}
-            differs={differs('crc32')}
-          />
-          <Row
-            name="Compressed size"
-            central={sizeText(c.compressedSize, entry.compressedSize)}
-            local={l && sizeText(l.compressedSize, l.effectiveCompressedSize)}
-            differs={differs('compressedSize')}
-          />
-          <Row
-            name="Uncompressed size"
-            central={sizeText(c.uncompressedSize, entry.uncompressedSize)}
-            local={l && sizeText(l.uncompressedSize, l.effectiveUncompressedSize)}
-            differs={differs('uncompressedSize')}
-          />
-          <Row
-            name="Version made by"
-            central={`${c.versionMadeBy.host}, ${c.versionMadeBy.spec}`}
-          />
-          <Row name="Disk number start" central={String(c.diskStart)} />
-          <Row
-            name="Internal attributes"
-            central={`0x${hex(c.internalAttributes.raw, 4)}${c.internalAttributes.text ? ' text' : ''}`}
-          />
-          <Row
-            name="External attributes"
-            central={[
-              `0x${hex(c.externalAttributes.raw, 8)}`,
-              ...c.externalAttributes.dos,
-              c.externalAttributes.unixMode,
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          />
-          <Row name="Local header offset" central={offset(entry.localHeaderOffset)} />
-          <Row name="Header offset" central={offset(c.offset)} local={l && offset(l.offset)} />
-          {entry.comment.text !== '' && <Row name="Comment" central={entry.comment.text} />}
-        </tbody>
-      </table>
+      <TableScroll label="Entry fields">
+        <table>
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Central directory</th>
+              <th>Local header</th>
+              <th>Compared</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Row
+              name="File name"
+              central={entry.name.text}
+              local={localName}
+              differs={differs('name')}
+            />
+            <Row
+              name="Version needed"
+              central={c.versionNeeded.spec}
+              local={l?.versionNeeded.spec}
+              differs={differs('versionNeeded')}
+            />
+            <Row
+              name="Flags"
+              central={flagText(c.flags.raw, c.flags.bits)}
+              local={l && flagText(l.flags.raw, l.flags.bits)}
+              differs={differs('flags')}
+            />
+            <Row
+              name="Method"
+              central={`${c.method.code} ${c.method.name}`}
+              local={l && `${l.method.code} ${l.method.name}`}
+              differs={differs('method')}
+            />
+            <Row
+              name="Modified"
+              central={
+                c.modified.text ?? `invalid (${hex(c.modified.date, 4)} ${hex(c.modified.time, 4)})`
+              }
+              local={
+                l &&
+                (l.modified.text ??
+                  `invalid (${hex(l.modified.date, 4)} ${hex(l.modified.time, 4)})`)
+              }
+              differs={differs('time', 'date')}
+            />
+            <Row
+              name="CRC-32"
+              central={crc(c.crc32)}
+              local={l && crc(l.crc32)}
+              differs={differs('crc32')}
+            />
+            <Row
+              name="Compressed size"
+              central={sizeText(c.compressedSize, entry.compressedSize)}
+              local={l && sizeText(l.compressedSize, l.effectiveCompressedSize)}
+              differs={differs('compressedSize')}
+            />
+            <Row
+              name="Uncompressed size"
+              central={sizeText(c.uncompressedSize, entry.uncompressedSize)}
+              local={l && sizeText(l.uncompressedSize, l.effectiveUncompressedSize)}
+              differs={differs('uncompressedSize')}
+            />
+            <Row
+              name="Version made by"
+              central={`${c.versionMadeBy.host}, ${c.versionMadeBy.spec}`}
+            />
+            <Row name="Disk number start" central={String(c.diskStart)} />
+            <Row
+              name="Internal attributes"
+              central={`0x${hex(c.internalAttributes.raw, 4)}${c.internalAttributes.text ? ' text' : ''}`}
+            />
+            <Row
+              name="External attributes"
+              central={[
+                `0x${hex(c.externalAttributes.raw, 8)}`,
+                ...c.externalAttributes.dos,
+                c.externalAttributes.unixMode,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            />
+            <Row name="Local header offset" central={offset(entry.localHeaderOffset)} />
+            <Row name="Header offset" central={offset(c.offset)} local={l && offset(l.offset)} />
+            {entry.comment.text !== '' && <Row name="Comment" central={entry.comment.text} />}
+          </tbody>
+        </table>
+      </TableScroll>
       <p>
         File data:{' '}
         {entry.data ? `${offset(entry.data.offset)}, ${entry.data.byteLength} bytes` : 'not found'}
@@ -211,8 +215,8 @@ function Row({
   return (
     <tr data-differs={differs}>
       <th scope="row">{name}</th>
-      <td>{central}</td>
-      <td>{local ?? '—'}</td>
+      <td class="long">{central}</td>
+      <td class="long">{local ?? '—'}</td>
       <td>{local === undefined ? '' : differs ? 'differs' : ''}</td>
     </tr>
   );

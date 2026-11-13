@@ -1,4 +1,5 @@
 import type { DmarcMode, DmarcModeResult, DmarcResults } from '@benchside/mail';
+import { TableScroll } from '@benchside/ui';
 import { FindingList } from './Findings.tsx';
 import { HowChecked } from './HowChecked.tsx';
 import { resultText } from './labels.ts';
@@ -72,32 +73,34 @@ function Mode({ mode }: { mode: DmarcModeResult }) {
       )}
       <FindingList findings={mode.findings} />
       {mode.alignment.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Identifier</th>
-              <th>Domain</th>
-              <th>Result</th>
-              <th>Alignment</th>
-              <th>Organizational domain</th>
-              <th>Aligned</th>
-              <th>Counts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mode.alignment.map((row, i) => (
-              <tr key={i}>
-                <td>{row.identifier.toUpperCase()}</td>
-                <td>{row.domain}</td>
-                <td>{resultText(row.authResult)}</td>
-                <td>{row.mode}</td>
-                <td>{row.orgDomain ?? ''}</td>
-                <td>{row.aligned ? 'yes' : 'no'}</td>
-                <td>{row.counts ? 'yes' : 'no'}</td>
+        <TableScroll label="Alignment">
+          <table>
+            <thead>
+              <tr>
+                <th>Identifier</th>
+                <th>Domain</th>
+                <th>Result</th>
+                <th>Alignment</th>
+                <th>Organizational domain</th>
+                <th>Aligned</th>
+                <th>Counts</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {mode.alignment.map((row, i) => (
+                <tr key={i}>
+                  <td>{row.identifier.toUpperCase()}</td>
+                  <td>{row.domain}</td>
+                  <td>{resultText(row.authResult)}</td>
+                  <td>{row.mode}</td>
+                  <td>{row.orgDomain ?? ''}</td>
+                  <td>{row.aligned ? 'yes' : 'no'}</td>
+                  <td>{row.counts ? 'yes' : 'no'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {mode.queryIds.length > 0 && (
         <p>

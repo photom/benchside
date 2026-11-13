@@ -1,5 +1,5 @@
 import type { PdfObject } from '@benchside/pdf';
-import { offset, usePage } from '@benchside/ui';
+import { offset, TableScroll, usePage } from '@benchside/ui';
 
 const STATUS = { 'in-use': 'in use', compressed: 'compressed', free: 'free' } as const;
 
@@ -21,32 +21,34 @@ export function Objects({ objects }: { objects: readonly PdfObject[] }) {
   return (
     <section aria-label="Objects">
       <h2>Objects</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Number</th>
-            <th>Generation</th>
-            <th>Status</th>
-            <th>Revision</th>
-            <th>Where</th>
-            <th>Type</th>
-            <th>Replaced</th>
-          </tr>
-        </thead>
-        <tbody>
-          {objects.slice(0, shown).map((o) => (
-            <tr key={o.number}>
-              <td>{o.number}</td>
-              <td>{o.generation}</td>
-              <td>{STATUS[o.status]}</td>
-              <td>{o.revision}</td>
-              <td>{where(o)}</td>
-              <td>{type(o)}</td>
-              <td>{o.replaced.length > 0 ? `replaced revision ${o.replaced.join(', ')}` : ''}</td>
+      <TableScroll label="Objects">
+        <table>
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Generation</th>
+              <th>Status</th>
+              <th>Revision</th>
+              <th>Where</th>
+              <th>Type</th>
+              <th>Replaced</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {objects.slice(0, shown).map((o) => (
+              <tr key={o.number}>
+                <td>{o.number}</td>
+                <td>{o.generation}</td>
+                <td>{STATUS[o.status]}</td>
+                <td>{o.revision}</td>
+                <td>{where(o)}</td>
+                <td>{type(o)}</td>
+                <td>{o.replaced.length > 0 ? `replaced revision ${o.replaced.join(', ')}` : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
       {more}
     </section>
   );

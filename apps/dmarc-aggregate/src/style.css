@@ -72,10 +72,6 @@
   margin: 0;
 }
 
-td {
-  overflow-wrap: anywhere;
-}
-
 .num {
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -137,26 +133,34 @@ tr[data-path="other"] td:first-child {
   color: var(--critical-ink);
 }
 
+/* A cause is a sentence: give it room so a squeezed table does not stack it one word per line. */
+td.cause {
+  min-width: 12rem;
+}
+
 tr.detail td {
   color: var(--muted);
   padding-left: var(--space-6);
 }
 
 /* Charts (ui.md, Charts in code). Two across above 48 rem, one column below. */
+/* minmax(0, ...): a shown table view scrolls in its own area instead of widening the column (SITE-9). */
 .charts {
   display: grid;
   gap: var(--space-5);
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 @media (min-width: 48rem) {
   .charts {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
+/* Never drawn larger than the 640-unit viewBox, so chart text stays at 12 px (ui.md, Charts in code). */
 .chart {
   margin: 0;
+  max-width: 40rem;
 }
 
 .chart figcaption {

@@ -201,6 +201,8 @@ flowchart LR
 |---|---|
 | Hand-written SVG in Preact, no chart library | Five simple forms; CLAUDE.md keeps runtime dependencies to a minimum |
 | A fixed `viewBox` 640 units wide, scaled by CSS | One coordinate system; the page lays out in one column under 48 rem (Layout) |
+| A figure is never wider than 40 rem (640 px) | Scaled up, 12-unit text would grow past body text (seen on the full-width reporter chart) |
+| Each table view sits in a `TableScroll` | SITE-9: a wide table scrolls in its own area |
 | The tooltip is an SVG group placed with `x` and `y` attributes | The CSP forbids `style` attributes; positions need none |
 | Clickable parts are `g` elements with `role="button"`, `tabindex="0"`, and an accessible name | Keyboard and screen reader users reach every part (Accessibility) |
 | Columns: at most 24 units wide, a 2 unit surface gap between stacked segments, rounded 4 units at the top only | dataviz mark specs |

@@ -1,9 +1,5 @@
 /* ZIP-only styles. Shared look: @benchside/ui/theme.css (0018). */
 
-td {
-  overflow-wrap: anywhere;
-}
-
 tr[data-selected="true"] {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
@@ -35,7 +31,6 @@ tr[data-differs="true"] {
 table.hex td:nth-child(2),
 table.hex td:nth-child(3) {
   font-family: var(--mono);
-  overflow-wrap: normal;
   white-space: pre;
 }
 

@@ -1,5 +1,5 @@
 import type { Page } from '@benchside/pdf';
-import { usePage } from '@benchside/ui';
+import { TableScroll, usePage } from '@benchside/ui';
 
 const size = (r: readonly number[] | null) =>
   r ? `${Math.abs((r[2] ?? 0) - (r[0] ?? 0))} × ${Math.abs((r[3] ?? 0) - (r[1] ?? 0))}` : '';
@@ -19,30 +19,32 @@ export function Pages({ pages, count }: { pages: readonly Page[]; count: number 
       <p>
         {pages.length} found{count === null ? '' : `; the page tree says ${count}`}.
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Page</th>
-            <th>Object</th>
-            <th>Media box size</th>
-            <th>Crop box size</th>
-            <th>Rotate</th>
-            <th>Annotations</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pages.slice(0, shownRows).map((p) => (
-            <tr key={p.index}>
-              <td>{p.index + 1}</td>
-              <td>{p.object ?? 'direct'}</td>
-              <td>{p.mediaBox ? size(p.mediaBox) : 'missing'}</td>
-              <td>{size(p.cropBox)}</td>
-              <td>{p.rotate}</td>
-              <td>{annotations(p)}</td>
+      <TableScroll label="Pages">
+        <table>
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th>Object</th>
+              <th>Media box size</th>
+              <th>Crop box size</th>
+              <th>Rotate</th>
+              <th>Annotations</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {pages.slice(0, shownRows).map((p) => (
+              <tr key={p.index}>
+                <td>{p.index + 1}</td>
+                <td>{p.object ?? 'direct'}</td>
+                <td>{p.mediaBox ? size(p.mediaBox) : 'missing'}</td>
+                <td>{size(p.cropBox)}</td>
+                <td>{p.rotate}</td>
+                <td>{annotations(p)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
       {more}
     </section>
   );

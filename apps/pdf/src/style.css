@@ -1,9 +1,5 @@
 /* PDF-only styles. Shared look: @benchside/ui/theme.css (0018). */
 
-td {
-  overflow-wrap: anywhere;
-}
-
 tr[data-automatic="true"] td:nth-child(3) {
   font-weight: bold;
 }

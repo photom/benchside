@@ -1,5 +1,6 @@
 /** The charts of ui.md (Chart forms), as hand-written SVG; see ui.md, Charts in code. */
 import type { Day, Focus, Path, ReporterRow, Totals } from '@benchside/dmarc-aggregate';
+import { TableScroll } from '@benchside/ui';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { count, percent } from '../format.ts';
@@ -233,30 +234,32 @@ export function DailyColumns({
         </>
       }
       table={
-        <table>
-          <thead>
-            <tr>
-              <th>Day</th>
-              <th>Messages</th>
-              {PATHS.map((p) => (
-                <th key={p}>{PATH_NAME[p]}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((d) => (
-              <tr key={d.date}>
-                <td>{d.date}</td>
-                <td class="num">{d.messages ? count(dayTotal(d)) : '—'}</td>
+        <TableScroll label="Messages per day by path">
+          <table>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Messages</th>
                 {PATHS.map((p) => (
-                  <td key={p} class="num">
-                    {d.messages ? count(d.messages[p]) : '—'}
-                  </td>
+                  <th key={p}>{PATH_NAME[p]}</th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {days.map((d) => (
+                <tr key={d.date}>
+                  <td class="nowrap">{d.date}</td>
+                  <td class="num">{d.messages ? count(dayTotal(d)) : '—'}</td>
+                  {PATHS.map((p) => (
+                    <td key={p} class="num">
+                      {d.messages ? count(d.messages[p]) : '—'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       }
     >
       <svg viewBox={`0 0 ${W} ${H}`} {...DOCUMENT} aria-label={summary}>
@@ -336,22 +339,24 @@ export function PassRate({ days }: { days: readonly Day[] }) {
     <ChartFigure
       title="DMARC pass rate per day"
       table={
-        <table>
-          <thead>
-            <tr>
-              <th>Day</th>
-              <th>Pass rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((day) => (
-              <tr key={day.date}>
-                <td>{day.date}</td>
-                <td class="num">{percent(day.passRate)}</td>
+        <TableScroll label="DMARC pass rate per day">
+          <table>
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Pass rate</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {days.map((day) => (
+                <tr key={day.date}>
+                  <td class="nowrap">{day.date}</td>
+                  <td class="num">{percent(day.passRate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       }
     >
       <svg viewBox={`0 0 ${W} ${H}`} {...DOCUMENT} aria-label={summary}>
@@ -421,28 +426,30 @@ export function PathBar({ totals, onFocus }: { totals: Totals; onFocus: (f: Focu
       title="Delivery path"
       legend={<Legend paths={shown} />}
       table={
-        <table>
-          <thead>
-            <tr>
-              <th>Path</th>
-              <th>Messages</th>
-              <th>Share</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PATHS.map((p) => (
-              <tr key={p} data-path={p}>
-                <td>
-                  <button type="button" class="link" onClick={() => onFocus({ path: p })}>
-                    {PATH_NAME[p]}
-                  </button>
-                </td>
-                <td class="num">{count(totals.byPath[p])}</td>
-                <td class="num">{percent(share(p))}</td>
+        <TableScroll label="Delivery path">
+          <table>
+            <thead>
+              <tr>
+                <th>Path</th>
+                <th>Messages</th>
+                <th>Share</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {PATHS.map((p) => (
+                <tr key={p} data-path={p}>
+                  <td>
+                    <button type="button" class="link" onClick={() => onFocus({ path: p })}>
+                      {PATH_NAME[p]}
+                    </button>
+                  </td>
+                  <td class="num">{count(totals.byPath[p])}</td>
+                  <td class="num">{percent(share(p))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       }
     >
       <svg viewBox={`0 0 ${W} ${H}`} {...DOCUMENT} aria-label={summary}>
@@ -515,28 +522,30 @@ export function CauseBars({ totals, onFocus }: { totals: Totals; onFocus: (f: Fo
       title="Causes of failure"
       legend={<Legend paths={PATHS.filter((p) => list.some((c) => c.path === p))} />}
       table={
-        <table>
-          <thead>
-            <tr>
-              <th>Path</th>
-              <th>Cause</th>
-              <th>Failing messages</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((c) => (
-              <tr key={c.cause} data-path={c.path}>
-                <td>{PATH_NAME[c.path]}</td>
-                <td>
-                  <button type="button" class="link" onClick={() => onFocus({ cause: c.cause })}>
-                    {c.label}
-                  </button>
-                </td>
-                <td class="num">{count(byCause.get(c.cause) ?? 0)}</td>
+        <TableScroll label="Causes of failure">
+          <table>
+            <thead>
+              <tr>
+                <th>Path</th>
+                <th>Cause</th>
+                <th>Failing messages</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {list.map((c) => (
+                <tr key={c.cause} data-path={c.path}>
+                  <td>{PATH_NAME[c.path]}</td>
+                  <td>
+                    <button type="button" class="link" onClick={() => onFocus({ cause: c.cause })}>
+                      {c.label}
+                    </button>
+                  </td>
+                  <td class="num">{count(byCause.get(c.cause) ?? 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       }
     >
       <svg
@@ -586,24 +595,26 @@ export function ReporterBars({ rows }: { rows: readonly ReporterRow[] }) {
     <ChartFigure
       title="Messages by reporter"
       table={
-        <table>
-          <thead>
-            <tr>
-              <th>Reporter</th>
-              <th>Messages</th>
-              <th>Pass rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.reporter}>
-                <td>{r.reporter}</td>
-                <td class="num">{count(r.messages)}</td>
-                <td class="num">{percent(r.passRate)}</td>
+        <TableScroll label="Messages by reporter">
+          <table>
+            <thead>
+              <tr>
+                <th>Reporter</th>
+                <th>Messages</th>
+                <th>Pass rate</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.reporter}>
+                  <td>{r.reporter}</td>
+                  <td class="num">{count(r.messages)}</td>
+                  <td class="num">{percent(r.passRate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       }
     >
       <svg

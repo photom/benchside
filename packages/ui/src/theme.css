@@ -124,6 +124,7 @@ pre {
   background: var(--surface-sunken);
   border-radius: var(--radius-s);
   overflow-x: auto;
+  overflow-wrap: anywhere;
   padding: var(--space-2) var(--space-3);
   white-space: pre-wrap;
 }
@@ -309,7 +310,32 @@ dd {
   overflow-wrap: break-word;
 }
 
-/* Tables */
+/* Tables (SITE-9): words stay whole; a wide table scrolls in its own area. */
+.table-scroll {
+  margin-bottom: var(--space-4);
+  max-width: 100%;
+  overflow-x: auto;
+  /* Edge shadows show only on a side with more to scroll: the surface-colored
+     covers scroll with the content (local) and hide the shadows (scroll) at each end. */
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right / 2rem 100% no-repeat local,
+    linear-gradient(to right, color-mix(in srgb, var(--ink) 18%, transparent), transparent) left /
+    0.75rem 100% no-repeat scroll,
+    linear-gradient(to left, color-mix(in srgb, var(--ink) 18%, transparent), transparent) right /
+    0.75rem 100% no-repeat scroll;
+}
+
+/* Dates and times never break at their hyphens or colons. */
+.nowrap {
+  white-space: nowrap;
+}
+
+td.long {
+  min-width: 12ch;
+  overflow-wrap: anywhere;
+}
+
 table {
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;

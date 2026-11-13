@@ -55,7 +55,7 @@ Contrast is against `--surface` in the same theme.
 | Group | `fieldset` + `legend` | — |
 | Drop zone | `.drop` (`DropZone`, DMARC `Input`) | `data-active="true"`: accent border, sunken fill |
 | Key-value list | `dl` with `dt`, `dd` pairs | two columns: label, value |
-| Table | `table`; numbers use tabular figures; column heads small, row heads at body size | — |
+| Table | `TableScroll label` around a `table`; numbers use tabular figures; column heads small, row heads at body size; `td.long` for a one-token cell; `.nowrap` for dates and times | the area scrolls sideways when the table is wider than the page (SITE-9); a soft shadow marks each edge with more to scroll |
 | Finding | `.finding[data-severity]` | error: critical border; warning: warning border |
 | Note | `.note` | muted text |
 | Error | `.error` | critical ink |

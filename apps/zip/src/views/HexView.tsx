@@ -1,3 +1,4 @@
+import { TableScroll } from '@benchside/ui';
 import { type FieldSpan, type Region, regionFields, type ZipReport } from '@benchside/zip';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
@@ -112,69 +113,73 @@ export function HexView({
         <p role="alert">The bytes could not be read: {status.message}</p>
       )}
       {bytes && (
-        <table aria-label="Bytes" class="hex">
-          <thead>
-            <tr>
-              <th>Offset</th>
-              <th>Hex</th>
-              <th>ASCII</th>
-              <th>Fields</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rowStarts(bytes.length).map((from) => {
-              const row = bytes.subarray(from, from + ROW);
-              const at = shownStart + from;
-              return (
-                <tr key={from}>
-                  <td>{offset(at)}</td>
-                  <td>{cells(row, at, (b) => hex(b, 2), isMarked, ' ')}</td>
-                  <td>{cells(row, at, ascii, isMarked, '')}</td>
-                  <td>
-                    {fields
-                      .filter((f) => f.offset >= at && f.offset < at + row.length)
-                      .map((f) => f.name)
-                      .join(', ')}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <TableScroll label="Bytes">
+          <table aria-label="Bytes" class="hex">
+            <thead>
+              <tr>
+                <th>Offset</th>
+                <th>Hex</th>
+                <th>ASCII</th>
+                <th>Fields</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rowStarts(bytes.length).map((from) => {
+                const row = bytes.subarray(from, from + ROW);
+                const at = shownStart + from;
+                return (
+                  <tr key={from}>
+                    <td>{offset(at)}</td>
+                    <td>{cells(row, at, (b) => hex(b, 2), isMarked, ' ')}</td>
+                    <td>{cells(row, at, ascii, isMarked, '')}</td>
+                    <td>
+                      {fields
+                        .filter((f) => f.offset >= at && f.offset < at + row.length)
+                        .map((f) => f.name)
+                        .join(', ')}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {fields.length > 0 && (
-        <table aria-label="Fields">
-          <thead>
-            <tr>
-              <th>Field</th>
-              <th>Offset</th>
-              <th>Length</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map((f) => (
-              <tr key={f.offset} data-selected={selected === f}>
-                <th scope="row">
-                  <button
-                    type="button"
-                    class="link"
-                    onClick={() => {
-                      // HEX-7
-                      setSelected(f);
-                      setPage(pageOf(f.offset));
-                    }}
-                  >
-                    {f.name}
-                  </button>
-                </th>
-                <td>{offset(f.offset)}</td>
-                <td>{f.byteLength}</td>
-                <td>{bytes ? value(f, bytes, shownStart) : ''}</td>
+        <TableScroll label="Fields">
+          <table aria-label="Fields">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Offset</th>
+                <th>Length</th>
+                <th>Value</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {fields.map((f) => (
+                <tr key={f.offset} data-selected={selected === f}>
+                  <th scope="row">
+                    <button
+                      type="button"
+                      class="link"
+                      onClick={() => {
+                        // HEX-7
+                        setSelected(f);
+                        setPage(pageOf(f.offset));
+                      }}
+                    >
+                      {f.name}
+                    </button>
+                  </th>
+                  <td>{offset(f.offset)}</td>
+                  <td>{f.byteLength}</td>
+                  <td>{bytes ? value(f, bytes, shownStart) : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
     </section>
   );

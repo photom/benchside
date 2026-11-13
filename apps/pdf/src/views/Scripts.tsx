@@ -1,5 +1,5 @@
 import type { ScriptItem, ScriptSource } from '@benchside/pdf';
-import { usePage } from '@benchside/ui';
+import { TableScroll, usePage } from '@benchside/ui';
 import { ScriptText } from './ScriptText.tsx';
 
 const KINDS: Record<ScriptSource, string> = {
@@ -55,28 +55,30 @@ export function Scripts({ scripts }: { scripts: readonly ScriptItem[] }) {
       {scripts.length === 0 ? (
         <p>None.</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Kind</th>
-              <th>Where</th>
-              <th>When</th>
-              <th>Script</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scripts.slice(0, count).map((s, i) => (
-              <tr key={i} data-automatic={s.automatic}>
-                <td>
-                  {KINDS[s.source]} · {s.language || '(language not stated)'}
-                </td>
-                <td>{where(s)}</td>
-                <td>{when(s)}</td>
-                <td>{s.script ? <ScriptText script={s.script} /> : '(not readable)'}</td>
+        <TableScroll label="Scripts outside actions">
+          <table>
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>Where</th>
+                <th>When</th>
+                <th>Script</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {scripts.slice(0, count).map((s, i) => (
+                <tr key={i} data-automatic={s.automatic}>
+                  <td>
+                    {KINDS[s.source]} · {s.language || '(language not stated)'}
+                  </td>
+                  <td>{where(s)}</td>
+                  <td>{when(s)}</td>
+                  <td>{s.script ? <ScriptText script={s.script} /> : '(not readable)'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
       )}
       {more}
     </section>
