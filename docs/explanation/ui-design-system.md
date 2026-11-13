@@ -87,6 +87,19 @@ Each line states what leaves the browser, opt-in features included ([privacy mod
 - The tool's name is the link; the sentence stays plain, selectable text.
 - Home has no script; it links `theme.css` from its HTML.
 
+## How changes are checked
+
+| Check | Where | Catches |
+|---|---|---|
+| Contrast of every token pair | `theme.test.ts` reads `theme.css` (SITE-5), in CI | A token edit that drops below 4.5:1 or 3:1 |
+| Keyboard reach and focus ring | browser tests (SITE-6, SITE-9), in CI | Hidden inputs, missing rings, unreachable scroll areas |
+| Label in name | component tests (SITE-10), in CI | A chart part whose name leaves out its visible words |
+| Automated scan | axe-core, by hand: five pages with a sample loaded, light, dark, and a 640 px viewport (200% zoom) | Missing names and roles, reflow |
+| Look | screenshots, by hand: five pages at 1280 and 390 px, light and dark | Overlap, clipping, and wrapping that tests do not measure |
+
+- The last scan of these pages (2026-11-13) found no violations except one false positive.
+- axe's experimental label-in-name rule (`label-content-name-mismatch`) joins the separate SVG text of a chart part without a space ("mail227"). No name can match that, so the rule flags DMARC cause bars whose names do hold their visible words. SITE-10 tests that property directly.
+
 ## Rules for app stylesheets
 
 | Do | Don't |

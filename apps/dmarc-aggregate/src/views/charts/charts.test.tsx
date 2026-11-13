@@ -202,6 +202,44 @@ describe('Charts: delivery path and causes (CMB-9, SRC-5)', () => {
   });
 });
 
+describe('Charts: label in name (SITE-10)', () => {
+  /** Lower case, punctuation as spaces, padded: so `includes` matches whole words only. */
+  const words = (t: string | null) =>
+    ` ${(t ?? '')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}%.]+/gu, ' ')
+      .trim()} `;
+
+  it.each([
+    ['cause bars', () => <CauseBars totals={totals()} onFocus={() => {}} />],
+    ['path bar', () => <PathBar totals={totals()} onFocus={() => {}} />],
+  ])(
+    'SITE-10: given the pressable parts of the %s, when drawn, then each name holds the words shown on it, in order',
+    (_, chart) => {
+      show(chart());
+      const checked = parts()
+        .filter((g) => g.getAttribute('role') === 'button')
+        .map(
+          (g) =>
+            [
+              words(g.getAttribute('aria-label')),
+              [...g.querySelectorAll('text')].map((t) => words(t.textContent)),
+            ] as const,
+        )
+        .filter(([, shown]) => shown.length > 0);
+      expect(checked.length).toBeGreaterThan(0);
+      for (const [name, shown] of checked) {
+        let from = 0;
+        for (const piece of shown) {
+          const at = name.indexOf(piece, from);
+          expect(at, `${piece.trim()} in ${name.trim()}`).toBeGreaterThanOrEqual(0);
+          from = at + piece.length - 1;
+        }
+      }
+    },
+  );
+});
+
 describe('Charts: layout seen in renders', () => {
   it('dataviz: given the longest cause label, when drawn, then it is shown whole, not cut', () => {
     show(
