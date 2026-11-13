@@ -37,6 +37,7 @@ Each rule has an ID (for example `SITE-3`). Test scenarios cite these IDs.
 |---|---|
 | SITE-6 | Every control is reachable with Tab and shows a 2 px focus ring in the accent color while it has keyboard focus (WCAG 2.1.1, 2.4.7). A label styled as a button shows the ring while its file input has focus. |
 | SITE-7 | Buttons and fields are at least 24 px tall. Link-like buttons inside table rows or sentences, and check boxes inside their label, use the inline and label exceptions of WCAG 2.5.8. |
+| SITE-10 | A control's accessible name contains the words shown on it, in the same order, so speech users can say what they see (WCAG 2.5.3). It may add words, such as a unit, after them. |
 
 ## Tables
 
