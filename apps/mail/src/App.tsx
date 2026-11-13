@@ -1,5 +1,5 @@
 import type { AuthResult, DmarcMode, FieldUse, Finding, PartialReport } from '@benchside/mail';
-import { DropZone } from '@benchside/ui';
+import { AppHeader, DropZone } from '@benchside/ui';
 import { useRef, useState } from 'preact/hooks';
 import { ArcDetail } from './views/ArcDetail.tsx';
 import { DeliveryDetails } from './views/DeliveryDetails.tsx';
@@ -50,7 +50,10 @@ export function App({ host }: { host: WorkerHost }) {
 
   return (
     <main>
-      <h1>Mail analyzer</h1>
+      <AppHeader
+        title="Mail analyzer"
+        privacy="Your message stays in this browser. Only DNS lookups of domain names go out, over DNS-over-HTTPS."
+      />
       <DropZone
         label="Drop an .eml file here, or choose one:"
         accept=".eml,message/rfc822"

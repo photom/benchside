@@ -1,70 +1,44 @@
-body {
-  font-family: system-ui, sans-serif;
-  margin: 2rem;
-}
-
-[aria-label="Options"] fieldset {
-  margin: 0 0 1rem;
-}
+/* Mail-only styles. Shared look: @benchside/ui/theme.css (0018). */
 
 [aria-label="Options"] label {
-  margin-right: 1.5rem;
+  display: inline-block;
+  margin-right: var(--space-5);
 }
 
-.authres {
-  border-left: 4px solid #888;
-  padding-left: 1rem;
+/* Result borders: the words carry the result; the color only helps. */
+.authres,
+.method-result {
+  border-left: 4px solid var(--line);
+  margin-block: var(--space-3);
+  padding-left: var(--space-4);
 }
 
-.authres[data-trusted="true"] {
-  border-left-color: #2a7;
+.authres[data-trusted="true"],
+.method-result[data-result="pass"] {
+  border-left-color: var(--good);
 }
 
 .authres[data-trusted="false"] {
-  border-left-color: #c80;
-}
-
-.trust {
-  font-size: 0.8em;
-  font-weight: normal;
-}
-
-.method-result {
-  border-left: 4px solid #888;
-  padding-left: 1rem;
-}
-
-.method-result[data-result="pass"] {
-  border-left-color: #2a7;
+  border-left-color: var(--warning);
 }
 
 .method-result[data-result="fail"],
 .method-result[data-result="permerror"] {
-  border-left-color: #c33;
+  border-left-color: var(--critical);
 }
 
+.trust,
 .result {
   font-weight: normal;
 }
 
-pre {
-  overflow-x: auto;
-  white-space: pre-wrap;
-}
-
-table {
-  border-collapse: collapse;
-}
-
-th,
-td {
-  border-bottom: 1px solid #ccc;
-  padding: 0.25rem 0.5rem;
-  text-align: left;
+.trust {
+  color: var(--muted);
+  font-size: var(--text-s);
 }
 
 .spf-record {
-  margin-left: 1rem;
+  margin-left: var(--space-4);
 }
 
 [data-outcome="match"] > code {
@@ -73,16 +47,17 @@ td {
 
 /* REQ-MAIL-013: values of the header fields the checks read. */
 .used-by {
-  font-size: 0.875em;
+  color: var(--muted);
+  font-size: var(--text-s);
 }
 
 .field-value {
-  margin: 0.25em 0 0.5em;
+  margin: var(--space-1) 0 var(--space-2);
   overflow-wrap: anywhere;
 }
 
 /* Whitespace markers in header values: visibly not header text. */
 .ws {
-  color: #777;
+  color: var(--muted);
   font-size: 0.75em;
 }

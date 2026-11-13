@@ -15,13 +15,16 @@ import {
 } from './test/harness.tsx';
 
 describe('App: page and input (INP-1, REQ-DMARC-011)', () => {
-  it('REQ-DMARC-001: given the page, when opened, then the title, the scope line, and the privacy note', () => {
+  it('REQ-DMARC-001, SITE-1, SITE-2: given the page, when opened, then the home link, the title, the scope line, and the privacy line', () => {
     mount(manualHost().host);
     expect(root.querySelector('h1')?.textContent).toBe('DMARC aggregate report analyzer');
     expect(root.textContent).toContain(
       'Reads aggregate reports (rua). Failure reports (ruf) are not read.',
     );
-    expect(root.textContent).toContain('never leave');
+    expect(root.querySelector('header a.home')?.getAttribute('href')).toBe('../');
+    expect(root.querySelector('header .privacy')?.textContent).toBe(
+      'Your files never leave this browser. If you turn on host-name lookup, source IP addresses go to the DNS provider you pick.',
+    );
   });
 
   it('INP-1: given picked report files, when added, then the reports, headline numbers, and done note appear', async () => {

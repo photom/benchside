@@ -5,5 +5,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite"
+  },
+  "dependencies": {
+    "@benchside/ui": "*"
   }
 }

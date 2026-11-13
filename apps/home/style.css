@@ -1,0 +1,27 @@
+/* Home-only styles. Shared look: packages/ui/src/theme.css (0018). */
+
+.tools {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
+}
+
+.tools li {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  padding: var(--space-4);
+}
+
+.tools a {
+  font-size: var(--text-l);
+  font-weight: 600;
+}
+
+.tools p {
+  color: var(--muted);
+  margin: var(--space-2) 0 0;
+}

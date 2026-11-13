@@ -7,7 +7,7 @@ Repository-wide view. Per-tool details:
 - [PDF analyzer architecture](pdf-architecture.md)
 - [DMARC aggregate report analyzer architecture](dmarc-aggregate-architecture.md)
 
-Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0010](decisions/0010-shared-core-package.md) (shared core package), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests). [0013](decisions/0013-dmarc-aggregate-app.md) (DMARC aggregate report app), [0014](decisions/0014-shared-dns-package.md) (shared DNS package).
+Decisions: [0002](decisions/0002-one-app-per-tool.md) (one app per tool), [0010](decisions/0010-shared-core-package.md) (shared core package), [0004](decisions/0004-worker-from-blob-url.md) (workers from `blob:` URLs), [0005](decisions/0005-shared-vite-config-and-browser-tests.md) (shared Vite config, browser tests). [0013](decisions/0013-dmarc-aggregate-app.md) (DMARC aggregate report app), [0014](decisions/0014-shared-dns-package.md) (shared DNS package), [0018](decisions/0018-shared-look.md) (shared look).
 
 ## Repository
 
@@ -84,6 +84,8 @@ flowchart LR
 |---|---|
 | No inline `<script>` | `script-src` falls back to `'self'` |
 | Styles via CSS files or Preact object styles only; never string `style` attributes | `style-src` falls back to `'self'`; string attributes are blocked, CSSOM property writes are not |
+
+Every app imports the shared `theme.css` from `@benchside/ui` before its own `style.css` ([UI design system](ui-design-system.md), [0018](decisions/0018-shared-look.md)).
 
 ## Network policy per app
 

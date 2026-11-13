@@ -16,6 +16,12 @@ flowchart LR
 | Accepted | Agreed; specs and tests follow it |
 | Superseded | Replaced by another record (linked) |
 
+## Whole site
+
+| ID | Title | Status |
+|---|---|---|
+| [REQ-SITE-001](REQ-SITE-001-one-look.md) | One readable, accessible look across the tools | Accepted |
+
 ## Mail analyzer
 
 | ID | Title | Status |
