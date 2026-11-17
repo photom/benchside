@@ -112,6 +112,7 @@ All apps also use `default-src 'self'; worker-src blob:; img-src 'self' blob: da
 flowchart LR
   pr[Pull request] --> ci
   push[Push to main] --> ci
+  dispatch[Dispatch on main] --> ci
   subgraph ci [GitHub Actions — actions pinned by SHA]
     install[npm ci] --> types[tsc --noEmit] --> lint[lint] --> test[vitest run] --> build[build each app]
     build --> csp[check CSP in<br/>every index.html]
@@ -119,8 +120,11 @@ flowchart LR
   end
   collect -- "main only" --> pages[(GitHub Pages)]
   cron[Weekly schedule] --> psl[Update Public<br/>Suffix List] --> pr2[Pull request]
+  pr2 -- "CI green: merge (0019)" --> dispatch
   bot[Dependabot, weekly<br/>npm, GitHub Actions] --> pr3[Pull requests]
 ```
+
+The PSL workflow merges its own pull request when CI passes. A merge made with `GITHUB_TOKEN` starts no `push` run, so the workflow then dispatches CI on `main` to deploy ([0019](decisions/0019-merge-psl-updates-automatically.md)).
 
 Dependabot (`.github/dependabot.yml`) proposes updates; CI checks each pull request like any other.
 

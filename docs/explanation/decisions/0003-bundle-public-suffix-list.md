@@ -13,7 +13,7 @@ The [Public Suffix List](https://publicsuffix.org/) changes several times a mont
 ## Decision
 
 - Commit a snapshot of the list to `packages/mail` and bundle it into the mail app.
-- A scheduled GitHub Actions workflow opens a pull request when the upstream list changes.
+- A scheduled GitHub Actions workflow opens a pull request when the upstream list changes. It merges the pull request itself when CI passes ([0019](0019-merge-psl-updates-automatically.md)).
 - The report shows the snapshot's `VERSION` (a timestamp) and the list entry that matched.
 - Use the whole list, both the ICANN and private sections.
 
