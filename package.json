@@ -22,16 +22,16 @@
     "check": "npm run typecheck && npm run lint && npm run docs:check && npm test"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.6",
+    "@biomejs/biome": "2.6.8",
     "@types/node": "26.6.6",
     "@vitest/browser": "5.1.0",
     "@vitest/browser-playwright": "5.1.0",
     "happy-dom": "21.0.4",
-    "jsdom": "31.0.0",
+    "jsdom": "31.0.1",
     "mermaid": "12.3.0",
-    "playwright": "1.65.0",
+    "playwright": "1.65.1",
     "typescript": "7.0.2",
-    "vite": "8.3.6",
+    "vite": "8.3.8",
     "vitest": "5.1.0"
   }
 }
